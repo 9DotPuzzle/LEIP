@@ -3,7 +3,8 @@
   "200-52",
   "835-52",
   "320-52",
-  "Port_Locations (corrected)"
+  "Port_Locations (corrected)",
+  "Charter_Routes.pptx (F. Baines)"
  ],
  "prop_curve": [
   {
@@ -759,6 +760,117 @@
    "country": "Italy",
    "lat": 45.435,
    "lon": 12.309
+  }
+ ],
+ "poster_routes": [
+  {
+   "id": "SOF_BLUE",
+   "name": "South of France \u2014 Blue",
+   "days": 9,
+   "nm": 220,
+   "mwh": 35,
+   "ports": [
+    "Savona",
+    "Monaco",
+    "Saint-Jean-Cap-Ferrat",
+    "Nice",
+    "Antibes",
+    "Saint Tropez"
+   ],
+   "ref_group": "South of France (SoF)",
+   "notes": "Coastal weave along the Riviera"
+  },
+  {
+   "id": "SOF_GREEN",
+   "name": "South of France & Corsica \u2014 Green",
+   "days": 6.5,
+   "nm": 440,
+   "mwh": 48,
+   "ports": [
+    "Monaco",
+    "Calvi",
+    "Ajaccio",
+    "Saint Tropez"
+   ],
+   "ref_group": "SoF to Sardinia/Corsica",
+   "notes": "Monaco round Cap Corse to Calvi & Ajaccio, open-water return to Saint Tropez. The transcript's '47-48 MWh' route."
+  },
+  {
+   "id": "SARD_BLUE",
+   "name": "Sardinia & Corsica \u2014 Blue",
+   "days": 8.5,
+   "nm": 370,
+   "mwh": 35,
+   "ports": [
+    "Ajaccio",
+    "Calvi",
+    "Porto Vecchio",
+    "Bonifacio",
+    "Porto Cervo",
+    "Porto Rotondo",
+    "Olbia"
+   ],
+   "ref_group": "Sardinia & Corsica",
+   "notes": "Corsica circuit into the Costa Smeralda cluster; leg order from map, direction to confirm"
+  },
+  {
+   "id": "SARD_GREEN",
+   "name": "Sardinia to Italy \u2014 Green",
+   "days": 9,
+   "nm": 390,
+   "mwh": 50,
+   "ports": [
+    "Porto Vecchio",
+    "Porto Rotondo",
+    "Olbia",
+    "Naples",
+    "Ponte Persica",
+    "Salerno"
+   ],
+   "ref_group": "Italy",
+   "notes": "Deck note: tuned from 53.9 to 50 MWh by removing 24 anchor-hours and 11 nm at cruise speed"
+  },
+  {
+   "id": "BALEARICS",
+   "name": "Balearics",
+   "days": 7,
+   "nm": 380,
+   "mwh": 36,
+   "ports": [
+    "Port d'Andratx",
+    "Eivissa",
+    "Palma"
+   ],
+   "ref_group": "Baleriacs",
+   "notes": "Andratx to Eivissa (island circumnavigation) returning to Palma"
+  },
+  {
+   "id": "GREECE",
+   "name": "Greece",
+   "days": 8.5,
+   "nm": 400,
+   "mwh": 43,
+   "ports": [
+    "Athens",
+    "Santorini",
+    "Livadia"
+   ],
+   "ref_group": "Greece",
+   "notes": "Athens to Santorini and Livadia; map shows return strand toward Athens"
+  },
+  {
+   "id": "TURKEY",
+   "name": "Turkey",
+   "days": 8.5,
+   "nm": 295,
+   "mwh": 38.5,
+   "ports": [
+    "Gulluk",
+    "Bodrum",
+    "Gocek"
+   ],
+   "ref_group": "Turkey",
+   "notes": "Gulluk to Bodrum, Gulf of Gokova coastal loop to Gocek"
   }
  ]
 }
