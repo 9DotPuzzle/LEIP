@@ -129,7 +129,8 @@ All thresholds (400 nm, 900, Repeat Client bar, etc.) are **editable constants**
 
 ## 8. Presentation & Playback
 
-- **Visual:** top-down isometric 3D nautical chart (Three.js via CDN), 3D yacht with wake, day/night cycle, port pins, route line. Retains the v1 visual direction; implementation is fresh.
+- **Visual:** top-down isometric 3D world (Three.js via CDN) with a chart information layer, per **`LEIP_visual_direction.md`** in the repo root — that file is contractual and followed exactly.
+- **THEME block:** all visual values (colours, scene tints, fonts, line weights, dimensions) live in a single THEME block beside the DATA block. Game logic references theme tokens only, never raw values, so the art style is changeable by editing one block. A raw colour or font name in game logic is a bug (same rule as §12 for balance constants).
 - **HUD during playback:** current mode (Electric / Hybrid / Transit / Boost — from the prop curve's mode labels), speed (kts), battery %, current leg, day counter. No diesel warnings (smoke only).
 - **Skip** button jumps to results.
 - **Results screen:** final score with the Base × Multiplier breakdown, distance (nm), MWh used, battery vs diesel split (the reveal), ports & countries, anchor nights, activities, recharge-port verdict with its *why* ("finished on Cypriot diesel — full batteries, at a cost"), and any achievements earned.
