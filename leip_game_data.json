@@ -1,0 +1,764 @@
+{
+ "source_reports": [
+  "200-52",
+  "835-52",
+  "320-52",
+  "Port_Locations (corrected)"
+ ],
+ "prop_curve": [
+  {
+   "label": "Slow",
+   "kts": 8,
+   "bkw": 232.25415567062487
+  },
+  {
+   "label": "Range",
+   "kts": 11.2,
+   "bkw": 652.5002561047803
+  },
+  {
+   "label": "Cruise",
+   "kts": 13.7,
+   "bkw": 1341.2319298206885
+  },
+  {
+   "label": "Max",
+   "kts": 14.4,
+   "bkw": 1666.66334016966
+  }
+ ],
+ "hotel_loads_ekw": {
+  "stationary_guest_anchor": 183,
+  "underway_guest_transit": 158,
+  "all_modes": [
+   {
+    "mode": "Crew Harbour - Shore Power",
+    "annual_share": 0.21,
+    "hotel_ekw": 117
+   },
+   {
+    "mode": "Crew Harbour",
+    "annual_share": 0.41,
+    "hotel_ekw": 117
+   },
+   {
+    "mode": "Crew Sea Transit - Range",
+    "annual_share": 0.1,
+    "hotel_ekw": 120
+   },
+   {
+    "mode": "Crew Anchor",
+    "annual_share": 0.04,
+    "hotel_ekw": 124
+   },
+   {
+    "mode": "Guest Anchor",
+    "annual_share": 0.205,
+    "hotel_ekw": 183
+   },
+   {
+    "mode": "Guest Sea Transit - Cruise",
+    "annual_share": 0.01,
+    "hotel_ekw": 158
+   },
+   {
+    "mode": "Guest Sea Transit - Top Speed",
+    "annual_share": 0.005,
+    "hotel_ekw": 158
+   },
+   {
+    "mode": "Guest Sea Transit - Slow",
+    "annual_share": 0.01,
+    "hotel_ekw": 158
+   },
+   {
+    "mode": "Manoeuvring & DP",
+    "annual_share": 0.01,
+    "hotel_ekw": 158
+   }
+  ]
+ },
+ "battery": {
+  "installed_kwh": 49860,
+  "charge_eff": 0.9,
+  "charge_20_100_kwh": 44320,
+  "charge_80_100_kwh": 11080,
+  "game_threshold_mwh": 50
+ },
+ "speed_profiles": {
+  "Typical": {
+   "underway_hours_per_knot": {
+    "1": 245.23,
+    "2": 46.97,
+    "3": 15.69,
+    "4": 9.76,
+    "5": 7.98,
+    "6": 10.84,
+    "7": 9.44,
+    "8": 23.27,
+    "9": 20.0,
+    "10": 41.66,
+    "11": 95.1,
+    "12": 101.35,
+    "13": 53.14,
+    "14": 45.91,
+    "15": 4.0
+   },
+   "pct_per_knot": {
+    "1": 33.58,
+    "2": 6.43,
+    "3": 2.15,
+    "4": 1.34,
+    "5": 1.09,
+    "6": 1.48,
+    "7": 1.29,
+    "8": 3.19,
+    "9": 2.74,
+    "10": 5.7,
+    "11": 13.02,
+    "12": 13.88,
+    "13": 7.28,
+    "14": 6.29,
+    "15": 0.55
+   },
+   "avg_stationary_share_pct": 78.5,
+   "n_charters": 17
+  },
+  "Intense": {
+   "underway_hours_per_knot": {
+    "1": 91.23,
+    "2": 3.86,
+    "3": 1.97,
+    "4": 4.9,
+    "5": 13.97,
+    "6": 4.98,
+    "7": 5.0,
+    "8": 7.78,
+    "9": 9.19,
+    "10": 11.51,
+    "11": 64.66,
+    "12": 91.85,
+    "13": 91.98,
+    "14": 39.26,
+    "15": 13.6,
+    "16": 9.55,
+    "17": 6.02,
+    "18": 1.92
+   },
+   "pct_per_knot": {
+    "1": 19.28,
+    "2": 0.82,
+    "3": 0.42,
+    "4": 1.03,
+    "5": 2.95,
+    "6": 1.05,
+    "7": 1.06,
+    "8": 1.64,
+    "9": 1.94,
+    "10": 2.43,
+    "11": 13.66,
+    "12": 19.41,
+    "13": 19.44,
+    "14": 8.3,
+    "15": 2.87,
+    "16": 2.02,
+    "17": 1.27,
+    "18": 0.41
+   },
+   "avg_stationary_share_pct": 74.5,
+   "n_charters": 10
+  }
+ },
+ "routes_reference": [
+  {
+   "route": "South of France (SoF)",
+   "n_typ": 2,
+   "dur_typ": 8.956354166666646,
+   "mwh_typ": 35.49881087057864,
+   "mwh7_typ": 28.04745405007153,
+   "n_int": 0,
+   "dur_int": "-",
+   "mwh_int": "-",
+   "mwh7_int": "-",
+   "dist_nm": 221.2840277777775
+  },
+  {
+   "route": "Sardinia & Corsica",
+   "n_typ": 5,
+   "dur_typ": 8.432016203711095,
+   "mwh_typ": 37.886647501867024,
+   "mwh7_typ": 31.37564106026205,
+   "n_int": 0,
+   "dur_int": "-",
+   "mwh_int": "-",
+   "mwh7_int": "-",
+   "dist_nm": 370.85150000079955
+  },
+  {
+   "route": "SoF to Sardinia/Corsica",
+   "n_typ": 1,
+   "dur_typ": 6.458634259259242,
+   "mwh_typ": 47.16258749282091,
+   "mwh7_typ": 51.11577760831604,
+   "n_int": 2,
+   "dur_int": 7.811221064814792,
+   "mwh_int": 52.537729757606776,
+   "mwh7_int": 47.059349980444395,
+   "dist_nm": 439.3086111111103
+  },
+  {
+   "route": "Italy",
+   "n_typ": 1,
+   "dur_typ": 10.000729166666659,
+   "mwh_typ": 53.89764587709169,
+   "mwh7_typ": 37.72560128887023,
+   "n_int": 1,
+   "dur_int": 6.920624999999959,
+   "mwh_int": 59.63110909350617,
+   "mwh7_int": 60.31503854847585,
+   "dist_nm": 400.1591666666651
+  },
+  {
+   "route": "SoF to Italy",
+   "n_typ": 1,
+   "dur_typ": 6.4449999999999905,
+   "mwh_typ": 37.820453886056384,
+   "mwh7_typ": 41.07729669548411,
+   "n_int": 3,
+   "dur_int": 9.78949074074072,
+   "mwh_int": 61.180247755669505,
+   "mwh7_int": 43.65088520072712,
+   "dist_nm": 387.57027777777665
+  },
+  {
+   "route": "Sicily/Italy",
+   "n_typ": 1,
+   "dur_typ": 7.4532523148148035,
+   "mwh_typ": 38.42379904289229,
+   "mwh7_typ": 36.08714450275916,
+   "n_int": 0,
+   "dur_int": "-",
+   "mwh_int": "-",
+   "mwh7_int": "-",
+   "dist_nm": 537.1355555555544
+  },
+  {
+   "route": "Greece",
+   "n_typ": 2,
+   "dur_typ": 8.341846064814792,
+   "mwh_typ": 42.93385723030651,
+   "mwh7_typ": 36.04211167894945,
+   "n_int": 2,
+   "dur_int": 7.564027777777763,
+   "mwh_int": 50.40675308982759,
+   "mwh7_int": 46.74147554737185,
+   "dist_nm": 399.1719444444438
+  },
+  {
+   "route": "Turkey",
+   "n_typ": 2,
+   "dur_typ": 8.579270833333316,
+   "mwh_typ": 38.53124811583711,
+   "mwh7_typ": 30.89986443501578,
+   "n_int": 1,
+   "dur_int": 5.590960648148144,
+   "mwh_int": 35.56948005095715,
+   "mwh7_int": 44.53373508167511,
+   "dist_nm": 295.9072222222215
+  },
+  {
+   "route": "Tivat to Venice",
+   "n_typ": 1,
+   "dur_typ": 12.8320486111111,
+   "mwh_typ": 58.843322355876495,
+   "mwh7_typ": 32.09957107974746,
+   "n_int": 1,
+   "dur_int": 8.994236111111103,
+   "mwh_int": 56.19930262106162,
+   "mwh7_int": 43.7385802960462,
+   "dist_nm": 798.4858333333308
+  },
+  {
+   "route": "Baleriacs",
+   "n_typ": 2,
+   "dur_typ": 6.875642361111103,
+   "mwh_typ": 35.95053514416376,
+   "mwh7_typ": 37.03500705959439,
+   "n_int": 0,
+   "dur_int": "-",
+   "mwh_int": "-",
+   "mwh7_int": "-",
+   "dist_nm": 376.43930555555494
+  }
+ ],
+ "charters_reference": [
+  {
+   "vessel": "Vassa",
+   "route": "Italy",
+   "cat": "Typical",
+   "hotel_mwh": 28.55435770719335,
+   "prop_mwh": 25.343288169898337,
+   "total_mwh": 53.89764587709169,
+   "dur_d": 10.000729166666659,
+   "week_mwh": 37.72560128887023
+  },
+  {
+   "vessel": "Vassa (2)",
+   "route": "Turkey",
+   "cat": "Typical",
+   "hotel_mwh": 20.66804436268391,
+   "prop_mwh": 7.550244815725357,
+   "total_mwh": 28.218289178409268,
+   "dur_d": 7.125300925925906,
+   "week_mwh": 27.722060626260056
+  },
+  {
+   "vessel": "Atlas",
+   "route": "Greece",
+   "cat": "Intense",
+   "hotel_mwh": 18.65977470882895,
+   "prop_mwh": 38.26466559518866,
+   "total_mwh": 56.92444030401761,
+   "dur_d": 7.458333333333333,
+   "week_mwh": 53.42629034120088
+  },
+  {
+   "vessel": "Starburst IV",
+   "route": "SoF to Sardinia/Corsica",
+   "cat": "Intense",
+   "hotel_mwh": 22.55501384463097,
+   "prop_mwh": 27.673873989986102,
+   "total_mwh": 50.22888783461707,
+   "dur_d": 7.666909722222209,
+   "week_mwh": 45.85970457213231
+  },
+  {
+   "vessel": "Laurel",
+   "route": "Sardinia & Corsica",
+   "cat": "Typical",
+   "hotel_mwh": 24.620837263833728,
+   "prop_mwh": 12.656536078049665,
+   "total_mwh": 37.27737334188339,
+   "dur_d": 10.371354166666654,
+   "week_mwh": 25.15984019057467
+  },
+  {
+   "vessel": "Laurel (2)",
+   "route": "Tivat to Venice",
+   "cat": "Intense",
+   "hotel_mwh": 25.854652502209575,
+   "prop_mwh": 30.344650118852044,
+   "total_mwh": 56.19930262106162,
+   "dur_d": 8.994236111111103,
+   "week_mwh": 43.7385802960462
+  },
+  {
+   "vessel": "Arrow",
+   "route": "Turkey",
+   "cat": "Intense",
+   "hotel_mwh": 12.97869947585145,
+   "prop_mwh": 22.590780575105697,
+   "total_mwh": 35.56948005095715,
+   "dur_d": 5.590960648148144,
+   "week_mwh": 44.53373508167511
+  },
+  {
+   "vessel": "Saluzi",
+   "route": "South of France (SoF)",
+   "cat": "Typical",
+   "hotel_mwh": 20.23354272363149,
+   "prop_mwh": 8.978931307148631,
+   "total_mwh": 29.212474030780122,
+   "dur_d": 6.954861111111106,
+   "week_mwh": 29.402070716950956
+  },
+  {
+   "vessel": "Saluzi (2)",
+   "route": "SoF to Italy",
+   "cat": "Typical",
+   "hotel_mwh": 14.15059337977685,
+   "prop_mwh": 23.66986050627953,
+   "total_mwh": 37.820453886056384,
+   "dur_d": 6.4449999999999905,
+   "week_mwh": 41.07729669548411
+  },
+  {
+   "vessel": "Saluzi (3)",
+   "route": "Sardinia & Corsica",
+   "cat": "Typical",
+   "hotel_mwh": 19.86397774209049,
+   "prop_mwh": 9.737847918650456,
+   "total_mwh": 29.601825660740946,
+   "dur_d": 6.855393518518503,
+   "week_mwh": 30.226241435366457
+  },
+  {
+   "vessel": "Illusion",
+   "route": "SoF to Sardinia/Corsica",
+   "cat": "Intense",
+   "hotel_mwh": 22.565182034565257,
+   "prop_mwh": 32.28138964603123,
+   "total_mwh": 54.84657168059648,
+   "dur_d": 7.955532407407376,
+   "week_mwh": 48.25899538875649
+  },
+  {
+   "vessel": "Joy",
+   "route": "South of France (SoF)",
+   "cat": "Typical",
+   "hotel_mwh": 31.756432755848703,
+   "prop_mwh": 10.028714954528454,
+   "total_mwh": 41.78514771037716,
+   "dur_d": 10.957847222222187,
+   "week_mwh": 26.692837383192103
+  },
+  {
+   "vessel": "Axioma",
+   "route": "SoF to Italy",
+   "cat": "Intense",
+   "hotel_mwh": 27.14979423934705,
+   "prop_mwh": 32.203802727449364,
+   "total_mwh": 59.35359696679642,
+   "dur_d": 9.457604166666647,
+   "week_mwh": 43.93027784266108
+  },
+  {
+   "vessel": "Axioma (2)",
+   "route": "Sardinia & Corsica",
+   "cat": "Typical",
+   "hotel_mwh": 15.003450459789846,
+   "prop_mwh": 18.34973677537081,
+   "total_mwh": 33.35318723516066,
+   "dur_d": 7.496840277777771,
+   "week_mwh": 31.14276174966488
+  },
+  {
+   "vessel": "Utopia",
+   "route": "SoF to Sardinia/Corsica",
+   "cat": "Typical",
+   "hotel_mwh": 19.64214949094069,
+   "prop_mwh": 27.520438001880223,
+   "total_mwh": 47.16258749282091,
+   "dur_d": 6.458634259259242,
+   "week_mwh": 51.11577760831604
+  },
+  {
+   "vessel": "Silver Angel",
+   "route": "Greece",
+   "cat": "Intense",
+   "hotel_mwh": 22.81360134100769,
+   "prop_mwh": 21.07546453462988,
+   "total_mwh": 43.88906587563757,
+   "dur_d": 7.669722222222195,
+   "week_mwh": 40.056660753542815
+  },
+  {
+   "vessel": "Lunasea",
+   "route": "Baleriacs",
+   "cat": "Typical",
+   "hotel_mwh": 18.385886986635374,
+   "prop_mwh": 18.954157619742976,
+   "total_mwh": 37.34004460637835,
+   "dur_d": 6.250949074074067,
+   "week_mwh": 41.81450034983142
+  },
+  {
+   "vessel": "Lunasea (2)",
+   "route": "Tivat to Venice",
+   "cat": "Typical",
+   "hotel_mwh": 34.63458603379754,
+   "prop_mwh": 24.208736322078956,
+   "total_mwh": 58.843322355876495,
+   "dur_d": 12.8320486111111,
+   "week_mwh": 32.09957107974746
+  },
+  {
+   "vessel": "Lunasea (3)",
+   "route": "SoF to Italy",
+   "cat": "Intense",
+   "hotel_mwh": 25.808770673037497,
+   "prop_mwh": 28.704799301547453,
+   "total_mwh": 54.513569974584954,
+   "dur_d": 9.165069444444425,
+   "week_mwh": 41.63579906679327
+  },
+  {
+   "vessel": "Lunasea (4)",
+   "route": "Sardinia & Corsica",
+   "cat": "Typical",
+   "hotel_mwh": 17.96133649185572,
+   "prop_mwh": 10.473045340748417,
+   "total_mwh": 28.43438183260414,
+   "dur_d": 6.007835648148138,
+   "week_mwh": 33.13017939989445
+  },
+  {
+   "vessel": "Titania",
+   "route": "Sicily/Italy",
+   "cat": "Typical",
+   "hotel_mwh": 20.835503617975828,
+   "prop_mwh": 17.588295424916463,
+   "total_mwh": 38.42379904289229,
+   "dur_d": 7.4532523148148035,
+   "week_mwh": 36.08714450275916
+  },
+  {
+   "vessel": "Alfa",
+   "route": "Greece",
+   "cat": "Typical",
+   "hotel_mwh": 16.239832162673455,
+   "prop_mwh": 25.058475795225917,
+   "total_mwh": 41.29830795789937,
+   "dur_d": 8.413611111111102,
+   "week_mwh": 34.359581383969925
+  },
+  {
+   "vessel": "Calex",
+   "route": "Greece",
+   "cat": "Typical",
+   "hotel_mwh": 24.1249851471083,
+   "prop_mwh": 20.444421355605343,
+   "total_mwh": 44.56940650271365,
+   "dur_d": 8.27008101851848,
+   "week_mwh": 37.724641973928975
+  },
+  {
+   "vessel": "Siren",
+   "route": "Sardinia & Corsica",
+   "cat": "Typical",
+   "hotel_mwh": 32.92232394585044,
+   "prop_mwh": 27.844145493095535,
+   "total_mwh": 60.766469438945975,
+   "dur_d": 11.428657407444412,
+   "week_mwh": 37.2191825258098
+  },
+  {
+   "vessel": "Talisman C",
+   "route": "Turkey",
+   "cat": "Typical",
+   "hotel_mwh": 28.36240439968865,
+   "prop_mwh": 20.481802653576302,
+   "total_mwh": 48.84420705326495,
+   "dur_d": 10.033240740740727,
+   "week_mwh": 34.0776682437715
+  },
+  {
+   "vessel": "Synthesis",
+   "route": "Baleriacs",
+   "cat": "Typical",
+   "hotel_mwh": 22.60131144346974,
+   "prop_mwh": 11.959714238479428,
+   "total_mwh": 34.56102568194917,
+   "dur_d": 7.5003356481481385,
+   "week_mwh": 32.255513769357364
+  },
+  {
+   "vessel": "Quantum of Solace",
+   "route": "SoF to Italy",
+   "cat": "Intense",
+   "hotel_mwh": 28.55126488920928,
+   "prop_mwh": 41.12231143641786,
+   "total_mwh": 69.67357632562714,
+   "dur_d": 10.74579861111109,
+   "week_mwh": 45.386578692727
+  },
+  {
+   "vessel": "Lady A",
+   "route": "Italy",
+   "cat": "Intense",
+   "hotel_mwh": 20.213540542881827,
+   "prop_mwh": 39.417568550624345,
+   "total_mwh": 59.63110909350617,
+   "dur_d": 6.920624999999959,
+   "week_mwh": 60.31503854847585
+  }
+ ],
+ "ports": [
+  {
+   "port": "Ajaccio",
+   "country": "France",
+   "lat": 41.92,
+   "lon": 8.74
+  },
+  {
+   "port": "Antibes",
+   "country": "France",
+   "lat": 43.588,
+   "lon": 7.13
+  },
+  {
+   "port": "Athens",
+   "country": "Greece",
+   "lat": 37.938,
+   "lon": 23.674
+  },
+  {
+   "port": "Bodrum",
+   "country": "Turkey",
+   "lat": 37.035,
+   "lon": 27.426
+  },
+  {
+   "port": "Bonifacio",
+   "country": "France",
+   "lat": 41.389,
+   "lon": 9.159
+  },
+  {
+   "port": "Cagliari",
+   "country": "Italy",
+   "lat": 39.212,
+   "lon": 9.112
+  },
+  {
+   "port": "Calvi",
+   "country": "France",
+   "lat": 42.566,
+   "lon": 8.759
+  },
+  {
+   "port": "Corfu",
+   "country": "Greece",
+   "lat": 39.616,
+   "lon": 19.93
+  },
+  {
+   "port": "Eivissa",
+   "country": "Spain",
+   "lat": 38.911,
+   "lon": 1.439
+  },
+  {
+   "port": "Gocek",
+   "country": "Turkey",
+   "lat": 36.753,
+   "lon": 28.927
+  },
+  {
+   "port": "Gulluk",
+   "country": "Turkey",
+   "lat": 37.25,
+   "lon": 27.58
+  },
+  {
+   "port": "Kalathos",
+   "country": "Greece",
+   "lat": 36.11,
+   "lon": 28.072
+  },
+  {
+   "port": "Livadia",
+   "country": "Greece",
+   "lat": 36.542,
+   "lon": 26.342
+  },
+  {
+   "port": "Monaco",
+   "country": "Monaco",
+   "lat": 43.735,
+   "lon": 7.424
+  },
+  {
+   "port": "Naples",
+   "country": "Italy",
+   "lat": 40.822,
+   "lon": 14.266
+  },
+  {
+   "port": "Nice",
+   "country": "France",
+   "lat": 43.697,
+   "lon": 7.284
+  },
+  {
+   "port": "Olbia",
+   "country": "Italy",
+   "lat": 40.924,
+   "lon": 9.533
+  },
+  {
+   "port": "Palma",
+   "country": "Spain",
+   "lat": 39.566,
+   "lon": 2.639
+  },
+  {
+   "port": "Ponte Persica",
+   "country": "Italy",
+   "lat": 40.72,
+   "lon": 14.473
+  },
+  {
+   "port": "Port d'Andratx",
+   "country": "Spain",
+   "lat": 39.546,
+   "lon": 2.386
+  },
+  {
+   "port": "Porto Cervo",
+   "country": "Italy",
+   "lat": 41.135,
+   "lon": 9.536
+  },
+  {
+   "port": "Porto Rotondo",
+   "country": "Italy",
+   "lat": 41.03,
+   "lon": 9.544
+  },
+  {
+   "port": "Porto Vecchio",
+   "country": "France",
+   "lat": 41.606,
+   "lon": 9.299
+  },
+  {
+   "port": "Saint Tropez",
+   "country": "France",
+   "lat": 43.273,
+   "lon": 6.635
+  },
+  {
+   "port": "Saint-Jean-Cap-Ferrat",
+   "country": "France",
+   "lat": 43.692,
+   "lon": 7.34
+  },
+  {
+   "port": "Salerno",
+   "country": "Italy",
+   "lat": 40.675,
+   "lon": 14.75
+  },
+  {
+   "port": "Santorini",
+   "country": "Greece",
+   "lat": 36.404,
+   "lon": 25.411
+  },
+  {
+   "port": "Savona",
+   "country": "Italy",
+   "lat": 44.316,
+   "lon": 8.493
+  },
+  {
+   "port": "Taormina",
+   "country": "Italy",
+   "lat": 37.838,
+   "lon": 15.281
+  },
+  {
+   "port": "Tivat",
+   "country": "Montenegro",
+   "lat": 42.433,
+   "lon": 18.69
+  },
+  {
+   "port": "Venice",
+   "country": "Italy",
+   "lat": 45.435,
+   "lon": 12.309
+  }
+ ]
+}
