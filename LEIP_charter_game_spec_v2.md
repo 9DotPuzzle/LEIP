@@ -1,7 +1,8 @@
 # LEIP — Best Week of Charter
-## Game Specification v2.0
+## Game Specification v2.1
 *Supersedes v1 (leip_charter.html) in full. This is a fresh build, not a refactor.*
 *Agreed: 5 August 2026 — Ben Cox, Christopher Mark, Ellis Karsenbarg, Felix Baines, Udham Singh*
+*v2.1: adds lifetime leaderboard + score share card (§8); global online leaderboard parked (§10).*
 
 ---
 
@@ -134,6 +135,8 @@ All thresholds (400 nm, 900, Repeat Client bar, etc.) are **editable constants**
 - **HUD during playback:** current mode (Electric / Hybrid / Transit / Boost — from the prop curve's mode labels), speed (kts), battery %, current leg, day counter. No diesel warnings (smoke only).
 - **Skip** button jumps to results.
 - **Results screen:** final score with the Base × Multiplier breakdown, distance (nm), MWh used, battery vs diesel split (the reveal), ports & countries, anchor nights, activities, recharge-port verdict with its *why* ("finished on Cypriot diesel — full batteries, at a cost"), and any achievements earned.
+- **Lifetime leaderboard (device-local):** after results, the player may enter a name (short, arcade-style) to save their score to the high-score table. The board persists in `localStorage` alongside achievements, holds the top N (default 10, a DATA-block constant), and shows rank, name, score, route summary and date. Duplicate names allowed; no profanity list needed in v1 (local device only). The board is viewable from the start screen. Saving is optional — skipping never blocks the flow.
+- **Score share card:** the results screen offers "Share" — the game renders a score-card image in the game's own visual language (per `LEIP_visual_direction.md`: the charter's passage plot inked in volt, OCR-A numerals for the score and key stats, the nine-dot achievement state, LEIP wordmark). Delivery: Web Share API with the image file on supporting mobile browsers (this is the path into Instagram Stories and other apps via the native share sheet); fallback to image download on desktop or where unsupported. Card dimensions 1080×1920 (story format), generated client-side (canvas), no external service.
 
 ---
 
@@ -154,6 +157,7 @@ All thresholds (400 nm, 900, Repeat Client bar, etc.) are **editable constants**
 | In-game live speed control during playback | Parked — related to per-leg decision |
 | Weather affecting score | Parked — cosmetic only; rules hook noted |
 | Prohibited areas / instant-loss ("naval, go to jail") | Parked — back pocket |
+| Global online leaderboard | Parked — device-local board ships in v1; a shared backend (with name moderation and score verification) can bolt on later without rework if the local board is built cleanly |
 | Per-day drag-and-drop itinerary builder | Parked — "get it working first" |
 | Guest/crew/vessel selection | Removed — fixed by design |
 | AC / climate selection | Removed — by design |
@@ -170,6 +174,8 @@ All thresholds (400 nm, 900, Repeat Client bar, etc.) are **editable constants**
 4. **Balance scenarios** — at minimum: modest local charter (high base, low multiplier), balanced multi-country (the intended optimum), diesel-soaked dash (low base × high multiplier), go-nowhere anchor week (high base × low/negative multiplier). Each must land in its intended score band.
 5. **Determinism test** — identical inputs, repeated runs, identical outputs.
 6. **Random Spin test** — spins produce valid (if chaotic) input sets that always simulate without error.
+7. **Persistence test** — leaderboard entries and achievement state survive a page reload; saving a score with no name entered is impossible, and skipping the save never blocks returning to the start screen.
+8. **Share card test** — the card renders correctly from a completed charter (headless canvas check of dimensions and non-blank content); Web Share path degrades cleanly to download when unsupported.
 
 ---
 
