@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>LEIP — Best Week of Charter</title>
+<!--
+  LEIP — Best Week of Charter
+  Game spec v2.1 + LEIP_visual_direction.md (both contractual).
+  Build order per spec §12: Phase 1 = THEME + DATA + scoring engine,
+  validated headlessly. Rendering arrives in Phase 2.
+
+  Block map (extracted verbatim by the test harness):
+    #leip-theme   — every visual value (visual direction rule)
+    #leip-data    — every gameplay/balance value, mirrors the data pack
+    #leip-engine  — pure deterministic simulation & scoring
+-->
+</head>
+<body>
+<noscript>LEIP — Best Week of Charter requires JavaScript.</noscript>
+
+<!-- ================================================================
+     THEME BLOCK — LEIP_visual_direction.md, one-to-one. Game logic
+     references these tokens only; a raw colour or font name anywhere
+     else is a bug (spec §8).
+     ================================================================ -->
+<script id="leip-theme">
+globalThis.LEIP_THEME = {
+  // Colour — atmosphere by time of day. One tint at a time; the week
+  // cycles continuously. Flat colour and soft two-stop gradients only.
+  scenes: {
+    dawn:  { sea: '#8FB8B2', sky: '#EFC3AC', land: '#E0A995' },
+    day:   { sea: '#6FB5AF', sky: '#BFE3DC', land: '#EAD9BC' },
+    dusk:  { sea: '#5E8FA3', sky: '#E58F7B', land: '#C77E6E' },
+    night: { sea: '#22345C', sky: '#141F3D', land: '#2C3B60' }
+  },
+  sceneOrder: ['dawn', 'day', 'dusk', 'night'],  // cycle order across each day
+  sceneHours: { dawn: 6, day: 11, dusk: 19, night: 22 },  // local hour each scene is centred on
+
+  // Ink (chart layer): flips as one between light-scene and night ink.
+  ink: { onLight: '#22344A', onDark: '#E8EEF2' },
+
+  // VOLT — the single accent, energy only, <= 10% of any screen.
+  volt: '#F5D90A',
+  dieselSmoke: '#8A8578',
+  signalRed: '#C4442A',        // results screen only
+
+  world: {
+    yachtHull: '#F7F4ED',      // matte white, no gloss
+    yachtTeak: '#C9A876',      // fine teak deck line
+    foam: '#FFFFFF',           // crisp geometric foam strokes
+    // three tones per mass: lit / mid / shade (multipliers on scene land colour)
+    massTones: { lit: 1.06, mid: 0.9, shade: 0.76 },
+    seaDeep: 0.92              // sea-field edge darkening multiplier
+  },
+
+  chart: {
+    graticuleAlpha: 0.28,
+    soundingsAlpha: 0.45,
+    hatchSpacingPx: 5,
+    routeDash: [6, 5],         // thin dashed rhumb lines, px at chart scale
+    waypointTickPx: 7,
+    annotationGapPx: 4
+  },
+
+  type: {
+    ui: "'Saira SemiCondensed', 'Saira', system-ui, sans-serif",
+    data: "'OCR-A-LEIP', 'OCR A Extended', monospace",   // every number & short data label
+    portNameSpacingEm: 0.28,   // port names in spaced caps
+    maxWeight: 600             // nothing above 600 weight
+  },
+
+  hud: {                        // the title block
+    cellRulePx: 1,
+    panelRulePx: 1.5,
+    labelPx: 10,
+    valuePx: 16,
+    panelWidthPx: 300,
+    dotRadiusPx: 5
+  },
+
+  lines: { hairlinePx: 1, rulePx: 1.5, routePx: 1.75 },
+
+  motion: {
+    weekSeconds: 75,           // one charter week of playback
+    tintCrossfadeShare: 0.25,  // fraction of each scene span spent crossfading
+    resultsStampMs: 900,       // results assemble like a drawing being stamped
+    countUpMs: 1200,
+    respectReducedMotion: true
+  },
+
+  shareCard: { w: 1080, h: 1920 }   // story format, canvas-rendered
+};
+</script>
+
+<!-- ================================================================
+     DATA BLOCK — spec §4. Mirrors leip_game_data.json /
+     LEIP_game_data.xlsx (real: reports 200-52, 835-52, 320-52,
+     Charter_Routes.pptx) and LEIP_activities_data.xlsx one-to-one.
+     Every tunable lives here; a number in game logic is a bug.
+     ================================================================ -->
+<script id="leip-data">
+globalThis.LEIP_DATA = {
+
+  vessel: {
+    name: 'LEIP', lengthM: 70,
+    guests: 12, crew: 22                        // fixed by design (spec §1)
+  },
+
+  time: {
+    charterHours: 168, days: 7, nights: 6,      // 7 days / 6 nights
+    nightAnchorHours: 10                        // hours of a night spent anchored, not transiting
+  },
+
+  // ---- DATASET 1 — Prop analysis (REAL, report 200-52) --------------
+  propCurve: [
+    { label: 'Slow',   kts: 8,    bkw: 232.25415567062487, gameMode: 'ELECTRIC' },
+    { label: 'Range',  kts: 11.2, bkw: 652.5002561047803,  gameMode: 'HYBRID'   },
+    { label: 'Cruise', kts: 13.7, bkw: 1341.2319298206885, gameMode: 'TRANSIT'  },
+    { label: 'Max',    kts: 14.4, bkw: 1666.66334016966,   gameMode: 'BOOST'    }
+  ],
+  hotelLoadsEkw: {
+    stationaryGuestAnchor: 183,                 // REAL — 200-52 guest-anchor hotel
+    underwayGuestTransit: 158                   // REAL — 200-52 guest-transit hotel
+  },
+  battery: {
+    installedKwh: 49860,                        // REAL — 200-52
+    chargeEff: 0.9,
+    charge20to100Kwh: 44320,
+    charge80to100Kwh: 11080,
+    gameThresholdMwh: 50                        // the battery line: beyond this, diesels wake
+  },
+
+  // ---- DATASET 2 — AIS speed distributions (REAL, 835-52, 28 charters)
+  // % of underway time per knot. Typical = SLOW toggle, Intense = FAST.
+  speedProfiles: {
+    Typical: {
+      nCharters: 17, avgStationarySharePct: 78.5,
+      pctPerKnot: { 1: 33.58, 2: 6.43, 3: 2.15, 4: 1.34, 5: 1.09, 6: 1.48, 7: 1.29, 8: 3.19,
+                    9: 2.74, 10: 5.7, 11: 13.02, 12: 13.88, 13: 7.28, 14: 6.29, 15: 0.55 }
+    },
+    Intense: {
+      nCharters: 10, avgStationarySharePct: 74.5,
+      pctPerKnot: { 1: 19.28, 2: 0.82, 3: 0.42, 4: 1.03, 5: 2.95, 6: 1.05, 7: 1.06, 8: 1.64,
+                    9: 1.94, 10: 2.43, 11: 13.66, 12: 19.41, 13: 19.44, 14: 8.3, 15: 2.87,
+                    16: 2.02, 17: 1.27, 18: 0.41 }
+    }
+  },
+  speedToggles: {
+    slow: { profile: 'Typical', label: 'Typical',  hint: 'gentler draw · more hours underway' },
+    fast: { profile: 'Intense', label: 'Intense',  hint: 'quicker legs · more anchor time · higher draw' }
+  },
+
+  // Calibration constants — fitted 5 Aug 2026 against the seven published
+  // poster routes (primary, sheet assumptions) and the 835-52 reference
+  // sets (secondary). Documented model assumptions:
+  //  - stationaryKnotCutoff: knot bins at or below this are station-keeping
+  //    drift, counted as stationary (hotel) time, not passage.
+  //  - hotelUtilisation: reconciles guest-mode design hotel loads (183/158
+  //    ekW, drawn from the vessel 24/7 with no shore assist in-game) with
+  //    fleet-observed operation in 835-52.
+  //  - propFactor per profile: bkW -> average electrical propulsion draw.
+  //  - propCurveLowSpeed: below the first curve point the power follows a
+  //    propeller cube law anchored at that point; linear between points.
+  calibration: {
+    stationaryKnotCutoff: 1,
+    hotelUtilisation: 0.66,
+    propFactor: { Typical: 0.68, Intense: 0.9 },
+    posterToleranceMwh: 1.0                     // spec §6: ±1 MWh
+  },
+
+  nav: { routeFactor: 1.0 },                    // spec §3: pure haversine between true coordinates
+
+  // ---- DATASET 3 — Destinations & charging (ports REAL; energy type,
+  // charge score and tags PLACEHOLDER — awaiting Felix + Udham yellow
+  // columns; those fields are the only pending data in this block) ------
+  // energy: green / blue / grey / brown (four types only).
+  ports: [
+    { name: 'Ajaccio',               country: 'France',     lat: 41.92,  lon: 8.74,   energy: 'blue',  chargeScore: 8,  charging: true,  tags: [], monument: 'citadel' },
+    { name: 'Antibes',               country: 'France',     lat: 43.588, lon: 7.13,   energy: 'blue',  chargeScore: 9,  charging: true,  tags: [], monument: 'citadel' },
+    { name: 'Athens',                country: 'Greece',     lat: 37.938, lon: 23.674, energy: 'grey',  chargeScore: 18, charging: true,  tags: [], monument: 'citadel' },
+    { name: 'Bodrum',                country: 'Turkey',     lat: 37.035, lon: 27.426, energy: 'brown', chargeScore: 27, charging: true,  tags: [], monument: 'citadel' },
+    { name: 'Bonifacio',             country: 'France',     lat: 41.389, lon: 9.159,  energy: 'grey',  chargeScore: 14, charging: false, tags: ['dive'], monument: 'citadel' },
+    { name: 'Cagliari',              country: 'Italy',      lat: 39.212, lon: 9.112,  energy: 'grey',  chargeScore: 17, charging: true,  tags: [], monument: 'lighthouse' },
+    { name: 'Calvi',                 country: 'France',     lat: 42.566, lon: 8.759,  energy: 'grey',  chargeScore: 13, charging: false, tags: [], monument: 'citadel' },
+    { name: 'Corfu',                 country: 'Greece',     lat: 39.616, lon: 19.93,  energy: 'grey',  chargeScore: 19, charging: true,  tags: [], monument: 'citadel' },
+    { name: 'Eivissa',               country: 'Spain',      lat: 38.911, lon: 1.439,  energy: 'blue',  chargeScore: 7,  charging: true,  tags: ['dive'], monument: 'citadel' },
+    { name: 'Gocek',                 country: 'Turkey',     lat: 36.753, lon: 28.927, energy: 'brown', chargeScore: 28, charging: true,  tags: [], monument: 'lighthouse' },
+    { name: 'Gulluk',                country: 'Turkey',     lat: 37.25,  lon: 27.58,  energy: 'brown', chargeScore: 29, charging: true,  tags: [], monument: 'lighthouse' },
+    { name: 'Kalathos',              country: 'Greece',     lat: 36.11,  lon: 28.072, energy: 'brown', chargeScore: 26, charging: false, tags: ['dive'], monument: 'lighthouse' },
+    { name: 'Livadia',               country: 'Greece',     lat: 36.542, lon: 26.342, energy: 'brown', chargeScore: 25, charging: false, tags: [], monument: 'lighthouse' },
+    { name: 'Monaco',                country: 'Monaco',     lat: 43.735, lon: 7.424,  energy: 'green', chargeScore: 1,  charging: true,  tags: [], monument: 'towers' },
+    { name: 'Naples',                country: 'Italy',      lat: 40.822, lon: 14.266, energy: 'grey',  chargeScore: 16, charging: true,  tags: [], monument: 'citadel' },
+    { name: 'Nice',                  country: 'France',     lat: 43.697, lon: 7.284,  energy: 'blue',  chargeScore: 5,  charging: true,  tags: [], monument: 'lighthouse' },
+    { name: 'Olbia',                 country: 'Italy',      lat: 40.924, lon: 9.533,  energy: 'blue',  chargeScore: 10, charging: true,  tags: [], monument: 'lighthouse' },
+    { name: 'Palma',                 country: 'Spain',      lat: 39.566, lon: 2.639,  energy: 'green', chargeScore: 3,  charging: true,  tags: [], monument: 'citadel' },
+    { name: 'Ponte Persica',         country: 'Italy',      lat: 40.72,  lon: 14.473, energy: 'grey',  chargeScore: 21, charging: false, tags: [], monument: 'lighthouse' },
+    { name: "Port d'Andratx",        country: 'Spain',      lat: 39.546, lon: 2.386,  energy: 'blue',  chargeScore: 6,  charging: true,  tags: [], monument: 'lighthouse' },
+    { name: 'Porto Cervo',           country: 'Italy',      lat: 41.135, lon: 9.536,  energy: 'grey',  chargeScore: 15, charging: false, tags: ['dive'], monument: 'lighthouse' },
+    { name: 'Porto Rotondo',         country: 'Italy',      lat: 41.03,  lon: 9.544,  energy: 'grey',  chargeScore: 20, charging: false, tags: [], monument: 'lighthouse' },
+    { name: 'Porto Vecchio',         country: 'France',     lat: 41.606, lon: 9.299,  energy: 'grey',  chargeScore: 12, charging: false, tags: ['dive'], monument: 'citadel' },
+    { name: 'Saint Tropez',          country: 'France',     lat: 43.273, lon: 6.635,  energy: 'grey',  chargeScore: 11, charging: true,  tags: [], monument: 'lighthouse' },
+    { name: 'Saint-Jean-Cap-Ferrat', country: 'France',     lat: 43.692, lon: 7.34,   energy: 'blue',  chargeScore: 4,  charging: false, tags: [], monument: 'lighthouse' },
+    { name: 'Salerno',               country: 'Italy',      lat: 40.675, lon: 14.75,  energy: 'grey',  chargeScore: 22, charging: true,  tags: [], monument: 'lighthouse' },
+    { name: 'Santorini',             country: 'Greece',     lat: 36.404, lon: 25.411, energy: 'brown', chargeScore: 30, charging: false, tags: ['achievement:santorini', 'dive'], monument: 'caldera' },
+    { name: 'Savona',                country: 'Italy',      lat: 44.316, lon: 8.493,  energy: 'blue',  chargeScore: 9,  charging: true,  tags: [], monument: 'lighthouse' },
+    { name: 'Taormina',              country: 'Italy',      lat: 37.838, lon: 15.281, energy: 'grey',  chargeScore: 23, charging: false, tags: ['dive'], monument: 'citadel' },
+    { name: 'Tivat',                 country: 'Montenegro', lat: 42.433, lon: 18.69,  energy: 'brown', chargeScore: 24, charging: true,  tags: [], monument: 'citadel' },
+    { name: 'Venice',                country: 'Italy',      lat: 45.435, lon: 12.309, energy: 'grey',  chargeScore: 31, charging: true,  tags: [], monument: 'towers' }
+  ],
+  // PLACEHOLDER NOTE — energy / chargeScore / tags / charging above are
+  // placeholder assignments awaiting the Felix + Udham combined sheet
+  // (Ports tab yellow columns). Coordinates, names, countries are REAL.
+
+  // ---- DATASET 4 — The published poster routes (REAL, 835-52 +
+  // Charter_Routes.pptx). Published nm/days/MWh are the sheet figures;
+  // parity is checked against them (spec §6). ------------------------
+  posterRoutes: [
+    { id: 'SOF_BLUE',   name: 'South of France — Blue',            days: 9,   nm: 220, mwh: 35,
+      ports: ['Savona', 'Monaco', 'Saint-Jean-Cap-Ferrat', 'Nice', 'Antibes', 'Saint Tropez'],
+      refGroup: 'South of France (SoF)', notes: 'Coastal weave along the Riviera' },
+    { id: 'SOF_GREEN',  name: 'South of France & Corsica — Green', days: 6.5, nm: 440, mwh: 48,
+      ports: ['Monaco', 'Calvi', 'Ajaccio', 'Saint Tropez'],
+      refGroup: 'SoF to Sardinia/Corsica', notes: "Monaco round Cap Corse to Calvi & Ajaccio, open-water return. The transcript's 47-48 MWh route." },
+    { id: 'SARD_BLUE',  name: 'Sardinia & Corsica — Blue',         days: 8.5, nm: 370, mwh: 35,
+      ports: ['Ajaccio', 'Calvi', 'Porto Vecchio', 'Bonifacio', 'Porto Cervo', 'Porto Rotondo', 'Olbia'],
+      refGroup: 'Sardinia & Corsica', notes: 'Corsica circuit into the Costa Smeralda cluster' },
+    { id: 'SARD_GREEN', name: 'Sardinia to Italy — Green',         days: 9,   nm: 390, mwh: 50,
+      ports: ['Porto Vecchio', 'Porto Rotondo', 'Olbia', 'Naples', 'Ponte Persica', 'Salerno'],
+      refGroup: 'Italy', notes: 'Deck note: tuned from 53.9 to 50 MWh' },
+    { id: 'BALEARICS',  name: 'Balearics',                         days: 7,   nm: 380, mwh: 36,
+      ports: ["Port d'Andratx", 'Eivissa', 'Palma'],
+      refGroup: 'Baleriacs', notes: 'Andratx to Eivissa (island circumnavigation) returning to Palma' },
+    { id: 'GREECE',     name: 'Greece',                            days: 8.5, nm: 400, mwh: 43,
+      ports: ['Athens', 'Santorini', 'Livadia'],
+      refGroup: 'Greece', notes: 'Athens to Santorini and Livadia' },
+    { id: 'TURKEY',     name: 'Turkey',                            days: 8.5, nm: 295, mwh: 38.5,
+      ports: ['Gulluk', 'Bodrum', 'Gocek'],
+      refGroup: 'Turkey', notes: 'Gulluk to Bodrum, Gulf of Gokova coastal loop to Gocek' }
+  ],
+
+  // Reference sets (REAL, 835-52) — secondary validation only.
+  routesReference: [
+    { route: 'South of France (SoF)',   nTyp: 2, durTyp: 8.956354166666646, mwh7Typ: 28.04745405007153,  nInt: 0, durInt: null,              mwh7Int: null,               distNm: 221.2840277777775 },
+    { route: 'Sardinia & Corsica',      nTyp: 5, durTyp: 8.432016203711095, mwh7Typ: 31.37564106026205,  nInt: 0, durInt: null,              mwh7Int: null,               distNm: 370.85150000079955 },
+    { route: 'SoF to Sardinia/Corsica', nTyp: 1, durTyp: 6.458634259259242, mwh7Typ: 51.11577760831604,  nInt: 2, durInt: 7.811221064814792, mwh7Int: 47.059349980444395, distNm: 439.3086111111103 },
+    { route: 'Italy',                   nTyp: 1, durTyp: 10.000729166666659, mwh7Typ: 37.72560128887023, nInt: 1, durInt: 6.920624999999959, mwh7Int: 60.31503854847585,  distNm: 400.1591666666651 },
+    { route: 'SoF to Italy',            nTyp: 1, durTyp: 6.4449999999999905, mwh7Typ: 41.07729669548411, nInt: 3, durInt: 9.78949074074072,  mwh7Int: 43.65088520072712,  distNm: 387.57027777777665 },
+    { route: 'Sicily/Italy',            nTyp: 1, durTyp: 7.4532523148148035, mwh7Typ: 36.08714450275916, nInt: 0, durInt: null,              mwh7Int: null,               distNm: 537.1355555555544 },
+    { route: 'Greece',                  nTyp: 2, durTyp: 8.341846064814792, mwh7Typ: 36.04211167894945,  nInt: 2, durInt: 7.564027777777763, mwh7Int: 46.74147554737185,  distNm: 399.1719444444438 },
+    { route: 'Turkey',                  nTyp: 2, durTyp: 8.579270833333316, mwh7Typ: 30.89986443501578,  nInt: 1, durInt: 5.590960648148144, mwh7Int: 44.53373508167511,  distNm: 295.9072222222215 },
+    { route: 'Tivat to Venice',         nTyp: 1, durTyp: 12.8320486111111,  mwh7Typ: 32.09957107974746,  nInt: 1, durInt: 8.994236111111103, mwh7Int: 43.7385802960462,   distNm: 798.4858333333308 },
+    { route: 'Baleriacs',               nTyp: 2, durTyp: 6.875642361111103, mwh7Typ: 37.03500705959439,  nInt: 0, durInt: null,              mwh7Int: null,               distNm: 376.43930555555494 }
+  ],
+
+  // ---- DATASET 5 — Activities (structure REAL from
+  // LEIP_activities_data.xlsx; fun/eco/energy values are that sheet's
+  // marked placeholders, adjusted by the team in the sheet) -----------
+  // energyPct = share of the weekly energy budget consumed per use.
+  activities: [
+    { id: 'A01', name: 'Jet ski session',                         category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 8, eco: 5,  energyPct: 0.001  },
+    { id: 'A02', name: 'Seabob session',                          category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 8, eco: 8,  energyPct: 0.0006 },
+    { id: 'A03', name: 'E-foil session',                          category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 8, eco: 8,  energyPct: 0.0006 },
+    { id: 'A04', name: 'Wakeboarding / waterskiing',              category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 8, eco: 4,  energyPct: 0.0012 },
+    { id: 'A05', name: 'Towable inflatables (banana / doughnut)', category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 7, eco: 4,  energyPct: 0.0012 },
+    { id: 'A06', name: 'Inflatable water park & slide',           category: 'Active',   repeatable: true,  maxPerWeek: 3, fun: 8, eco: 6,  energyPct: 0.0015 },
+    { id: 'A07', name: 'Snorkelling',                             category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 7, eco: 10, energyPct: 0.0001 },
+    { id: 'A08', name: 'Scuba diving (dive ops)',                 category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 8, eco: 3,  energyPct: 0.003  },
+    { id: 'A09', name: 'Submersible dive',                        category: 'Active',   repeatable: false, maxPerWeek: 1, fun: 9, eco: 2,  energyPct: 0.005  },
+    { id: 'A10', name: 'Paddleboards & kayaks',                   category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 7, eco: 10, energyPct: 0.0001 },
+    { id: 'A11', name: 'Gym & personal trainer session',          category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 6, eco: 9,  energyPct: 0.0003 },
+    { id: 'A12', name: 'Fishing trip (tender)',                   category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 7, eco: 5,  energyPct: 0.001  },
+    { id: 'R01', name: 'Jacuzzi evening',                         category: 'Relaxing', repeatable: true,  maxPerWeek: 6, fun: 7, eco: 4,  energyPct: 0.002  },
+    { id: 'R02', name: 'Pool day (counter-current)',              category: 'Relaxing', repeatable: true,  maxPerWeek: 7, fun: 7, eco: 5,  energyPct: 0.0015 },
+    { id: 'R03', name: 'Beach club afternoon',                    category: 'Relaxing', repeatable: true,  maxPerWeek: 7, fun: 7, eco: 8,  energyPct: 0.0005 },
+    { id: 'R04', name: 'Spa & massage treatments',                category: 'Relaxing', repeatable: true,  maxPerWeek: 7, fun: 7, eco: 8,  energyPct: 0.0004 },
+    { id: 'R05', name: 'Sauna & hammam session',                  category: 'Relaxing', repeatable: true,  maxPerWeek: 7, fun: 7, eco: 3,  energyPct: 0.0025 },
+    { id: 'R06', name: 'Cinema night (salon or under the stars)', category: 'Relaxing', repeatable: true,  maxPerWeek: 6, fun: 7, eco: 9,  energyPct: 0.0003 },
+    { id: 'R07', name: 'Formal dinner & wine tasting',            category: 'Relaxing', repeatable: true,  maxPerWeek: 6, fun: 7, eco: 8,  energyPct: 0.0005 },
+    { id: 'R08', name: 'Deck party with DJ',                      category: 'Relaxing', repeatable: true,  maxPerWeek: 6, fun: 8, eco: 5,  energyPct: 0.0015 },
+    { id: 'R09', name: 'Yoga on deck',                            category: 'Relaxing', repeatable: true,  maxPerWeek: 7, fun: 6, eco: 10, energyPct: 0.0001 },
+    { id: 'R10', name: 'Stargazing night',                        category: 'Relaxing', repeatable: true,  maxPerWeek: 6, fun: 6, eco: 10, energyPct: 0      },
+    { id: 'R11', name: 'Evening ashore by tender',                category: 'Relaxing', repeatable: true,  maxPerWeek: 6, fun: 7, eco: 6,  energyPct: 0.0008 },
+    { id: 'R12', name: 'Games & console afternoon',               category: 'Relaxing', repeatable: true,  maxPerWeek: 7, fun: 6, eco: 9,  energyPct: 0.0002 }
+  ],
+
+  // ---- Scoring & balance (spec §5) ---------------------------------
+  scoring: {
+    weeklyEnergyRefMwh: 50,     // activity energyPct is a share of this budget
+
+    base: {                     // Base 0-100: pure energy performance
+      disciplineWeight: 65,     // full when the diesels never wake
+      efficiencyWeight: 35,     // scaled by nm-per-MWh vs the reference
+      effRefNmPerMwh: 9.0,      // efficiency earning the full efficiency weight
+      dieselPenaltyPerMwh: 2.5, // diesel is the dominant penalty
+      incompletePenalty: 35,    // route not finished inside the week
+      min: -100, max: 100
+    },
+
+    // Multiplier -10..+10: five factors, averaged. Integer tables so the
+    // canonical worked example is exact (sum 31 -> x6.2).
+    multiplier: {
+      countries: { 1: 0, 2: 6, 3: 10, 4: 10 },
+      ports:     { 1: -8, 2: 0, 3: 3, 4: 5, 5: 7, 6: 9, 7: 10 },
+      nights:    { 0: -10, 1: -4, 2: 0, 3: 5, 4: 10, 5: 10, 6: 4 },
+      recharge:  { green: 10, blue: 5, grey: -4, brown: -10 },
+      rechargeNotReached: -10,
+      activities: {
+        varietyTable: { 0: -10, 1: -5, 2: -2, 3: 0, 4: 1, 5: 3, 6: 5, 7: 6, 8: 7, 9: 8, 10: 8 },
+        bothCategoriesBonus: 2,
+        spamThreshold: 3,        // uses of one activity beyond this each cost...
+        spamPenaltyPerExcess: 1, // ...this many points ("party too many times")
+        funSoftCap: 3, funDecay: 0.6,   // results-screen fun metric decay
+        clampMin: -10, clampMax: 10
+      }
+    }
+  },
+
+  // ---- Achievements — the nine dots (spec §7). Trophies only. ------
+  achievements: {
+    thresholds: {
+      scoreOver: 900,
+      longHaulNm: 400,
+      worldTravellerCountries: 3,
+      posterRoutesRequired: 5,   // spec §7 name is 'The Five Routes'; the poster carries 7 — any 5 complete it
+      repeatClientCharters: 3,
+      repeatClientMinScore: 400
+    },
+    diveActivityIds: ['A08', 'A09'],
+    divePortTag: 'dive',
+    santoriniTag: 'achievement:santorini',
+    list: [
+      { id: 'green-charge',    name: 'Green Charge',    desc: 'Finish at a green-energy port',           midSim: false },
+      { id: 'score-900',       name: 'Score Over 900',  desc: 'Final score above 900',                   midSim: false },
+      { id: 'mwh-hit',         name: '50 MWh Hit',      desc: 'Wake the diesels',                        midSim: true  },
+      { id: 'submerged-ruins', name: 'Submerged Ruins', desc: 'Dive activity at a dive-tagged location', midSim: false },
+      { id: 'five-routes',     name: 'The Five Routes', desc: 'Complete five poster routes',             midSim: false },
+      { id: 'long-haul',       name: 'Long Haul',       desc: 'Over 400 nm in one charter',              midSim: false },
+      { id: 'world-traveller', name: 'World Traveller', desc: 'Three countries in one week',             midSim: false },
+      { id: 'volcano-chief',   name: 'Volcano Chief',   desc: 'Reach Santorini',                         midSim: true  },
+      { id: 'repeat-client',   name: 'Repeat Client',   desc: 'Three charters above the bar',            midSim: false }
+    ]
+  },
+
+  // ---- Lifetime leaderboard (spec §8, device-local) ----------------
+  leaderboard: {
+    maxEntries: 10,             // top N, DATA-block constant per spec
+    nameMinLen: 1, nameMaxLen: 12
+  },
+
+  // ---- Random Spin (spec §2.6) — genuinely chaotic, no sanitising --
+  randomSpin: {
+    minPicks: 2, maxPicks: 8,
+    activityChance: 0.35
+  },
+
+  // ---- Canonical worked example (spec §5): base 78 x 6.2 = 483.6 ---
+  // Factors: countries 2->6, ports 5->7, nights 4->10, recharge blue->5,
+  // activities (4 distinct, both categories, no spam)->3. Sum 31 -> 6.2.
+  canonicalTest: {
+    inputs: {
+      route: ['Monaco', 'Saint-Jean-Cap-Ferrat', 'Antibes', 'Saint Tropez', 'Nice'],
+      speed: 'slow', nights: 4,
+      activities: { A02: 2, A07: 1, R01: 1, R06: 2 }
+    },
+    expected: { base: 78, multiplier: 6.2, final: 483.6 }
+  },
+
+  // ---- Balance scenarios (spec §11.4) with intended score bands ----
+  balanceScenarios: [
+    { id: 'modest-local', name: 'Modest local charter',
+      inputs: { route: ['Nice', 'Antibes', 'Saint-Jean-Cap-Ferrat', 'Nice'], speed: 'slow', nights: 3,
+                activities: { A07: 1, R03: 1, R06: 1 } },
+      band: { baseMin: 60, multiplierMax: 4, finalMin: 100, finalMax: 350 } },
+    { id: 'balanced-multi', name: 'Balanced multi-country',
+      inputs: { route: ['Monaco', 'Calvi', 'Porto Cervo', 'Olbia', 'Monaco'], speed: 'slow', nights: 4,
+                activities: { A02: 1, A07: 2, A10: 1, R03: 1, R06: 1, R08: 1 } },
+      band: { baseMin: 75, multiplierMin: 7, finalMin: 550, finalMax: 900 } },
+    { id: 'diesel-dash', name: 'Diesel-soaked dash',
+      inputs: { route: ['Palma', 'Bonifacio', 'Naples', 'Monaco'], speed: 'fast', nights: 4,
+                activities: { A02: 1, A07: 2, A10: 1, R03: 1, R06: 1, R08: 1 } },
+      band: { baseMax: 45, multiplierMin: 6, finalMin: 0, finalMax: 450, dieselRequired: true } },
+    { id: 'go-nowhere', name: 'Go-nowhere anchor week',
+      inputs: { route: ['Saint Tropez'], speed: 'slow', nights: 6, activities: {} },
+      band: { baseMin: 55, multiplierMax: 0, finalMax: -100 } }
+  ],
+
+  playback: {}   // playback pacing lives in THEME.motion (visual value)
+};
+</script>
+
+<!-- ================================================================
+     ENGINE BLOCK — pure, deterministic simulation & scoring (spec §3,
+     §5, §6, §7, §8-leaderboard). No DOM, no Three.js, no randomness
+     (Random Spin takes an injected rng). Identical inputs always
+     produce identical outputs.
+     ================================================================ -->
+<script id="leip-engine">
+globalThis.LEIP_ENGINE = (function () {
+  'use strict';
+
+  var EARTH_R_NM = 3440.065;
+  var EPS = 1e-9;
+
+  function D() { return globalThis.LEIP_DATA; }
+  function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+  function toRad(deg) { return deg * Math.PI / 180; }
+  function arrEq(a, b) {
+    if (a.length !== b.length) return false;
+    for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+
+  function haversineNm(a, b) {
+    var dLat = toRad(b.lat - a.lat), dLon = toRad(b.lon - a.lon);
+    var s = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * EARTH_R_NM * Math.asin(Math.min(1, Math.sqrt(s)));
+  }
+
+  function portByName(name) {
+    var ports = D().ports;
+    for (var i = 0; i < ports.length; i++) if (ports[i].name === name) return ports[i];
+    return null;
+  }
+  function activityById(id) {
+    var acts = D().activities;
+    for (var i = 0; i < acts.length; i++) if (acts[i].id === id) return acts[i];
+    return null;
+  }
+
+  // Propulsion power (bkW) at a given speed. Below the first curve point:
+  // propeller cube law anchored at that point; linear between points;
+  // clamped above the last (documented calibration assumption).
+  function propBkwAt(kts) {
+    var c = D().propCurve;
+    if (kts <= c[0].kts) {
+      var r = kts / c[0].kts;
+      return c[0].bkw * r * r * r;
+    }
+    for (var i = 1; i < c.length; i++) {
+      if (kts <= c[i].kts) {
+        var f = (kts - c[i - 1].kts) / (c[i].kts - c[i - 1].kts);
+        return c[i - 1].bkw + f * (c[i].bkw - c[i - 1].bkw);
+      }
+    }
+    return c[c.length - 1].bkw;
+  }
+
+  // HUD mode label: nearest prop-curve point to the given speed.
+  function modeAtKts(kts) {
+    var c = D().propCurve, best = c[0], bd = Infinity;
+    for (var i = 0; i < c.length; i++) {
+      var dd = Math.abs(c[i].kts - kts);
+      if (dd < bd) { bd = dd; best = c[i]; }
+    }
+    return best.gameMode;
+  }
+
+  // Underway statistics for a toggle profile: knot bins at or below the
+  // stationary cutoff are station-keeping (stationary time), excluded
+  // from the passage distribution and renormalised.
+  function profileStats(profileName) {
+    var d = D();
+    var pct = d.speedProfiles[profileName].pctPerKnot;
+    var cut = d.calibration.stationaryKnotCutoff;
+    var tot = 0, kts = [];
+    Object.keys(pct).forEach(function (k) {
+      var v = Number(k);
+      if (v > cut) { kts.push(v); tot += pct[k]; }
+    });
+    var vEff = 0, avgBkw = 0, bands = [];
+    kts.sort(function (a, b) { return a - b; }).forEach(function (v) {
+      var f = pct[v] / tot;
+      vEff += f * v;
+      avgBkw += f * propBkwAt(v);
+      bands.push({ kts: v, frac: f });
+    });
+    return { vEff: vEff, avgBkw: avgBkw, bands: bands };
+  }
+
+  function toggleProfile(speed) {
+    var t = D().speedToggles[speed];
+    return t ? t.profile : D().speedToggles.slow.profile;
+  }
+
+  // Shared energy model — the single place route energy is computed, used
+  // by both the in-game week and the poster-assumption basis.
+  //  distNm over hours with a profile -> { underwayH, hotelMwh, travelMwh }
+  function energyFor(distNm, hours, profileName) {
+    var d = D(), cal = d.calibration, hl = d.hotelLoadsEkw;
+    var ps = profileStats(profileName);
+    var underwayH = ps.vEff > 0 ? Math.min(distNm / ps.vEff, hours) : 0;
+    var hotelMwh = (hl.stationaryGuestAnchor * (hours - underwayH) +
+                    hl.underwayGuestTransit * underwayH) * cal.hotelUtilisation / 1000;
+    var travelMwh = ps.avgBkw * cal.propFactor[profileName] * underwayH / 1000;
+    return { underwayH: underwayH, hotelMwh: hotelMwh, travelMwh: travelMwh, stats: ps };
+  }
+
+  // Poster-assumption basis (spec §6 calibration): published nm over
+  // published days with the Typical profile — "same assumptions as the
+  // sheets". Returns simulated MWh for the parity table.
+  function posterAssumptionMwh(poster) {
+    var e = energyFor(poster.nm, poster.days * 24, 'Typical');
+    return e.hotelMwh + e.travelMwh;
+  }
+
+  function normalizeInputs(raw) {
+    var d = D();
+    raw = raw || {};
+    var route = [];
+    if (Array.isArray(raw.route)) {
+      for (var i = 0; i < raw.route.length; i++) if (portByName(raw.route[i])) route.push(raw.route[i]);
+    }
+    var speed = d.speedToggles[raw.speed] ? raw.speed : 'slow';
+    var nights = clamp(Math.round(Number(raw.nights) || 0), 0, d.time.nights);
+    var activities = {};
+    if (raw.activities) {
+      Object.keys(raw.activities).forEach(function (id) {
+        var act = activityById(id);
+        var n = Math.round(Number(raw.activities[id]) || 0);
+        if (act && n > 0) activities[id] = clamp(n, 1, act.maxPerWeek);
+      });
+    }
+    return { route: route, speed: speed, nights: nights, activities: activities };
+  }
+
+  function tableLookup(table, n) {
+    var keys = Object.keys(table).map(Number).sort(function (a, b) { return a - b; });
+    var k = clamp(n, keys[0], keys[keys.length - 1]);
+    if (table[k] !== undefined) return table[k];
+    for (var i = keys.length - 1; i >= 0; i--) if (keys[i] <= k) return table[keys[i]];
+    return table[keys[0]];
+  }
+
+  function activitiesFactor(activities, cfg) {
+    var ids = Object.keys(activities);
+    if (ids.length === 0) return tableLookup(cfg.varietyTable, 0);
+    var cats = {}, spam = 0;
+    ids.forEach(function (id) {
+      cats[activityById(id).category] = true;
+      spam += Math.max(0, activities[id] - cfg.spamThreshold) * cfg.spamPenaltyPerExcess;
+    });
+    var score = tableLookup(cfg.varietyTable, ids.length) +
+                (Object.keys(cats).length >= 2 ? cfg.bothCategoriesBonus : 0) - spam;
+    return clamp(score, cfg.clampMin, cfg.clampMax);
+  }
+
+  // Results-screen fun metric (display flavour; never touches the score).
+  function funMetric(activities, cfg) {
+    var fun = 0;
+    Object.keys(activities).forEach(function (id) {
+      var act = activityById(id);
+      for (var k = 1; k <= activities[id]; k++) {
+        fun += act.fun * (k <= cfg.funSoftCap ? 1 : Math.pow(cfg.funDecay, k - cfg.funSoftCap));
+      }
+    });
+    return Math.round(fun * 10) / 10;
+  }
+
+  function simulate(rawInputs) {
+    var d = D();
+    var inputs = normalizeInputs(rawInputs);
+    if (inputs.route.length < 1) throw new Error('Route needs at least a starting port.');
+
+    var T = d.time;
+    var profileName = toggleProfile(inputs.speed);
+
+    // Legs: pure haversine between true coordinates (spec §3).
+    var legs = [];
+    for (var i = 0; i + 1 < inputs.route.length; i++) {
+      var a = portByName(inputs.route[i]), b = portByName(inputs.route[i + 1]);
+      legs.push({ from: a.name, to: b.name, nm: haversineNm(a, b) * d.nav.routeFactor });
+    }
+    var distanceNm = legs.reduce(function (s, l) { return s + l.nm; }, 0);
+
+    // Time budget: anchor nights are nights not spent transiting.
+    var stats = profileStats(profileName);
+    var requiredH = stats.vEff > 0 ? distanceNm / stats.vEff : 0;
+    var transitBudgetH = T.charterHours - inputs.nights * T.nightAnchorHours;
+    var completed = requiredH <= transitBudgetH + EPS;
+    var coveredNm = completed ? distanceNm : transitBudgetH * stats.vEff;
+
+    // Energy over the fixed 168 h week (the covered distance).
+    var e = energyFor(coveredNm, T.charterHours, profileName);
+    var underwayH = e.underwayH;
+    var anchorH = T.charterHours - underwayH;      // derived anchor time (spec §3)
+    var activitiesMwh = 0;
+    Object.keys(inputs.activities).forEach(function (id) {
+      activitiesMwh += activityById(id).energyPct * d.scoring.weeklyEnergyRefMwh * inputs.activities[id];
+    });
+    var totalMwh = e.hotelMwh + e.travelMwh + activitiesMwh;
+
+    // Poster parity (spec §6). Exact replication = same port sequence,
+    // slow toggle (the sheets' Typical basis), no activities. The game
+    // must output the published figure; overrideEngaged records whether
+    // first-principles calibration was outside ±tolerance.
+    var poster = null, posterInfo = null;
+    for (var p = 0; p < d.posterRoutes.length; p++) {
+      if (arrEq(d.posterRoutes[p].ports, inputs.route)) { poster = d.posterRoutes[p]; break; }
+    }
+    if (poster) {
+      var exact = inputs.speed === 'slow' && Object.keys(inputs.activities).length === 0;
+      var simSheet = posterAssumptionMwh(poster);
+      posterInfo = {
+        id: poster.id, name: poster.name, publishedMwh: poster.mwh,
+        exactReplica: exact,
+        sheetBasisSimMwh: simSheet,
+        overrideEngaged: exact && Math.abs(simSheet - poster.mwh) > d.calibration.posterToleranceMwh
+      };
+      if (exact) totalMwh = poster.mwh;   // the board number is the published figure
+    }
+
+    var cap = d.battery.gameThresholdMwh;
+    var batteryMwh = Math.min(totalMwh, cap);
+    var dieselMwh = Math.max(0, totalMwh - cap);
+
+    // Ports actually reached (doomed routes run and simply suffer).
+    var reached = [inputs.route[0]];
+    var cum = 0, legFracs = [];
+    legs.forEach(function (leg) {
+      cum += leg.nm;
+      if (cum <= coveredNm + 1e-6) { reached.push(leg.to); legFracs.push(1); }
+      else legFracs.push(clamp(leg.nm > 0 ? (coveredNm - (cum - leg.nm)) / leg.nm : 0, 0, 1));
+    });
+
+    // Playback timeline: anchor time split across reached stops, transits
+    // between. Presentational scheduling; totals above are authoritative
+    // and per-segment rates reproduce them exactly.
+    var stops = reached.length;
+    var anchorPer = anchorH / stops;
+    var actKw = activitiesMwh * 1000 / T.charterHours;
+    var cal = d.calibration, hl = d.hotelLoadsEkw;
+    var hotelStatKw = hl.stationaryGuestAnchor * cal.hotelUtilisation;
+    var hotelUwKw = hl.underwayGuestTransit * cal.hotelUtilisation;
+    var propKw = stats.avgBkw * cal.propFactor[profileName];
+    // If the poster snap adjusted the total, spread the delta as a flat
+    // correction so the playback battery track still ends at totalMwh.
+    var rawTotal = e.hotelMwh + e.travelMwh + activitiesMwh;
+    var snapKw = (totalMwh - rawTotal) * 1000 / T.charterHours;
+
+    var timeline = [];
+    var t = 0;
+    function push(seg) { seg.startH = t; t += seg.hours; seg.endH = t; timeline.push(seg); }
+    for (var s = 0; s < stops; s++) {
+      var isLast = s === stops - 1;
+      var dur = (isLast && completed) ? Math.max(0, T.charterHours - t) : anchorPer;
+      push({ type: 'anchor', port: reached[s], hours: dur });
+      if (!isLast) {
+        push({ type: 'transit', from: legs[s].from, to: legs[s].to, nm: legs[s].nm,
+               hours: legs[s].nm / stats.vEff, frac: 1 });
+      } else if (!completed && s < legs.length) {
+        push({ type: 'transit', from: legs[s].from, to: legs[s].to, nm: legs[s].nm * legFracs[s],
+               hours: Math.max(0, T.charterHours - t), frac: legFracs[s], partial: true });
+      }
+    }
+
+    var cumMwh = 0, dieselStartH = null;
+    timeline.forEach(function (seg) {
+      seg.powerKw = actKw + snapKw + (seg.type === 'transit' ? hotelUwKw + propKw : hotelStatKw);
+      seg.startMwh = cumMwh;
+      var segMwh = seg.powerKw * seg.hours / 1000;
+      if (dieselStartH === null && cumMwh < cap && cumMwh + segMwh > cap) {
+        dieselStartH = seg.startH + (cap - cumMwh) / (seg.powerKw / 1000);
+      }
+      cumMwh += segMwh;
+      seg.endMwh = cumMwh;
+    });
+    if (dieselMwh > 0 && dieselStartH === null) dieselStartH = T.charterHours;
+
+    // ---- Base (0-100): pure energy performance (spec §5).
+    var bc = d.scoring.base;
+    var nmPerMwh = totalMwh > 0 ? coveredNm / totalMwh : 0;
+    var effPart = bc.efficiencyWeight * clamp(nmPerMwh / bc.effRefNmPerMwh, 0, 1);
+    var discPart = bc.disciplineWeight - bc.dieselPenaltyPerMwh * dieselMwh;
+    var rawBase = discPart + effPart - (completed ? 0 : bc.incompletePenalty);
+    var base = clamp(Math.round(rawBase), bc.min, bc.max);
+
+    // ---- Multiplier (-10..+10): five factors, averaged (spec §5).
+    var mc = d.scoring.multiplier;
+    var distinctPorts = reached.filter(function (n, idx) { return reached.indexOf(n) === idx; });
+    var countries = [];
+    distinctPorts.forEach(function (n) {
+      var c = portByName(n).country;
+      if (countries.indexOf(c) < 0) countries.push(c);
+    });
+    var rechargePortName = inputs.route[inputs.route.length - 1];
+    var rechargePort = portByName(rechargePortName);
+    var factors = {
+      countries:  { value: countries.length,     score: tableLookup(mc.countries, countries.length) },
+      ports:      { value: distinctPorts.length, score: tableLookup(mc.ports, distinctPorts.length) },
+      activities: { value: Object.keys(inputs.activities).length,
+                    score: activitiesFactor(inputs.activities, mc.activities) },
+      nights:     { value: inputs.nights,        score: tableLookup(mc.nights, inputs.nights) },
+      recharge:   { port: rechargePortName, energy: rechargePort.energy, reached: completed,
+                    score: completed ? mc.recharge[rechargePort.energy] : mc.rechargeNotReached }
+    };
+    var factorSum = factors.countries.score + factors.ports.score + factors.activities.score +
+                    factors.nights.score + factors.recharge.score;
+    var multiplier = factorSum / 5;
+    var final = Math.round(base * multiplier * 10) / 10;
+
+    return {
+      inputs: inputs,
+      profile: profileName,
+      distanceNm: distanceNm, coveredNm: coveredNm, completed: completed,
+      vEffKts: stats.vEff, cruiseMode: modeAtKts(stats.vEff),
+      underwayH: underwayH, anchorH: anchorH, transitBudgetH: transitBudgetH,
+      hotelMwh: e.hotelMwh, travelMwh: e.travelMwh, activitiesMwh: activitiesMwh,
+      totalMwh: totalMwh, batteryMwh: batteryMwh, dieselMwh: dieselMwh,
+      dieselStartH: dieselStartH,
+      reached: reached, distinctPorts: distinctPorts, countries: countries,
+      rechargePort: rechargePortName,
+      poster: posterInfo,
+      timeline: timeline,
+      funMetric: funMetric(inputs.activities, mc.activities),
+      score: { base: base, rawBase: rawBase, factors: factors, factorSum: factorSum,
+               multiplier: multiplier, final: final }
+    };
+  }
+
+  // Hour a port is first reached (mid-sim achievement triggers).
+  function arrivalHour(sim, portName) {
+    if (sim.inputs.route[0] === portName) return 0;
+    for (var i = 0; i < sim.timeline.length; i++) {
+      var seg = sim.timeline[i];
+      if (seg.type === 'transit' && seg.to === portName && !seg.partial) return seg.endH;
+      if (seg.type === 'anchor' && seg.port === portName && seg.startH > 0) return seg.startH;
+    }
+    return null;
+  }
+
+  // ---- Achievements (spec §7): trophies only, zero score effect. ----
+  // persistent: { unlocked:{id:true}, posterDone:[posterId], repeatCount:n }
+  function evaluateAchievements(sim, persistentIn) {
+    var d = D(), cfg = d.achievements, th = cfg.thresholds;
+    var p = { unlocked: {}, posterDone: [], repeatCount: 0 };
+    if (persistentIn) {
+      Object.keys(persistentIn.unlocked || {}).forEach(function (k) { p.unlocked[k] = true; });
+      (persistentIn.posterDone || []).forEach(function (r) { p.posterDone.push(r); });
+      p.repeatCount = persistentIn.repeatCount || 0;
+    }
+    var newly = [];
+    function unlock(id, atHour) {
+      if (!p.unlocked[id]) {
+        p.unlocked[id] = true;
+        newly.push({ id: id, atHour: atHour === undefined ? null : atHour });
+      }
+    }
+
+    if (sim.completed && portByName(sim.rechargePort).energy === 'green') unlock('green-charge');
+    if (sim.score.final > th.scoreOver) unlock('score-900');
+    if (sim.dieselMwh > 0) unlock('mwh-hit', sim.dieselStartH);
+    var hasDive = Object.keys(sim.inputs.activities).some(function (id) {
+      return cfg.diveActivityIds.indexOf(id) >= 0;
+    });
+    var atDiveSpot = sim.reached.some(function (n) {
+      return portByName(n).tags.indexOf(cfg.divePortTag) >= 0;
+    });
+    if (hasDive && atDiveSpot) unlock('submerged-ruins');
+    if (sim.poster && sim.completed && p.posterDone.indexOf(sim.poster.id) < 0) p.posterDone.push(sim.poster.id);
+    if (p.posterDone.length >= th.posterRoutesRequired) unlock('five-routes');
+    if (sim.coveredNm > th.longHaulNm) unlock('long-haul');
+    if (sim.countries.length >= th.worldTravellerCountries) unlock('world-traveller');
+    var sanPort = null;
+    d.ports.forEach(function (port) { if (port.tags.indexOf(cfg.santoriniTag) >= 0) sanPort = port; });
+    if (sanPort && sim.reached.indexOf(sanPort.name) >= 0) unlock('volcano-chief', arrivalHour(sim, sanPort.name));
+    if (sim.score.final >= th.repeatClientMinScore) p.repeatCount += 1;
+    if (p.repeatCount >= th.repeatClientCharters) unlock('repeat-client');
+
+    return { newly: newly, persistent: p };
+  }
+
+  // ---- Lifetime leaderboard (spec §8) — pure logic; storage is the
+  // app layer's concern. Name is required: saving without one is
+  // impossible by construction (spec §11.7).
+  function leaderboardEntry(sim, name, dateIso) {
+    var d = D(), lb = d.leaderboard;
+    name = String(name === undefined || name === null ? '' : name).trim();
+    if (name.length < lb.nameMinLen) return null;
+    name = name.slice(0, lb.nameMaxLen).toUpperCase();
+    var r = sim.inputs.route;
+    return {
+      name: name,
+      score: sim.score.final,
+      base: sim.score.base,
+      multiplier: sim.score.multiplier,
+      route: r[0] + (r.length > 1 ? ' → ' + r[r.length - 1] : ''),
+      ports: sim.distinctPorts.length,
+      countries: sim.countries.length,
+      date: dateIso
+    };
+  }
+  function leaderboardInsert(board, entry) {
+    if (!entry) return { board: (board || []).slice(), rank: -1 };
+    var next = (board || []).slice();
+    next.push(entry);
+    next.sort(function (a, b) { return b.score - a.score || String(a.date).localeCompare(String(b.date)); });
+    next = next.slice(0, D().leaderboard.maxEntries);
+    return { board: next, rank: next.indexOf(entry) };
+  }
+
+  // ---- Random Spin (spec §2.6): genuinely chaotic, no sanitising.
+  function randomSpin(rng) {
+    rng = rng || Math.random;
+    var d = D(), cfg = d.randomSpin;
+    var nPicks = cfg.minPicks + Math.floor(rng() * (cfg.maxPicks - cfg.minPicks + 1));
+    var route = [];
+    for (var i = 0; i < nPicks; i++) route.push(d.ports[Math.floor(rng() * d.ports.length)].name);
+    var activities = {};
+    d.activities.forEach(function (act) {
+      if (rng() < cfg.activityChance) activities[act.id] = 1 + Math.floor(rng() * act.maxPerWeek);
+    });
+    var speeds = Object.keys(d.speedToggles);
+    return normalizeInputs({
+      route: route,
+      speed: speeds[Math.floor(rng() * speeds.length)],
+      nights: Math.floor(rng() * (d.time.nights + 1)),
+      activities: activities
+    });
+  }
+
+  return {
+    haversineNm: haversineNm,
+    portByName: portByName,
+    activityById: activityById,
+    propBkwAt: propBkwAt,
+    modeAtKts: modeAtKts,
+    profileStats: profileStats,
+    energyFor: energyFor,
+    posterAssumptionMwh: posterAssumptionMwh,
+    normalizeInputs: normalizeInputs,
+    tableLookup: tableLookup,
+    simulate: simulate,
+    arrivalHour: arrivalHour,
+    evaluateAchievements: evaluateAchievements,
+    leaderboardEntry: leaderboardEntry,
+    leaderboardInsert: leaderboardInsert,
+    randomSpin: randomSpin
+  };
+})();
+</script>
+
+<!-- Rendering (world + chart layers), HUD, results, leaderboard UI and
+     share card arrive in Phases 2-3, after headless validation (§12). -->
+</body>
+</html>
