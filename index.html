@@ -76,12 +76,27 @@ button:disabled:hover { background: none; color: var(--ink); }
 #topbar button { margin-left: auto; border-color: var(--ink-fixed); color: var(--ink-fixed); }
 #topbar button:hover { background: var(--ink-fixed); color: var(--paper); }
 
-main { display: flex; flex: 1; min-height: 0; }
+/* The stage fills the frame; the planning panel floats over it so the
+   liquid-glass frost has the world to refract. */
+main { position: relative; flex: 1; min-height: 0; }
 #plan {
-  width: var(--panel-w); min-width: 300px; overflow-y: auto;
-  background: var(--paper); color: var(--ink-fixed);
-  border-right: var(--rule) solid var(--ink-fixed); padding: 14px; z-index: 4;
+  position: absolute; left: 0; top: 0; bottom: 0; width: var(--panel-w);
+  overflow-y: auto; padding: 14px; z-index: 4; color: var(--ink-fixed);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  border-right: var(--rule) solid var(--glass-edge);
+  box-shadow: inset 0 1px 0 var(--glass-hi);
 }
+/* Controls inside the panel are glass too — the data layer never is. */
+#plan button {
+  background: var(--glass-fill); border-color: var(--glass-edge);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) / 2));
+  backdrop-filter: blur(calc(var(--glass-blur) / 2));
+  box-shadow: inset 0 1px 0 var(--glass-hi);
+}
+#plan button:hover { background: var(--glass-on); color: var(--ink-fixed); }
+#plan button:disabled:hover { background: var(--glass-fill); }
 #plan section { margin-bottom: 16px; border-bottom: var(--hairline) solid var(--ink-fixed); padding-bottom: 14px; }
 #plan section:last-child { border-bottom: none; }
 #plan h3 {
@@ -99,18 +114,19 @@ main { display: flex; flex: 1; min-height: 0; }
 .pick { border: var(--hairline) solid var(--ink-fixed); padding: 2px 8px; font-size: 11.5px; }
 .pick i { font-style: normal; font-family: var(--font-data); margin-right: 5px; }
 .pick.recharge { border-width: var(--rule); font-weight: 600; }
-#route-summary { font-size: 12px; margin-left: auto; }
-#port-list { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+#route-summary { font-size: 11px; letter-spacing: var(--label-tracking); margin-left: auto; opacity: 0.7; }
+#port-list { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 .port-chip {
-  text-align: left; padding: 5px 7px; font-size: 12px; text-transform: none;
-  letter-spacing: 0; display: flex; align-items: baseline; gap: 6px;
+  text-align: left; padding: 5px 8px; font-size: 12.5px; text-transform: none;
+  letter-spacing: 0; display: flex; align-items: center; gap: 7px;
   border-width: var(--hairline);
 }
-.port-chip small { margin-left: auto; font-size: 9px; letter-spacing: var(--label-tracking); text-transform: uppercase; opacity: 0.55; }
+.flag { flex: none; width: var(--flag-w); height: calc(var(--flag-w) * 0.667); display: block; }
+.flag rect, .flag circle { shape-rendering: crispEdges; }
 
 #speed-toggle { display: flex; gap: 8px; }
 #speed-toggle button { flex: 1; padding: 10px 6px; }
-#speed-toggle button.on { background: var(--ink-fixed); color: var(--paper); }
+#speed-toggle button.on, #plan #speed-toggle button.on { background: var(--ink-fixed); color: var(--paper); }
 #speed-toggle small { display: block; text-transform: none; letter-spacing: 0; font-size: 10.5px; opacity: 0.7; margin-top: 3px; }
 input[type=range] { width: 100%; accent-color: var(--ink-fixed); }
 
@@ -126,7 +142,7 @@ input[type=range] { width: 100%; accent-color: var(--ink-fixed); }
 #actions button { flex: 1; padding: 12px 6px; }
 #btn-sim { border-width: calc(var(--rule) * 1.5); font-weight: 600; }
 
-#stage-wrap { flex: 1; position: relative; min-width: 0; }
+#stage-wrap { position: absolute; inset: 0; }
 #stage { width: 100%; height: 100%; display: block; touch-action: none; }
 
 /* The title block — one corner panel, engineering-drawing language. */
@@ -216,8 +232,10 @@ table.board td.num { font-family: var(--font-data); }
 #dots-count { text-align: center; font-family: var(--font-data); font-size: 13px; margin-top: 10px; }
 
 @media (max-width: 760px) {
-  main { flex-direction: column-reverse; }
-  #plan { width: 100%; min-width: 0; max-height: var(--sheet-max-h); border-right: none; border-top: var(--rule) solid var(--ink-fixed); }
+  #plan {
+    width: 100%; left: 0; right: 0; top: auto; bottom: 0; height: var(--sheet-max-h);
+    border-right: none; border-top: var(--rule) solid var(--glass-edge);
+  }
   #titleblock { right: 8px; bottom: 8px; width: min(var(--tb-w), 62vw); }
   #brand span { display: none; }
 }
@@ -461,10 +479,42 @@ globalThis.LEIP_THEME = {
   },
 
   ui: {                        // drawing-office chrome (paper margins, panel)
-    paper: '#F5F2EA',          // chart-margin paper for the planning panel
-    panelWidthPx: 340,
-    sheetMaxVh: 46,            // mobile bottom-sheet height
-    labelTrackingEm: 0.14
+    paper: '#F5F2EA',          // chart-margin paper: data sheets and the title block
+    panelWidthPx: 420,
+    sheetMaxVh: 52,            // mobile bottom-sheet height
+    labelTrackingEm: 0.14,
+    // LIQUID GLASS — a deliberate, scoped override of the visual
+    // direction's no-glass rule: interactive controls only (the planning
+    // panel and its buttons). The data layer — title block, results,
+    // board, achievements — stays ink on paper. Glass on controls, ink
+    // on data; the two-layer split holds.
+    glass: {
+      tint: '#F5F2EA', alpha: 0.58, blurPx: 20, saturate: 1.2,
+      edgeAlpha: 0.55, fillAlpha: 0.34, highlightAlpha: 0.55, onAlpha: 0.85
+    }
+  },
+
+  // Country flags for the port list — tokenised swatch geometry, drawn as
+  // inline SVG at 3:2. Ops: v/h bands, rect, circle, cross, frame.
+  flags: {
+    palette: {
+      white: '#FFFFFF', frBlue: '#0055A4', frRed: '#EF4135', itGreen: '#008C45',
+      itRed: '#CD212A', esRed: '#AA151B', esGold: '#F1BF00', mcRed: '#CE1126',
+      grBlue: '#0D5EAF', trRed: '#E30A17', meRed: '#C40308', meGold: '#D4AF37'
+    },
+    defs: {
+      France: [['v', ['frBlue', 'white', 'frRed']]],
+      Italy: [['v', ['itGreen', 'white', 'itRed']]],
+      Spain: [['h', ['esRed', 'esGold', 'esGold', 'esRed']]],
+      Monaco: [['h', ['mcRed', 'white']]],
+      Greece: [['h', ['grBlue', 'white', 'grBlue', 'white', 'grBlue']],
+               ['rect', 0, 0, 0.42, 0.6, 'grBlue'], ['cross', 0.21, 0.3, 0.17, 0.06, 'white']],
+      Turkey: [['rect', 0, 0, 1, 1, 'trRed'], ['circle', 0.40, 0.5, 0.21, 'white'],
+               ['circle', 0.47, 0.5, 0.17, 'trRed'], ['circle', 0.66, 0.5, 0.08, 'white']],
+      Montenegro: [['rect', 0, 0, 1, 1, 'meRed'], ['frame', 0.07, 'meGold'],
+                   ['circle', 0.5, 0.5, 0.17, 'meGold']]
+    },
+    widthPx: 17
   },
 
   chartCanvas: { w: 4096, h: 2048, marginDeg: 1.2 },   // ink layer texture (graticule, soundings, labels)
@@ -1328,6 +1378,15 @@ globalThis.LEIP_APP = (function () {
     st.setProperty('--volt', T.volt);
     st.setProperty('--signal', T.signalRed);
     st.setProperty('--paper', T.ui.paper);
+    var gl = T.ui.glass, gc = hexToRgb(gl.tint).join(',');
+    st.setProperty('--glass', 'rgba(' + gc + ',' + gl.alpha + ')');
+    st.setProperty('--glass-fill', 'rgba(' + gc + ',' + gl.fillAlpha + ')');
+    st.setProperty('--glass-on', 'rgba(' + gc + ',' + gl.onAlpha + ')');
+    st.setProperty('--glass-edge', 'rgba(' + hexToRgb(T.ink.onLight).join(',') + ',' + gl.edgeAlpha + ')');
+    st.setProperty('--glass-hi', 'rgba(255,255,255,' + gl.highlightAlpha + ')');
+    st.setProperty('--glass-blur', gl.blurPx + 'px');
+    st.setProperty('--glass-sat', String(gl.saturate));
+    st.setProperty('--flag-w', T.flags.widthPx + 'px');
     st.setProperty('--ink-fixed', T.ink.onLight);   // paper panels keep light-scene ink
     st.setProperty('--scrim', T.ink.onLight + 'cc');
     st.setProperty('--rule', T.lines.rulePx + 'px');
@@ -2073,12 +2132,49 @@ globalThis.LEIP_APP = (function () {
   }
 
   // ------------------------------------------------------------ planning UI
+  // Country flag as inline SVG from the THEME tokens, 3:2.
+  function flagSvg(country) {
+    var f = T.flags, ops = f.defs[country];
+    if (!ops) return '';
+    var P = f.palette, W = 1, H = 0.667, parts = [];
+    function col(k) { return P[k] || k; }
+    ops.forEach(function (op) {
+      var kind = op[0], i, n;
+      if (kind === 'v' || kind === 'h') {
+        n = op[1].length;
+        for (i = 0; i < n; i++) {
+          parts.push(kind === 'v'
+            ? '<rect x="' + (i * W / n) + '" y="0" width="' + (W / n + 0.002) + '" height="' + H + '" fill="' + col(op[1][i]) + '"/>'
+            : '<rect x="0" y="' + (i * H / n) + '" width="' + W + '" height="' + (H / n + 0.002) + '" fill="' + col(op[1][i]) + '"/>');
+        }
+      } else if (kind === 'rect') {
+        parts.push('<rect x="' + op[1] * W + '" y="' + op[2] * H + '" width="' + op[3] * W +
+          '" height="' + op[4] * H + '" fill="' + col(op[5]) + '"/>');
+      } else if (kind === 'circle') {
+        parts.push('<circle cx="' + op[1] * W + '" cy="' + op[2] * H + '" r="' + op[3] * H + '" fill="' + col(op[4]) + '"/>');
+      } else if (kind === 'cross') {
+        parts.push('<rect x="' + (op[1] * W - op[4] * W / 2) + '" y="' + (op[2] * H - op[3] * H) +
+          '" width="' + op[4] * W + '" height="' + op[3] * H * 2 + '" fill="' + col(op[5]) + '"/>');
+        parts.push('<rect x="' + (op[1] * W - op[3] * W) + '" y="' + (op[2] * H - op[4] * H / 2) +
+          '" width="' + op[3] * W * 2 + '" height="' + op[4] * H + '" fill="' + col(op[5]) + '"/>');
+      } else if (kind === 'frame') {
+        parts.push('<rect x="' + op[1] * W / 2 + '" y="' + op[1] * H / 2 + '" width="' + (W - op[1] * W) +
+          '" height="' + (H - op[1] * H) + '" fill="none" stroke="' + col(op[2]) +
+          '" stroke-width="' + op[1] * H + '"/>');
+      }
+    });
+    return '<svg class="flag" viewBox="0 0 1 0.667" role="img" aria-label="' + esc(country) + '">' +
+      parts.join('') + '</svg>';
+  }
+
   function buildPortList() {
     var el = $('port-list');
     if (!el) return;
+    // Energy type is deliberately NOT shown while planning — it still
+    // scores at the finish (spec §5), but the player picks blind.
     el.innerHTML = D.ports.map(function (p) {
-      return '<button class="port-chip" data-port="' + esc(p.name) + '">' +
-        esc(p.name) + '<small>' + esc(p.energy) + '</small></button>';
+      return '<button class="port-chip" data-port="' + esc(p.name) + '" title="' + esc(p.country) + '">' +
+        flagSvg(p.country) + esc(p.name) + '</button>';
     }).join('');
     if (el.querySelectorAll) {
       var chips = el.querySelectorAll('button[data-port]');
@@ -2139,13 +2235,6 @@ globalThis.LEIP_APP = (function () {
       }
     }
   }
-  function routeDistanceNm(route) {
-    var nm = 0;
-    for (var i = 0; i + 1 < route.length; i++) {
-      nm += E.haversineNm(E.portByName(route[i]), E.portByName(route[i + 1])) * D.nav.routeFactor;
-    }
-    return nm;
-  }
   function refreshPlanning() {
     var strip = $('route-strip');
     if (strip) {
@@ -2157,12 +2246,10 @@ globalThis.LEIP_APP = (function () {
           }).join('')
         : '<span class="hint">No ports picked — the first pick is the start.</span>';
     }
+    // Pick count only — no running distance total. Per-leg bearing and
+    // distance stay on the chart, where navigation belongs.
     var sum = $('route-summary');
-    if (sum) {
-      sum.textContent = S.inputs.route.length
-        ? S.inputs.route.length + ' PICKS · ' + Math.round(routeDistanceNm(S.inputs.route)) + ' NM'
-        : '';
-    }
+    if (sum) sum.textContent = S.inputs.route.length ? S.inputs.route.length + ' PICKS' : '';
     var sim = $('btn-sim');
     if (sim) sim.disabled = S.inputs.route.length < 1 || S.phase !== 'planning';
     var st = $('speed-toggle');
