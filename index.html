@@ -130,13 +130,33 @@ main { position: relative; flex: 1; min-height: 0; }
 #speed-toggle small { display: block; text-transform: none; letter-spacing: 0; font-size: 10.5px; opacity: 0.7; margin-top: 3px; }
 input[type=range] { width: 100%; accent-color: var(--ink-fixed); }
 
-.act-group h4 { font-size: 10px; letter-spacing: var(--label-tracking); text-transform: uppercase; opacity: 0.75; margin: 8px 0 4px; }
-.act-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; font-size: 12px; }
-.act-name { flex: 1; }
-.act-eco { font-size: 9.5px; opacity: 0.55; width: 40px; text-align: right; text-transform: uppercase; letter-spacing: 0.05em; }
-.stepper { display: flex; align-items: center; gap: 5px; }
-.stepper button { padding: 0 8px; height: 22px; line-height: 1; border-width: var(--hairline); }
-.stepper b { min-width: 16px; text-align: center; font-family: var(--font-data); font-weight: 400; }
+.act-group h4 { font-size: 10px; letter-spacing: var(--label-tracking); text-transform: uppercase; opacity: 0.75; margin: 10px 0 5px; }
+.act-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.act-tile {
+  position: relative; display: flex; align-items: center; gap: 8px;
+  padding: 6px 22px 6px 7px; min-height: 46px; cursor: pointer; user-select: none;
+  border: var(--hairline) solid var(--glass-edge); background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) / 2));
+  backdrop-filter: blur(calc(var(--glass-blur) / 2));
+  box-shadow: inset 0 1px 0 var(--glass-hi);
+}
+.act-tile:hover { background: var(--glass-on); }
+.act-tile.on { border-color: var(--ink-fixed); border-width: var(--rule); padding: 5px 21px 5px 6px; }
+.act-icon { width: var(--icon-size); height: var(--icon-size); flex: none; display: block; }
+.act-text { min-width: 0; }
+.act-name { display: block; font-size: 11.5px; line-height: 1.18; }
+.act-eco { display: block; font-size: 9px; letter-spacing: var(--label-tracking); text-transform: uppercase; opacity: 0.55; margin-top: 2px; }
+.act-eco b { font-family: var(--font-data); font-weight: 400; }
+.act-count {
+  position: absolute; top: 3px; right: 5px;
+  font-family: var(--font-data); font-size: 13px; line-height: 1;
+}
+.act-minus {
+  position: absolute; bottom: 2px; right: 2px; width: 19px; height: 19px;
+  padding: 0; line-height: 1; font-size: 13px; border-width: var(--hairline);
+  display: none; align-items: center; justify-content: center;
+}
+.act-tile.on .act-minus { display: flex; }
 
 #actions { display: flex; gap: 8px; }
 #actions button { flex: 1; padding: 12px 6px; }
@@ -515,6 +535,53 @@ globalThis.LEIP_THEME = {
                    ['circle', 0.5, 0.5, 0.17, 'meGold']]
     },
     widthPx: 17
+  },
+
+  // ACTIVITY ICONS — sculptural flat shapes in the world's material
+  // language: three land tones plus hull white, teak, ink and sea. Ops:
+  // ['p', tone, [x,y,...]] polygon · ['r', tone, x,y,w,h] · ['c', tone, cx,cy,r].
+  // 24 units square. Volt never appears here — volt means energy only.
+  icons: {
+    sizePx: 27,
+    // A step darker than the world's land tones so every face reads
+    // against the light glass panel.
+    tones: { lit: '#D6C29E', mid: '#B9A177', shade: '#8E7852',
+             white: '#F7F4ED', teak: '#C9A876', ink: '#22344A', sea: '#5FA39E' },
+    defs: {
+      A01: [['r', 'sea', 2,18.6,20,1.8], ['p', 'mid', [3,17.6, 16,17.6, 21,13.6, 13,12, 5,13]],
+            ['p', 'shade', [6,12.6, 12.4,12, 12.4,9.8, 7,10.2]], ['r', 'ink', 12.4,8.4,1.5,4],
+            ['r', 'ink', 10.4,7.2,5.6,1.5]],
+      A02: [['r', 'sea', 2,18.8,20,1.6], ['p', 'mid', [5,15.6, 8,12.2, 16,10.8, 20,12.4, 20,14.6, 16,16.4, 8,16.8]],
+            ['p', 'lit', [8,12.6, 16,11.2, 16,12.8, 8,14.2]], ['r', 'ink', 2.4,11.8,3.6,1.5],
+            ['r', 'ink', 2.4,16.2,3.6,1.5]],
+      A03: [['p', 'lit', [3,8.4, 20,6.6, 20.6,8.8, 3.6,10.6]], ['r', 'sea', 2,12.6,20,1.3],
+            ['r', 'shade', 11,10.4,1.5,6], ['p', 'mid', [6.4,16.4, 17.2,16.4, 15.4,18.8, 8.2,18.8]]],
+      A04: [['p', 'white', [2,16.8, 12,14.4, 12.4,16.4, 2.6,18.8]],
+            ['p', 'mid', [4,13.6, 18,10.4, 19,12.8, 5,16]],
+            ['r', 'shade', 9,11.9,1.6,2.2], ['p', 'ink', [17.6,9.6, 21.6,4.6, 22.6,5.4, 18.6,10.4]]],
+      A05: [['c', 'mid', 12,14,6.6], ['c', 'lit', 12,14,3.2], ['p', 'ink', [12,7.2, 21,3.8, 21.6,5.1, 12.6,8.6]]],
+      A06: [['r', 'sea', 2,19,20,1.8], ['p', 'mid', [5,18.6, 18,18.6, 18,5.6]],
+            ['p', 'shade', [18,5.6, 19.6,6.8, 6.8,18.6, 5,18.6]], ['r', 'lit', 15.4,3.8,5.2,2]],
+      A07: [['p', 'lit', [4,11, 5,8.6, 17,8.6, 18,11, 16,14.4, 6,14.4]], ['p', 'sea', [6.4,10.4, 15.6,10.4, 14.8,12.8, 7.2,12.8]], ['p', 'mid', [17.4,9, 19.6,9, 19.6,3.6, 17.4,3.6]]],
+      A08: [['r', 'mid', 6,8,4.6,11], ['r', 'mid', 13.4,8,4.6,11], ['r', 'lit', 6,8,4.6,2.2], ['r', 'lit', 13.4,8,4.6,2.2], ['r', 'ink', 10.4,4.8,3.2,3.2]],
+      A09: [['c', 'mid', 12,13,6.5], ['c', 'sea', 10.4,11.4,2.7], ['r', 'shade', 2.4,11.2,3.6,3.6], ['r', 'shade', 18,11.2,3.6,3.6]],
+      A10: [['p', 'lit', [2.6,17, 20,13.8, 20.6,16, 3.2,19.2]], ['p', 'ink', [15.2,3.6, 16.6,4, 11.2,13, 9.8,12.6]],
+            ['p', 'mid', [8.4,11.4, 12.2,12.6, 10.8,16.2, 7.2,15]]],
+      A11: [['r', 'mid', 9,11,6,2.4], ['r', 'shade', 4,8,4,8.4], ['r', 'shade', 16,8,4,8.4], ['r', 'lit', 5,9,1.8,6.4], ['r', 'lit', 17,9,1.8,6.4]],
+      A12: [['p', 'ink', [3.6,4.6, 5,4.2, 13.6,15, 12.4,15.6]], ['p', 'mid', [11,17, 17,14.8, 20,17.4, 17,20, 11,18.8]], ['p', 'shade', [19.6,16.4, 22,15, 22,20, 19.6,18.6]]],
+      R01: [['p', 'mid', [3,12, 21,12, 19,19.4, 5,19.4]], ['r', 'sea', 5,13,14,3], ['c', 'white', 8,10.4,1.5], ['c', 'white', 12,8.8,1.9], ['c', 'white', 16,10.6,1.3]],
+      R02: [['r', 'lit', 3,6,18,13], ['r', 'sea', 5,8,14,9], ['p', 'white', [5,12.4, 9,11.2, 13,13.2, 17,11.2, 19,12.2, 19,14, 5,14]]],
+      R03: [['p', 'mid', [3.6,11, 20.4,11, 12,4.4]], ['r', 'ink', 11.4,11,1.2,7.6], ['r', 'shade', 3,18.6,18,2.2]],
+      R04: [['p', 'mid', [5.6,15.8, 18.4,15.8, 19.4,18.4, 4.6,18.4]], ['p', 'lit', [7,12.2, 17,12.2, 18,14.8, 6,14.8]], ['p', 'shade', [8.4,8.6, 15.6,8.6, 16.6,11.2, 7.4,11.2]]],
+      R05: [['p', 'shade', [2.6,10.4, 12,4, 21.4,10.4]], ['p', 'mid', [4.6,10.4, 19.4,10.4, 19.4,19.6, 4.6,19.6]], ['p', 'lit', [9.8,13.4, 14.2,13.4, 14.2,19.6, 9.8,19.6]]],
+      R06: [['r', 'ink', 3,4.6,18,11], ['r', 'lit', 4.4,6,15.2,8.2], ['p', 'white', [8,16, 16,16, 19,20.4, 5,20.4]]],
+      R07: [['p', 'lit', [7.6,4, 16.4,4, 14.2,11, 9.8,11]], ['r', 'mid', 11.4,11,1.2,6], ['r', 'shade', 7.8,17,8.4,2.2]],
+      R08: [['p', 'mid', [6,3.6, 18,3.6, 18,20.4, 6,20.4]], ['c', 'shade', 12,9,3.3], ['c', 'lit', 12,9,1.4], ['c', 'shade', 12,16.2,2]],
+      R09: [['c', 'mid', 12,5,2.6], ['p', 'lit', [12,8.2, 17.4,15.4, 6.6,15.4]], ['r', 'shade', 4,16.4,16,2.2]],
+      R10: [['p', 'shade', [2,17, 22,17, 22,20.4, 2,20.4]], ['p', 'lit', [7,4.4, 8,7.4, 11,8.6, 8,9.8, 7,12.8, 6,9.8, 3,8.6, 6,7.4]], ['p', 'white', [16.4,8.4, 17.2,10.4, 19.2,11.2, 17.2,12, 16.4,14, 15.6,12, 13.6,11.2, 15.6,10.4]]],
+      R11: [['p', 'white', [3.6,12.6, 20.4,12.6, 17.4,17.2, 6.6,17.2]], ['r', 'ink', 11.4,7,1.2,5.6], ['r', 'teak', 5,17.2,14,1.2], ['r', 'shade', 2,18.8,20,2]],
+      R12: [['p', 'mid', [3,10, 21,10, 22,16, 17,17.4, 12,14, 7,17.4, 2,16]], ['r', 'ink', 5.4,11.6,1.6,4.4], ['r', 'ink', 4,13,4.4,1.6], ['c', 'lit', 16.4,12.4,1.3], ['c', 'lit', 18.6,14,1.3]]
+    }
   },
 
   chartCanvas: { w: 4096, h: 2048, marginDeg: 1.2 },   // ink layer texture (graticule, soundings, labels)
@@ -1387,6 +1454,7 @@ globalThis.LEIP_APP = (function () {
     st.setProperty('--glass-blur', gl.blurPx + 'px');
     st.setProperty('--glass-sat', String(gl.saturate));
     st.setProperty('--flag-w', T.flags.widthPx + 'px');
+    st.setProperty('--icon-size', T.icons.sizePx + 'px');
     st.setProperty('--ink-fixed', T.ink.onLight);   // paper panels keep light-scene ink
     st.setProperty('--scrim', T.ink.onLight + 'cc');
     st.setProperty('--rule', T.lines.rulePx + 'px');
@@ -2201,38 +2269,71 @@ globalThis.LEIP_APP = (function () {
       }
     }
   }
+  // Sculptural flat-shaded activity icon from the THEME tokens.
+  function iconSvg(id) {
+    var ic = T.icons, ops = ic.defs[id];
+    if (!ops) return '';
+    var parts = ops.map(function (op) {
+      var c = ic.tones[op[1]] || op[1];
+      if (op[0] === 'p') {
+        var pts = [];
+        for (var i = 0; i < op[2].length; i += 2) pts.push(op[2][i] + ',' + op[2][i + 1]);
+        return '<polygon points="' + pts.join(' ') + '" fill="' + c + '"/>';
+      }
+      if (op[0] === 'r') return '<rect x="' + op[2] + '" y="' + op[3] + '" width="' + op[4] + '" height="' + op[5] + '" fill="' + c + '"/>';
+      if (op[0] === 'c') return '<circle cx="' + op[2] + '" cy="' + op[3] + '" r="' + op[4] + '" fill="' + c + '"/>';
+      return '';
+    });
+    return '<svg class="act-icon" viewBox="0 0 24 24" aria-hidden="true">' + parts.join('') + '</svg>';
+  }
+
+  // Activities are Monument-style tiles: tap the tile to add one, the
+  // corner button to remove one. Mechanics are unchanged — repeatable vs
+  // once-only, per-week maxima and eco values all come from the sheet.
   function buildActivityList() {
     var el = $('activity-list');
     if (!el) return;
     var html = '';
     ['Relaxing', 'Active'].forEach(function (cat) {
-      html += '<div class="act-group"><h4>' + cat + '</h4>';
+      html += '<div class="act-group"><h4>' + cat + '</h4><div class="act-grid">';
       D.activities.filter(function (a) { return a.category === cat; }).forEach(function (a) {
-        html += '<div class="act-row" data-act="' + a.id + '">' +
-          '<span class="act-name">' + esc(a.name) + (a.repeatable ? '' : ' <small>(once)</small>') + '</span>' +
-          '<span class="act-eco">eco <span class="data">' + a.eco + '</span></span>' +
-          '<div class="stepper"><button data-dir="-1">−</button><b id="cnt-' + a.id + '">0</b>' +
-          '<button data-dir="1">+</button></div></div>';
+        html += '<div class="act-tile" data-act="' + a.id + '" role="button" tabindex="0" ' +
+          'aria-label="' + esc(a.name) + '" title="' + esc(a.name) +
+          (a.repeatable ? ' — up to ' + a.maxPerWeek + ' per week' : ' — once per charter') + '">' +
+          iconSvg(a.id) +
+          '<span class="act-text"><span class="act-name">' + esc(a.name) + '</span>' +
+          '<span class="act-eco">eco <b>' + a.eco + '</b>' + (a.repeatable ? '' : ' · once') + '</span></span>' +
+          '<b class="act-count" id="cnt-' + a.id + '"></b>' +
+          '<button class="act-minus" data-minus="' + a.id + '" tabindex="-1" aria-label="Remove one">−</button>' +
+          '</div>';
       });
-      html += '</div>';
+      html += '</div></div>';
     });
     el.innerHTML = html;
-    if (el.querySelectorAll) {
-      var rows = el.querySelectorAll('.act-row');
-      for (var i = 0; i < rows.length; i++) {
-        (function (row) {
-          var id = row.getAttribute('data-act');
-          var btns = row.querySelectorAll('button');
-          for (var j = 0; j < btns.length; j++) {
-            (function (btn) {
-              btn.addEventListener('click', function () {
-                var cur = S.inputs.activities[id] || 0;
-                API.setActivity(id, cur + Number(btn.getAttribute('data-dir')));
-              });
-            })(btns[j]);
+    if (!el.querySelectorAll) return;
+    var tiles = el.querySelectorAll('.act-tile');
+    for (var i = 0; i < tiles.length; i++) {
+      (function (tile) {
+        var id = tile.getAttribute('data-act');
+        function add() { API.setActivity(id, (S.inputs.activities[id] || 0) + 1); }
+        tile.addEventListener('click', function (ev) {
+          if (ev && ev.target && ev.target.getAttribute && ev.target.getAttribute('data-minus')) return;
+          add();
+        });
+        tile.addEventListener('keydown', function (ev) {
+          if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') {
+            if (ev.preventDefault) ev.preventDefault();
+            add();
           }
-        })(rows[i]);
-      }
+        });
+        var minus = tile.querySelector ? tile.querySelector('[data-minus]') : null;
+        if (minus) {
+          minus.addEventListener('click', function (ev) {
+            if (ev.stopPropagation) ev.stopPropagation();
+            API.setActivity(id, (S.inputs.activities[id] || 0) - 1);
+          });
+        }
+      })(tiles[i]);
     }
   }
   function refreshPlanning() {
@@ -2264,8 +2365,13 @@ globalThis.LEIP_APP = (function () {
     var nr = $('nights');
     if (nr) nr.value = String(S.inputs.nights);
     D.activities.forEach(function (a) {
+      var n = S.inputs.activities[a.id] || 0;
       var el = $('cnt-' + a.id);
-      if (el) el.textContent = String(S.inputs.activities[a.id] || 0);
+      if (el) {
+        el.textContent = n > 0 ? String(n) : '';
+        var tile = el.parentNode;
+        if (tile && tile.classList) tile.classList[n > 0 ? 'add' : 'remove']('on');
+      }
     });
     RoutePlot.fit(S.inputs.route);
     requestRoute();
