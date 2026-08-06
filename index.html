@@ -303,13 +303,101 @@ globalThis.LEIP_THEME = {
     yachtHull: '#F7F4ED',      // matte white, no gloss
     yachtTeak: '#C9A876',      // fine teak deck line
     foam: '#FFFFFF',           // crisp geometric foam strokes
-    // three tones per mass: lit / mid / shade (multipliers on scene land colour)
-    massTones: { lit: 1.06, mid: 0.9, shade: 0.76 },
+    // three tones per mass: lit (highland step) / mid (coastal land) / shade
+    massTones: { lit: 1.05, mid: 0.93, shade: 0.78 },
     seaDeep: 0.92,             // sea-field edge darkening multiplier
     isletRadius: 5,            // sculptural landmark base radius (world units)
-    yachtLength: 8,
     anchorOffset: 2.1,         // yacht anchors off the landmark, x isletRadius
-    scalePerDeg: 40            // world units per degree of longitude
+    scalePerDeg: 40,           // world units per degree of longitude
+    seaSpread: { x: 2.2, z: 3.0 },   // sea field size vs the charted rect
+
+    // The yacht: 70 m fast-displacement E-Hybrid proportions. Plan outline
+    // is (alongLength, halfBeam) as fractions of length/beam — raked
+    // pointed bow, long flush foredeck, tapered stern.
+    yacht: {
+      length: 9, beamRatio: 0.143,        // ~7:1 length to beam
+      plan: [[0.50, 0.00], [0.455, 0.30], [0.40, 0.56], [0.30, 0.82], [0.16, 0.97],
+             [-0.06, 1.00], [-0.28, 0.97], [-0.41, 0.86], [-0.50, 0.70]],
+      hullDepth: 0.06,                    // x length, above waterline
+      sheer: { lift: 0.018, bowRake: 1.045, beamInset: 0.88 },   // raked stem over a flush foredeck
+      // Stepped superstructure, set aft-of-centre: [centreX, lengthFrac, beamFrac, height] x length
+      decks: [[-0.055, 0.44, 0.80, 0.042], [-0.115, 0.30, 0.64, 0.036], [-0.165, 0.17, 0.46, 0.030]],
+      mast: { x: -0.20, w: 0.018, h: 0.055 },
+      foredeck: { x: 0.255, lengthFrac: 0.26, beamFrac: 0.40 },  // fine teak deck line
+      windowBand: { deck: 0, heightFrac: 0.22, overhang: 1.04 }  // one ink line so the decks read small
+    },
+
+    // Port name plates lie flat on the world, above the relief so land
+    // never swallows them (the graticule below stays sea-only).
+    labelPlate: { px: 512, worldW: 30, y: 2.6, offset: 9.5, fontPx: 44, trackPx: 6 }
+  },
+
+  // GEOGRAPHY — decorative only, zero effect on any number. Simplified
+  // Mediterranean coastlines as [lon, lat] rings, extruded flat-shaded in
+  // the scene's land tint with a bevelled shore for soft relief; `relief`
+  // rings sit a step higher in the lit tone.
+  geography: {
+    landHeight: 1.15, reliefHeight: 0.95,
+    bevelSize: 1.1, bevelThickness: 0.55,
+    reliefInset: 0.78,          // relief rings pulled toward their centroid, well clear of the shore
+    coasts: {
+      europe: [
+        -5.6,36.0, -4.4,36.7, -2.9,36.8, -1.9,37.2, -0.9,37.6, -0.5,38.3, 0.2,38.85,
+        -0.3,39.45, 0.1,40.1, 0.9,41.0, 2.18,41.35, 3.2,42.35, 4.2,43.5, 5.0,43.3,
+        5.9,43.1, 6.6,43.15, 7.13,43.5, 7.42,43.68, 8.0,43.9, 8.5,44.28, 9.2,44.28,
+        9.85,44.05, 10.3,43.5, 10.7,42.9, 11.2,42.4, 12.2,41.75, 13.5,41.2, 14.05,40.9,
+        14.47,40.72, 14.75,40.65, 15.3,40.05, 15.9,39.9, 16.1,39.4, 15.9,38.9, 15.65,38.1,
+        16.6,38.85, 17.2,39.1, 17.1,40.5, 18.0,40.1, 18.5,40.15, 18.0,40.7, 17.2,41.0,
+        16.5,41.3, 16.18,41.88, 15.5,41.9, 15.2,42.05, 14.7,42.4, 14.2,42.8, 13.5,43.6,
+        12.4,44.2, 12.31,45.44, 13.6,45.7, 14.5,45.1, 15.2,44.3, 16.4,43.5, 17.3,43.0,
+        18.09,42.65, 18.69,42.43, 19.3,41.9, 19.4,40.9, 19.9,40.0, 20.2,39.5, 20.9,38.8,
+        21.1,38.35, 21.4,37.7, 21.7,37.0, 22.4,36.7, 23.0,36.4, 23.2,37.4, 23.674,37.938,
+        24.05,38.2, 23.6,38.9, 23.0,39.3, 22.6,40.0, 22.9,40.5, 24.0,40.7, 24.6,40.9,
+        25.9,40.85, 26.4,40.1, 26.7,39.6, 26.6,38.9, 27.0,38.45, 26.85,38.3, 27.25,37.9,
+        27.58,37.25, 27.43,37.03, 27.9,36.85, 28.3,36.6, 28.93,36.75, 29.4,36.25,
+        30.6,36.3, 31.5,36.8, 32.8,36.1, 34.0,36.3,
+        36.5,38.5, 37.0,42.0, 30.0,45.5, 22.0,49.0, 12.0,50.5, 2.0,50.0, -1.5,48.5,
+        -9.5,43.6, -9.3,38.7, -7.4,37.2
+      ],
+      northAfrica: [
+        -5.9,35.8, -3.0,35.3, 0.0,35.9, 3.1,36.8, 5.5,36.9, 7.6,36.95, 8.7,37.2,
+        10.2,37.1, 11.05,37.05, 10.8,36.4, 10.4,35.6, 11.0,34.6, 11.4,33.6, 13.0,32.9,
+        15.2,32.4, 17.0,31.0, 19.0,30.4, 20.0,32.0, 21.6,32.9, 23.1,32.6, 25.0,31.6,
+        27.5,31.3, 30.0,31.4, 32.4,31.2, 34.2,31.3, 35.6,29.8, 33.0,27.0, 20.0,25.5,
+        5.0,26.5, -6.0,30.0
+      ],
+      corsica: [9.35,43.0, 9.45,42.7, 9.55,42.3, 9.5,41.9, 9.4,41.6, 9.28,41.38,
+                9.1,41.37, 8.8,41.5, 8.6,41.85, 8.55,42.25, 8.75,42.55, 9.1,42.85],
+      sardinia: [9.2,41.26, 9.58,41.2, 9.7,40.9, 9.75,40.55, 9.65,40.0, 9.6,39.5,
+                 9.55,39.15, 9.2,39.15, 8.9,38.9, 8.65,39.1, 8.4,39.3, 8.45,40.0,
+                 8.15,40.6, 8.3,40.85, 8.8,41.15],
+      sicily: [12.42,37.8, 13.3,38.03, 14.5,38.05, 15.2,38.3, 15.65,38.25, 15.1,37.5,
+               15.3,37.1, 14.5,36.8, 13.2,37.15, 12.45,37.55],
+      mallorca: [2.33,39.6, 2.75,39.85, 3.2,39.95, 3.45,39.75, 3.35,39.35, 2.9,39.28, 2.5,39.4],
+      ibiza: [1.22,38.98, 1.6,39.1, 1.6,38.85, 1.35,38.65, 1.2,38.8],
+      menorca: [3.8,40.05, 4.3,40.05, 4.32,39.83, 3.83,39.9],
+      crete: [23.5,35.3, 24.7,35.6, 26.3,35.35, 25.7,35.0, 24.5,35.0, 23.6,35.15],
+      rhodes: [27.72,36.45, 28.25,36.4, 28.25,35.9, 27.85,35.9, 27.72,36.15],
+      thera: [25.32,36.48, 25.47,36.46, 25.48,36.34, 25.35,36.33, 25.30,36.40],
+      tilos: [26.26,36.62, 26.42,36.6, 26.44,36.47, 26.28,36.48],
+      naxos: [25.35,37.15, 25.6,37.1, 25.55,36.9, 25.35,36.92],
+      elba: [10.1,42.82, 10.42,42.82, 10.42,42.72, 10.1,42.72]
+    },
+    relief: {
+      alps: [6.6,44.9, 8.5,46.2, 11.0,46.8, 13.4,46.5, 13.0,45.7, 10.5,45.4, 8.0,44.5, 6.9,44.2],
+      apennines: [10.2,44.2, 12.0,43.5, 13.8,42.6, 15.3,41.6, 16.3,40.6, 16.0,39.6,
+                  15.5,38.6, 15.2,39.2, 15.2,40.4, 14.5,41.3, 12.6,42.6, 11.0,43.4, 9.9,43.9],
+      pyrenees: [-1.5,43.0, 0.5,42.8, 2.2,42.5, 2.9,42.4, 1.5,42.9, -0.5,43.3],
+      meseta: [-6.5,41.5, -3.0,41.2, -1.0,40.3, -0.6,38.8, -2.5,37.3, -4.5,37.0, -6.0,38.5, -6.8,40.0],
+      dinaric: [14.6,45.4, 17.5,44.2, 19.5,42.6, 20.3,41.2, 19.6,40.4, 18.6,42.0, 16.9,43.3, 14.2,44.8],
+      pindus: [20.9,40.2, 22.3,40.3, 22.9,39.3, 22.6,38.2, 21.9,37.4, 21.6,38.2, 21.3,39.3, 20.4,39.9],
+      anatolia: [27.4,39.4, 30.0,39.2, 32.5,38.0, 33.5,36.9, 31.0,36.6, 28.6,37.0, 27.3,38.2, 26.9,38.9],
+      atlas: [-4.0,34.5, 0.0,35.3, 4.0,35.9, 7.0,35.8, 9.0,35.2, 8.0,34.3, 4.0,33.8, -1.0,33.5, -4.5,33.4],
+      corsicaSpine: [8.75,42.7, 9.25,42.3, 9.3,41.7, 9.0,41.5, 8.75,42.0, 8.7,42.4],
+      sardiniaSpine: [9.2,41.0, 9.5,40.6, 9.4,39.9, 9.3,39.4, 9.0,39.3, 8.8,39.9, 8.7,40.5, 8.85,40.9],
+      etna: [14.3,37.9, 15.1,37.85, 15.2,37.4, 14.5,37.2, 13.6,37.4, 13.8,37.75],
+      creteSpine: [23.9,35.3, 25.2,35.35, 26.0,35.25, 25.3,35.1, 24.3,35.1]
+    }
   },
 
   chart: {
@@ -1375,18 +1463,60 @@ globalThis.LEIP_APP = (function () {
         }
         ctx.globalAlpha = 1;
 
-        // Port name in spaced caps, hash-staggered against pile-ups.
-        ctx.font = '600 26px ' + 'Saira SemiCondensed, sans-serif';
-        try { ctx.letterSpacing = '7px'; } catch (e) {}
-        ctx.globalAlpha = 0.85;
-        ctx.fillStyle = ink; ctx.textAlign = 'center';
-        var below = (h % 2) === 0;
-        var dy = below ? R * 1.9 + 30 + (h % 3) * 24 : -(R * 1.9 + 14 + (h % 3) * 24);
-        ctx.fillText(port.name.toUpperCase(), c.x, c.y + dy);
-        ctx.globalAlpha = 1;
-        try { ctx.letterSpacing = '0px'; } catch (e) {}
       });
+      // Port names are NOT drawn here — they live on their own plates
+      // above the relief, so land never swallows a label while the
+      // graticule below stays sea-only.
       if (this.tex) this.tex.needsUpdate = true;
+    }
+  };
+
+  // Port name plates: one flat plane per port, in the chart's ink, sitting
+  // above the terrain. Redrawn only when the ink flips.
+  var Labels = {
+    items: [],
+    init: function (scene) {
+      if (!doc) return;
+      var lp = T.world.labelPlate;
+      Labels.items = D.ports.map(function (port) {
+        var cnv = doc.createElement('canvas');
+        cnv.width = lp.px; cnv.height = Math.round(lp.px / 6);
+        var tex = new THREE.CanvasTexture(cnv);
+        var wW = lp.worldW, wH = wW * cnv.height / cnv.width;
+        var mesh = new THREE.Mesh(new THREE.PlaneGeometry(wW, wH),
+          new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+        mesh.rotation.x = -Math.PI / 2;
+        var w = PROJ.pos(port.lat, port.lon);
+        var h = hashStr(port.name);
+        var dz = (h % 2 === 0 ? 1 : -1) * (lp.offset + (h % 3) * 3.4);
+        mesh.position.set(w.x, lp.y, w.z + dz);
+        scene.add(mesh);
+        return { port: port, cnv: cnv, tex: tex, mesh: mesh };
+      });
+    },
+    draw: function (ink) {
+      var lp = T.world.labelPlate;
+      Labels.items.forEach(function (it) {
+        var ctx;
+        try { ctx = it.cnv.getContext('2d'); } catch (e) { return; }
+        if (!ctx || !ctx.clearRect) return;
+        var W = it.cnv.width, H = it.cnv.height;
+        ctx.clearRect(0, 0, W, H);
+        var name = it.port.name.toUpperCase();
+        var size = lp.fontPx;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = ink;
+        try { ctx.letterSpacing = lp.trackPx + 'px'; } catch (e) {}
+        // Shrink to fit the plate rather than clip a long port name.
+        for (var i = 0; i < 8; i++) {
+          ctx.font = '600 ' + size + 'px Saira SemiCondensed, sans-serif';
+          var m = ctx.measureText ? ctx.measureText(name) : { width: 0 };
+          if (!m.width || m.width <= W - 20) break;
+          size -= 3;
+        }
+        ctx.fillText(name, W / 2, H / 2);
+        try { ctx.letterSpacing = '0px'; } catch (e) {}
+        if (it.tex) it.tex.needsUpdate = true;
+      });
     }
   };
 
@@ -1493,6 +1623,74 @@ globalThis.LEIP_APP = (function () {
   // ------------------------------------------------------------ world layer
   var G = null;
 
+  // Extrude a closed plan outline (world XZ points) upward into a
+  // flat-shaded solid — the world layer's only modelling primitive.
+  function extrudePlan(pts, depth, mat, yBase, bevel) {
+    var shape = new THREE.Shape();
+    pts.forEach(function (p, i) {
+      if (i === 0) shape.moveTo(p[0], -p[1]); else shape.lineTo(p[0], -p[1]);
+    });
+    shape.closePath();
+    var opts = { depth: depth, steps: 1, bevelEnabled: !!bevel };
+    if (bevel) { opts.bevelSegments = 1; opts.bevelSize = bevel.size; opts.bevelThickness = bevel.thickness; }
+    var g = new THREE.ExtrudeGeometry(shape, opts);
+    g.rotateX(-Math.PI / 2);
+    var mesh = new THREE.Mesh(g, mat);
+    mesh.position.y = yBase || 0;
+    return mesh;
+  }
+
+  function buildYacht(hullMat, teakMat, inkMat) {
+    var y = T.world.yacht;
+    var L = y.length, HB = L * y.beamRatio / 2;
+    // The plan is a half-outline bow -> stern; mirror it for the full ring.
+    function ring(bowRake, beamScale) {
+      var pts = [], i, p;
+      for (i = 0; i < y.plan.length; i++) {
+        p = y.plan[i];
+        pts.push([p[0] * L * (p[0] > 0 ? bowRake : 1), p[1] * HB * beamScale]);
+      }
+      for (i = y.plan.length - 1; i >= 1; i--) {
+        p = y.plan[i];
+        pts.push([p[0] * L * (p[0] > 0 ? bowRake : 1), -p[1] * HB * beamScale]);
+      }
+      return pts;
+    }
+    var grp = new THREE.Group();
+    var hullH = L * y.hullDepth, sheerH = L * y.sheer.lift;
+    grp.add(extrudePlan(ring(1, 1), hullH, hullMat, 0));
+    // Sheer strake: inset in beam, reaching further forward — the stem
+    // overhangs the waterline, so the bow reads raked and pointed.
+    grp.add(extrudePlan(ring(y.sheer.bowRake, y.sheer.beamInset), sheerH, hullMat, hullH));
+
+    var deckY = hullH + sheerH;
+    var fd = y.foredeck;
+    var teak = new THREE.Mesh(
+      new THREE.BoxGeometry(fd.lengthFrac * L, sheerH * 0.35, fd.beamFrac * HB * 2), teakMat);
+    teak.position.set(fd.x * L, deckY, 0);
+    grp.add(teak);
+
+    var top = deckY;
+    y.decks.forEach(function (d, i) {
+      var box = new THREE.Mesh(new THREE.BoxGeometry(d[1] * L, d[3] * L, d[2] * HB * 2), hullMat);
+      box.position.set(d[0] * L, top + d[3] * L / 2, 0);
+      grp.add(box);
+      if (y.windowBand && i === y.windowBand.deck) {
+        var wb = y.windowBand;
+        var band = new THREE.Mesh(new THREE.BoxGeometry(
+          d[1] * L * 0.9, d[3] * L * wb.heightFrac, d[2] * HB * 2 * wb.overhang), inkMat);
+        band.position.set(d[0] * L, top + d[3] * L * 0.62, 0);
+        grp.add(band);
+      }
+      top += d[3] * L;
+    });
+    var mast = new THREE.Mesh(
+      new THREE.BoxGeometry(y.mast.w * L, y.mast.h * L, y.mast.w * L), inkMat);
+    mast.position.set(y.mast.x * L, top + y.mast.h * L / 2, 0);
+    grp.add(mast);
+    return grp;
+  }
+
   function initScene() {
     if (typeof THREE === 'undefined') throw new Error('Three.js not loaded');
     var canvas = $('stage');
@@ -1506,7 +1704,10 @@ globalThis.LEIP_APP = (function () {
     sun.position.set(-260, 420, 180);   // single soft direction, no cast shadows
     scene.add(sun);
 
+    // Three tones per mass (visual direction): mid for the coastal land,
+    // lit for the relief step. Both re-tint with the day cycle.
     var landMat = new THREE.MeshLambertMaterial({ flatShading: true });
+    var reliefMat = new THREE.MeshLambertMaterial({ flatShading: true });
     var hullMat = new THREE.MeshLambertMaterial({ color: T.world.yachtHull, flatShading: true });
     var teakMat = new THREE.MeshLambertMaterial({ color: T.world.yachtTeak, flatShading: true });
     var inkMat = new THREE.MeshLambertMaterial({ color: T.ink.onLight, flatShading: true });
@@ -1514,10 +1715,38 @@ globalThis.LEIP_APP = (function () {
     var smokeMat = new THREE.MeshBasicMaterial({ color: T.dieselSmoke, transparent: true, opacity: 0.45 });
 
     var r = PROJ.rect;
-    var sea = new THREE.Mesh(new THREE.PlaneGeometry((r.maxX - r.minX) * 1.6, (r.maxZ - r.minZ) * 2.2),
+    var spread = T.world.seaSpread;
+    var sea = new THREE.Mesh(
+      new THREE.PlaneGeometry((r.maxX - r.minX) * spread.x, (r.maxZ - r.minZ) * spread.z),
       new THREE.MeshBasicMaterial({ color: T.scenes.day.sea }));
     sea.rotation.x = -Math.PI / 2;
     scene.add(sea);
+
+    // Mediterranean terrain: flat-shaded soft-relief masses in the land
+    // tint. Standing above the chart plane, they naturally keep the
+    // graticule, soundings and hatching over the sea only.
+    var geo = T.geography;
+    var shore = { size: geo.bevelSize, thickness: geo.bevelThickness };
+    function landMesh(ring, height, mat, yBase, inset) {
+      var pts = [], i, p;
+      for (i = 0; i < ring.length; i += 2) {
+        p = PROJ.pos(ring[i + 1], ring[i]);
+        pts.push([p.x, p.z]);
+      }
+      if (inset && inset !== 1) {          // pull toward the centroid
+        var cx = 0, cz = 0;
+        pts.forEach(function (q) { cx += q[0]; cz += q[1]; });
+        cx /= pts.length; cz /= pts.length;
+        pts = pts.map(function (q) {
+          return [cx + (q[0] - cx) * inset, cz + (q[1] - cz) * inset];
+        });
+      }
+      scene.add(extrudePlan(pts, height, mat, yBase, shore));
+    }
+    Object.keys(geo.coasts).forEach(function (k) { landMesh(geo.coasts[k], geo.landHeight, landMat, 0, 1); });
+    Object.keys(geo.relief).forEach(function (k) {
+      landMesh(geo.relief[k], geo.reliefHeight, reliefMat, geo.landHeight * 0.75, geo.reliefInset);
+    });
 
     Chart.init();
     var chartTex = new THREE.CanvasTexture(Chart.cnv);
@@ -1530,6 +1759,7 @@ globalThis.LEIP_APP = (function () {
     chartPlane.position.set((r.minX + r.maxX) / 2, 0.35, (r.minZ + r.maxZ) / 2);
     scene.add(chartPlane);
     RoutePlot.init(scene);
+    Labels.init(scene);
 
     // One sculptural landmark per port.
     var hitMeshes = [];
@@ -1602,25 +1832,16 @@ globalThis.LEIP_APP = (function () {
       scene.add(grp);
     });
 
-    // The yacht — matte white flat-shaded hull, fine teak deck line.
-    var yacht = new THREE.Group();
-    var L = T.world.yachtLength;
-    var hull = new THREE.Mesh(new THREE.BoxGeometry(L * 0.72, 0.9, L * 0.26), hullMat);
-    hull.position.y = 0.65;
-    var bow = new THREE.Mesh(new THREE.ConeGeometry(L * 0.13, L * 0.3, 4), hullMat);
-    bow.rotation.z = -Math.PI / 2; bow.rotation.y = Math.PI / 4;
-    bow.position.set(L * 0.5, 0.65, 0);
-    var teak = new THREE.Mesh(new THREE.BoxGeometry(L * 0.6, 0.08, L * 0.2), teakMat);
-    teak.position.set(-L * 0.02, 1.16, 0);
-    var house = new THREE.Mesh(new THREE.BoxGeometry(L * 0.34, 0.55, L * 0.16), hullMat);
-    house.position.set(-L * 0.08, 1.5, 0);
-    yacht.add(hull); yacht.add(bow); yacht.add(teak); yacht.add(house);
+    // The yacht — a 70 m fast-displacement silhouette, flat-shaded and
+    // sculptural: raked pointed bow, long flush foredeck, stepped
+    // superstructure aft-of-centre, tapered stern, ~7:1 length to beam.
+    var yacht = buildYacht(hullMat, teakMat, inkMat);
     yacht.visible = false;
     scene.add(yacht);
 
     G = {
       renderer: renderer, scene: scene, camera: camera, sun: sun, amb: amb,
-      sea: sea, landMat: landMat, hitMeshes: hitMeshes,
+      sea: sea, landMat: landMat, reliefMat: reliefMat, hitMeshes: hitMeshes,
       yacht: yacht, foamMat: foamMat, smokeMat: smokeMat, hullMat: hullMat,
       wake: [], smoke: [], wakeClock: 0, smokeClock: 0,
       cam: { x: 0, z: 0, dist: 640, tx: 0, tz: 0, tdist: 640 },
@@ -2217,12 +2438,13 @@ globalThis.LEIP_APP = (function () {
     if (tint.inkDark !== S.inkDark) { S.inkDark = tint.inkDark; requestChart(); }
     G.renderer.setClearColor(new THREE.Color(tint.sky));
     G.sea.material.color = new THREE.Color(tint.sea);
-    G.landMat.color = new THREE.Color(tint.land);
+    G.landMat.color = new THREE.Color(scaleHex(tint.land, T.world.massTones.mid));
+    G.reliefMat.color = new THREE.Color(scaleHex(tint.land, T.world.massTones.lit));
     G.sun.intensity = 0.28 + 0.85 * (1 - tint.night01);
     G.amb.intensity = 0.32 + 0.35 * (1 - tint.night01);
 
     var ink = S.inkDark ? T.ink.onDark : T.ink.onLight;
-    if (chartDirty) { chartDirty = false; Chart.draw(ink); }
+    if (chartDirty) { chartDirty = false; Chart.draw(ink); Labels.draw(ink); }
     if (routeDirty) {
       routeDirty = false;
       RoutePlot.draw(ink, (S.phase === 'playback' || S.phase === 'results') ? sailedNmAt(S.playT) : 0);
@@ -2249,8 +2471,7 @@ globalThis.LEIP_APP = (function () {
         heading = Math.atan2(-(yw.to.z - yw.from.z), yw.to.x - yw.from.x);
         G.yacht.rotation.y = heading;
       }
-      G.cam.tx = yw.x; G.cam.tz = yw.z;
-      G.cam.tdist = S.playDist || 240;
+      G.cam.tx = yw.x; G.cam.tz = yw.z;   // follow the yacht; the player keeps zoom control
       G.wakeClock += dt;
       if (yw.moving && G.wakeClock > 0.13) {
         G.wakeClock = 0;
