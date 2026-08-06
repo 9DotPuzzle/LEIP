@@ -590,7 +590,7 @@ globalThis.LEIP_THEME = {
   routeCanvas: { px: 2048, marginWorld: 26, annotWorld: 4.4, dashWorld: [2.6, 2.0], tickWorld: 1.7, lineWorld: 0.3 },
   playbackZoom: { spanFactor: 1.8, min: 100, max: 320 },
 
-  shareCard: { w: 1080, h: 1920 }   // story format, canvas-rendered
+  shareCard: { w: 1080, h: 1920, dotSpreadPx: 72, dotRadiusPx: 13 }   // story format, canvas-rendered
 };
 </script>
 
@@ -2666,14 +2666,15 @@ globalThis.LEIP_APP = (function () {
     data(sim.distinctPorts.length + ' PORTS · ' + sim.countries.length + ' COUNTRIES · ' +
       sim.inputs.nights + ' ANCHOR NIGHTS', W / 2, yStats + 124, 30);
 
-    // Nine-dot state.
-    var dotsY = H - 220;
+    // Nine-dot state, in the same diamond formation as the achievements screen.
+    var dotsY = H - 230, sp = T.shareCard.dotSpreadPx;
     D.achievements.list.forEach(function (a, i) {
       var got = S.persistent.unlocked[a.id];
-      var dx = W / 2 + (i % 3 - 1) * 64;
-      var dy = dotsY + (Math.floor(i / 3) - 1) * 42;
+      var ddx = (i % 3) - 1, ddy = Math.floor(i / 3) - 1;
+      var dx = W / 2 + (ddx - ddy) / 2 * sp;
+      var dy = dotsY + (ddx + ddy) / 2 * sp;
       ctx.beginPath();
-      if (ctx.arc) ctx.arc(dx, dy, 13, 0, Math.PI * 2);
+      if (ctx.arc) ctx.arc(dx, dy, T.shareCard.dotRadiusPx, 0, Math.PI * 2);
       if (got) { ctx.fillStyle = T.volt; ctx.fill(); }
       ctx.strokeStyle = ink; ctx.lineWidth = 3; ctx.stroke();
     });
