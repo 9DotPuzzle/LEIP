@@ -31,16 +31,22 @@ const GEOJSON = join(ROOT, 'data', 'natural-earth-land-med.geojson');
 const CFG = {
   // Terrain frame: generous enough to fill the sea field behind the
   // charted rect (which is derived from the port bounds).
-  clip: { lon0: -12, lat0: 28, lon1: 42, lat1: 52 },
+  // Two frames. `clip` is what gets DRAWN — wide enough that its edge never
+  // enters shot at the charted camera distance. `route` is what gets
+  // RASTERISED for navigation: the basin the ports actually live in, kept
+  // tight so the grid and the A* over it stay tractable.
+  clip: { lon0: -22, lat0: 20, lon1: 52, lat1: 58 },
+  route: { lon0: -8, lat0: 30, lon1: 38, lat1: 48 },
   simplifyDeg: 0.008,        // ~0.9 km — kills jaggedness, keeps identity
   minAreaDeg2: 0.0016,       // drop specks...
   portKeepDeg: 0.25,         // ...unless a port sits on one
   grid: { cell: 0.01 },      // ~1.1 km routing raster
   clearanceCells: 2,         // keep this far off the beach
   anchorMaxCells: 40,        // how far offshore a port may be pushed
-  reliefErodeCells: 14,      // inland relief tier, cells inside the coast
-  reliefSimplifyDeg: 0.05,
-  reliefMinAreaDeg2: 0.6,
+  reliefCell: 0.04,          // coarse raster for the relief tier only
+  reliefInsetCells: 4,       // how far inside the coast the highland step starts
+  reliefSimplifyDeg: 0.06,
+  reliefMinAreaDeg2: 0.4,
   coordDp: 3
 };
 
@@ -191,9 +197,9 @@ console.log(`terrain: ${rings.length} rings, ${rings.reduce((n, r) => n + r.leng
 
 // 4. water raster from exactly these rings
 const G = {
-  cell: CFG.grid.cell, lon0: CFG.clip.lon0, lat0: CFG.clip.lat0,
-  w: Math.ceil((CFG.clip.lon1 - CFG.clip.lon0) / CFG.grid.cell),
-  h: Math.ceil((CFG.clip.lat1 - CFG.clip.lat0) / CFG.grid.cell)
+  cell: CFG.grid.cell, lon0: CFG.route.lon0, lat0: CFG.route.lat0,
+  w: Math.ceil((CFG.route.lon1 - CFG.route.lon0) / CFG.grid.cell),
+  h: Math.ceil((CFG.route.lat1 - CFG.route.lat0) / CFG.grid.cell)
 };
 G.x = (lon) => Math.round((lon - G.lon0) / G.cell - 0.5);
 G.y = (lat) => Math.round((lat - G.lat0) / G.cell - 0.5);
@@ -291,18 +297,72 @@ const seaDist = chamfer((i) => !!land[i]);           // water: distance to land
 const navigable = (x, y) => x >= 0 && y >= 0 && x < G.w && y < G.h &&
   !land[y * G.w + x] && seaDist[y * G.w + x] >= CFG.clearanceCells;
 
-// 5. inland relief tier: erode the land, trace the boundary
-const inland = chamfer((i) => !land[i]);             // land: distance to water
-function traceContours(mask) {
+// 5. Inland relief tier. Traced from its OWN coarse raster over the full
+// render frame — not the routing grid, whose edge would cut a dead-straight
+// seam across a continent. Coarse is fine: this is a soft shading step, not
+// a navigation surface.
+const reliefRings = (() => {
+  const cell = CFG.reliefCell;
+  const R = {
+    cell, lon0: CFG.clip.lon0, lat0: CFG.clip.lat0,
+    w: Math.ceil((CFG.clip.lon1 - CFG.clip.lon0) / cell),
+    h: Math.ceil((CFG.clip.lat1 - CFG.clip.lat0) / cell)
+  };
+  R.lat = (y) => R.lat0 + (y + 0.5) * cell;
+  const mask = new Uint8Array(R.w * R.h);
+  const spans = Array.from({ length: R.h }, () => []);
+  for (const r of rings) {
+    for (let i = 0, n = r.length; i < n; i++) {
+      const p = r[i], q = r[(i + 1) % n];
+      const yA = Math.max(0, Math.ceil((Math.min(p[1], q[1]) - R.lat0) / cell - 0.5) - 1);
+      const yB = Math.min(R.h - 1, Math.floor((Math.max(p[1], q[1]) - R.lat0) / cell - 0.5) + 1);
+      for (let gy = yA; gy <= yB; gy++) {
+        const yy = R.lat(gy) + 1e-7;
+        if ((p[1] > yy) === (q[1] > yy)) continue;
+        spans[gy].push(p[0] + ((yy - p[1]) / (q[1] - p[1])) * (q[0] - p[0]));
+      }
+    }
+  }
+  for (let gy = 0; gy < R.h; gy++) {
+    const xs = spans[gy].sort((a, b) => a - b);
+    for (let i = 0; i + 1 < xs.length; i += 2) {
+      const xa = Math.max(0, Math.ceil((xs[i] - R.lon0) / cell - 0.5));
+      const xb = Math.min(R.w - 1, Math.floor((xs[i + 1] - R.lon0) / cell - 0.5));
+      for (let gx = xa; gx <= xb; gx++) mask[gy * R.w + gx] = 1;
+    }
+  }
+  // Erode inward from the water by the relief inset.
+  const INF = 1e9;
+  const d = new Float32Array(R.w * R.h);
+  for (let i = 0; i < d.length; i++) d[i] = mask[i] ? INF : 0;
+  const relax = (i, j, w) => { if (d[j] + w < d[i]) d[i] = d[j] + w; };
+  for (let y = 0; y < R.h; y++) for (let x = 0; x < R.w; x++) {
+    const i = y * R.w + x;
+    if (x > 0) relax(i, i - 1, 1);
+    if (y > 0) relax(i, i - R.w, 1);
+    if (x > 0 && y > 0) relax(i, i - R.w - 1, 1.414);
+    if (x < R.w - 1 && y > 0) relax(i, i - R.w + 1, 1.414);
+  }
+  for (let y = R.h - 1; y >= 0; y--) for (let x = R.w - 1; x >= 0; x--) {
+    const i = y * R.w + x;
+    if (x < R.w - 1) relax(i, i + 1, 1);
+    if (y < R.h - 1) relax(i, i + R.w, 1);
+    if (x < R.w - 1 && y < R.h - 1) relax(i, i + R.w + 1, 1.414);
+    if (x > 0 && y < R.h - 1) relax(i, i + R.w - 1, 1.414);
+  }
+  const hi = new Uint8Array(R.w * R.h);
+  for (let i = 0; i < hi.length; i++) hi[i] = (mask[i] && d[i] >= CFG.reliefInsetCells) ? 1 : 0;
+
+  // Trace the eroded mask's boundary into rings.
   const key = (x, y) => x + ',' + y;
-  const at = (x, y) => (x < 0 || y < 0 || x >= G.w || y >= G.h) ? 0 : mask[y * G.w + x];
+  const at = (x, y) => (x < 0 || y < 0 || x >= R.w || y >= R.h) ? 0 : hi[y * R.w + x];
   const edges = new Map();
   const add = (a, b) => {
     const k = key(a[0], a[1]);
     if (!edges.has(k)) edges.set(k, []);
     edges.get(k).push(b);
   };
-  for (let y = 0; y < G.h; y++) for (let x = 0; x < G.w; x++) {
+  for (let y = 0; y < R.h; y++) for (let x = 0; x < R.w; x++) {
     if (!at(x, y)) continue;
     if (!at(x, y - 1)) add([x, y], [x + 1, y]);
     if (!at(x + 1, y)) add([x + 1, y], [x + 1, y + 1]);
@@ -319,19 +379,16 @@ function traceContours(mask) {
       if (!list || !list.length) break;
       const next = list.pop();
       if (!list.length) edges.delete(key(cur[0], cur[1]));
-      ring.push([G.lon0 + cur[0] * G.cell, G.lat0 + cur[1] * G.cell]);
+      ring.push([R.lon0 + cur[0] * cell, R.lat0 + cur[1] * cell]);
       cur = next;
       if (key(cur[0], cur[1]) === startKey) break;
     }
     if (ring.length > 8) out.push(ring);
   }
-  return out;
-}
-const reliefMask = new Uint8Array(G.w * G.h);
-for (let i = 0; i < reliefMask.length; i++) reliefMask[i] = (land[i] && inland[i] >= CFG.reliefErodeCells) ? 1 : 0;
-const reliefRings = traceContours(reliefMask)
-  .map((r) => simplify(r, CFG.reliefSimplifyDeg))
-  .filter((r) => r.length > 5 && Math.abs(ringArea(r)) > CFG.reliefMinAreaDeg2);
+  return out
+    .map((r) => simplify(r, CFG.reliefSimplifyDeg))
+    .filter((r) => r.length > 5 && Math.abs(ringArea(r)) > CFG.reliefMinAreaDeg2);
+})();
 console.log(`relief: ${reliefRings.length} rings, ${reliefRings.reduce((n, r) => n + r.length, 0)} vertices`);
 
 // ---------------------------------------------------------------- 6. sea lanes
