@@ -176,6 +176,23 @@ table.sheet td:last-child { text-align: right; font-family: var(--font-data); wh
 .reveal-diesel { color: var(--signal); font-weight: 600; }
 .verdict { border-left: var(--tb-rule) solid var(--volt); padding: 7px 10px; margin: 10px 0; font-size: 12.5px; }
 
+/* Results assemble like a drawing being stamped: rules draw in, rows appear. */
+.card .srow { opacity: 0; transform: translateY(5px); transition: opacity 0.22s linear, transform 0.22s linear; }
+.card .srow.on { opacity: 1; transform: none; }
+.card.no-stamp .srow { opacity: 1; transform: none; transition: none; }
+
+#lb-name {
+  font-family: var(--font-data); text-transform: uppercase; font-size: 15px;
+  background: none; color: var(--ink-fixed);
+  border: var(--rule) solid var(--ink-fixed); border-radius: 0; padding: 6px 8px; width: 150px;
+}
+#lb-name:focus { outline: var(--hairline) solid var(--ink-fixed); }
+table.board { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 8px 0; }
+table.board td, table.board th { padding: 4px 5px; border-bottom: var(--hairline) solid var(--ink-fixed); text-align: left; }
+table.board th { font-size: 10px; letter-spacing: var(--label-tracking); text-transform: uppercase; opacity: 0.7; }
+table.board td.num { font-family: var(--font-data); }
+#dots-svg { width: 100%; max-width: 300px; display: block; margin: 8px auto; }
+
 @media (max-width: 760px) {
   main { flex-direction: column-reverse; }
   #plan { width: 100%; min-width: 0; max-height: var(--sheet-max-h); border-right: none; border-top: var(--rule) solid var(--ink-fixed); }
@@ -253,6 +270,7 @@ table.sheet td:last-child { text-align: right; font-family: var(--font-data); wh
 
   <div id="results" class="overlay hidden"><div class="card" id="results-card"></div></div>
   <div id="board" class="overlay hidden"><div class="card" id="board-card"></div></div>
+  <div id="dots" class="overlay hidden"><div class="card" id="dots-card"></div></div>
 </div>
 
 <!-- ================================================================
@@ -1945,7 +1963,69 @@ globalThis.LEIP_APP = (function () {
       default:      return 'Finished on ' + p.country + ' diesel at ' + p.name + ' — full batteries, at a cost.';
     }
   }
-  function showResults() {
+  // Numbers count up as the drawing is stamped; final value lands first so
+  // headless/reduced-motion environments read correctly immediately.
+  function countUp(el, target, dp) {
+    if (!el) return;
+    el.textContent = fmt(target, dp);
+    if (S.reducedMotion || typeof requestAnimationFrame !== 'function') return;
+    var t0 = null;
+    function step(ts) {
+      if (t0 === null) t0 = ts;
+      var f = Math.min(1, (ts - t0) / T.motion.countUpMs);
+      el.textContent = fmt(target * f, dp);
+      if (f < 1) requestAnimationFrame(step);
+      else el.textContent = fmt(target, dp);
+    }
+    requestAnimationFrame(step);
+  }
+  function stampIn(card) {
+    if (!card || !card.querySelectorAll) return;
+    if (S.reducedMotion) { if (card.classList) card.classList.add('no-stamp'); return; }
+    if (card.classList) card.classList.remove('no-stamp');
+    var rows = card.querySelectorAll('.srow');
+    for (var i = 0; i < rows.length; i++) {
+      (function (row, idx) {
+        if (typeof setTimeout === 'function') {
+          setTimeout(function () { if (row.classList) row.classList.add('on'); },
+            idx * (T.motion.resultsStampMs / Math.max(1, rows.length)));
+        } else if (row.classList) row.classList.add('on');
+      })(rows[i], i);
+    }
+  }
+
+  function earnedNames() {
+    return S.pending.map(function (a) {
+      var meta = D.achievements.list.filter(function (m) { return m.id === a.id; })[0];
+      return meta ? meta.name.toUpperCase() : '';
+    }).filter(Boolean);
+  }
+
+  function saveBlockHtml() {
+    if (S.savedThisCharter) {
+      return '<div class="row srow"><span class="hint">Saved to the board' +
+        (S.savedRank >= 0 ? ' — rank <span class="data">' + (S.savedRank + 1) + '</span>' : '') + '.</span></div>';
+    }
+    return '<div class="row srow"><label for="lb-name" style="font-size:10px;letter-spacing:var(--label-tracking);text-transform:uppercase">Save to board</label>' +
+      '<input id="lb-name" maxlength="' + D.leaderboard.nameMaxLen + '" placeholder="NAME">' +
+      '<button id="btn-save" disabled>Save</button></div>';
+  }
+  function bindSaveBlock() {
+    var input = $('lb-name'), btn = $('btn-save');
+    if (input && input.addEventListener) {
+      input.addEventListener('input', function () {
+        if (btn) btn.disabled = !(input.value && input.value.trim().length >= D.leaderboard.nameMinLen);
+      });
+    }
+    if (btn && btn.addEventListener) {
+      btn.addEventListener('click', function () {
+        var res = API.saveScore(input ? input.value : '');
+        if (res.ok) showResults(true);
+      });
+    }
+  }
+
+  function showResults(noStampAnim) {
     var sim = S.sim, sc = sim.score, f = sc.factors;
     var card = $('results-card');
     if (card) {
@@ -1954,34 +2034,178 @@ globalThis.LEIP_APP = (function () {
         : '0 — NEVER WOKE';
       var posterNote = '';
       if (sim.poster && sim.poster.exactReplica) {
-        posterNote = '<p class="hint">Poster route ' + esc(sim.poster.name) + ' — published figure ' +
+        posterNote = '<p class="hint srow">Poster route ' + esc(sim.poster.name) + ' — published figure ' +
           sim.poster.publishedMwh + ' MWh' +
           (sim.poster.overrideEngaged ? ' (exact-route override engaged)' : ' (reproduced by calibration)') + '.</p>';
       }
+      var earned = earnedNames();
       card.innerHTML =
         '<h2>Charter results</h2>' +
-        '<div class="score-huge' + (sc.final < 0 ? ' neg' : '') + '">' + fmt(sc.final, 1) + '</div>' +
+        '<div class="score-huge' + (sc.final < 0 ? ' neg' : '') + '" id="score-count">' + fmt(sc.final, 1) + '</div>' +
         '<div class="score-sub">Base <span class="data">' + sc.base + '</span> × Multiplier <span class="data">' + fmt(sc.multiplier, 1) + '</span></div>' +
         '<table class="sheet">' +
-        '<tr><td>Distance</td><td>' + fmt(sim.coveredNm) + ' NM' + (sim.completed ? '' : ' (UNFINISHED)') + '</td></tr>' +
-        '<tr><td>Energy used</td><td>' + fmt(sim.totalMwh, 1) + ' MWH</td></tr>' +
-        '<tr><td>From battery</td><td>' + fmt(sim.batteryMwh, 1) + ' MWH</td></tr>' +
-        '<tr><td>From diesel</td><td>' + dieselRow + '</td></tr>' +
-        '<tr><td>Anchor time</td><td>' + fmt(sim.anchorH) + ' H · ' + sim.inputs.nights + ' NIGHTS</td></tr>' +
-        '<tr><td>Ports · Countries</td><td>' + sim.distinctPorts.length + ' · ' + sim.countries.length + '</td></tr>' +
-        '<tr><td>Countries visited (' + f.countries.value + ')</td><td>' + f.countries.score + '</td></tr>' +
-        '<tr><td>Ports visited (' + f.ports.value + ')</td><td>' + f.ports.score + '</td></tr>' +
-        '<tr><td>Activities (' + f.activities.value + ')</td><td>' + f.activities.score + '</td></tr>' +
-        '<tr><td>Nights at anchor (' + f.nights.value + ')</td><td>' + f.nights.score + '</td></tr>' +
-        '<tr><td>Final-port recharge (' + f.recharge.energy + ')</td><td>' + f.recharge.score + '</td></tr>' +
+        '<tr class="srow"><td>Distance</td><td>' + fmt(sim.coveredNm) + ' NM' + (sim.completed ? '' : ' (UNFINISHED)') + '</td></tr>' +
+        '<tr class="srow"><td>Energy used</td><td>' + fmt(sim.totalMwh, 1) + ' MWH</td></tr>' +
+        '<tr class="srow"><td>From battery</td><td>' + fmt(sim.batteryMwh, 1) + ' MWH</td></tr>' +
+        '<tr class="srow"><td>From diesel</td><td>' + dieselRow + '</td></tr>' +
+        '<tr class="srow"><td>Anchor time</td><td>' + fmt(sim.anchorH) + ' H · ' + sim.inputs.nights + ' NIGHTS</td></tr>' +
+        '<tr class="srow"><td>Countries visited (' + f.countries.value + ')</td><td>' + f.countries.score + '</td></tr>' +
+        '<tr class="srow"><td>Ports visited (' + f.ports.value + ')</td><td>' + f.ports.score + '</td></tr>' +
+        '<tr class="srow"><td>Activities (' + f.activities.value + ')</td><td>' + f.activities.score + '</td></tr>' +
+        '<tr class="srow"><td>Nights at anchor (' + f.nights.value + ')</td><td>' + f.nights.score + '</td></tr>' +
+        '<tr class="srow"><td>Final-port recharge (' + f.recharge.energy + ')</td><td>' + f.recharge.score + '</td></tr>' +
         '</table>' +
-        '<div class="verdict">' + esc(rechargeVerdict(sim)) + '</div>' +
+        '<div class="verdict srow">' + esc(rechargeVerdict(sim)) + '</div>' +
         posterNote +
-        '<div class="row"><button id="btn-again">Plan another charter</button></div>';
+        (earned.length ? '<p class="hint srow">DOTS EARNED: ' + earned.join(' · ') + '</p>' : '') +
+        saveBlockHtml() +
+        '<div class="row srow">' +
+        '<button id="btn-share">Share</button>' +
+        '<button id="btn-results-board">High scores</button>' +
+        '<button id="btn-again">Plan another charter</button></div>';
+      bindSaveBlock();
+      on('btn-share', 'click', function () { API.shareCard(); });
+      on('btn-results-board', 'click', function () { API.showBoard(); });
       on('btn-again', 'click', function () { API.playAgain(); });
+      countUp($('score-count'), sc.final, 1);
+      if (!noStampAnim) stampIn(card); else if (card.classList) card.classList.add('no-stamp');
     }
     show('results', true);
     renderDots();
+  }
+
+  // ------------------------------------------------------------ nine dots modal
+  function dotXY(i) { return { x: 60 + (i % 3) * 90, y: 60 + Math.floor(i / 3) * 90 }; }
+  function showDots() {
+    var card = $('dots-card');
+    if (card) {
+      var unlocked = 0;
+      var parts = [];
+      D.achievements.list.forEach(function (a, i) {
+        var got = S.persistent.unlocked[a.id] || S.revealed[a.id];
+        if (got) unlocked++;
+        var p = dotXY(i);
+        parts.push('<circle cx="' + p.x + '" cy="' + p.y + '" r="11" fill="' +
+          (got ? T.volt : 'none') + '" stroke="' + T.ink.onLight + '" stroke-width="2"/>');
+        if (got) {
+          parts.push('<text x="' + p.x + '" y="' + (p.y + 29) + '" text-anchor="middle" fill="' + T.ink.onLight +
+            '" font-size="11" font-family="' + esc(T.type.ui) + '">' + esc(a.name) + '</text>');
+        }
+      });
+      if (unlocked === D.achievements.list.length) {
+        // All nine: the arrow draws itself through the dots.
+        parts.push('<path d="M 60 240 L 240 60 M 240 60 L 168 60 M 240 60 L 240 132" fill="none" stroke="' +
+          T.ink.onLight + '" stroke-width="7" stroke-linecap="round"' +
+          (S.reducedMotion ? '' : '><animate attributeName="stroke-dasharray" from="0 620" to="620 0" dur="1.4s" fill="freeze"/') +
+          '></path>');
+      }
+      card.innerHTML =
+        '<h2>The nine dots</h2>' +
+        '<p class="hint">Unlabelled until earned. No hints.</p>' +
+        '<svg id="dots-svg" viewBox="0 0 300 300">' + parts.join('') + '</svg>' +
+        '<div class="row"><button id="btn-dots-close">Close</button></div>';
+      on('btn-dots-close', 'click', function () { show('dots', false); });
+    }
+    show('dots', true);
+  }
+
+  // ------------------------------------------------------------ share card (spec §8)
+  // 1080x1920 story card in the game's own visual language: paper sheet,
+  // ruled frame, volt passage plot, OCR-A numerals, the nine-dot state.
+  function renderShareCard(cnv) {
+    var W = T.shareCard.w, H = T.shareCard.h;
+    cnv.width = W; cnv.height = H;
+    var ctx = cnv.getContext('2d');
+    if (!ctx || !ctx.fillRect) return cnv;
+    var sim = S.sim, sc = sim.score;
+    var ink = T.ink.onLight;
+
+    ctx.fillStyle = T.ui.paper;
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = 6;
+    ctx.strokeRect(36, 36, W - 72, H - 72);
+    ctx.lineWidth = 2;
+    ctx.strokeRect(52, 52, W - 104, H - 104);
+
+    function label(txt, x, y, px, align) {
+      ctx.font = '600 ' + px + 'px ' + 'Saira SemiCondensed, sans-serif';
+      ctx.fillStyle = ink; ctx.textAlign = align || 'center';
+      try { ctx.letterSpacing = Math.round(px * 0.3) + 'px'; } catch (e) {}
+      ctx.fillText(txt, x, y);
+      try { ctx.letterSpacing = '0px'; } catch (e) {}
+    }
+    function data(txt, x, y, px, color, align) {
+      ctx.font = px + 'px OCR-A-LEIP, monospace';
+      ctx.fillStyle = color || ink; ctx.textAlign = align || 'center';
+      ctx.fillText(txt, x, y);
+    }
+
+    label('LEIP', W / 2, 160, 64);
+    label('BEST WEEK OF CHARTER', W / 2, 214, 26);
+    ctx.beginPath(); ctx.moveTo(120, 250); ctx.lineTo(W - 120, 250); ctx.lineWidth = 2; ctx.stroke();
+
+    data(fmt(sc.final, 1), W / 2, 420, 150, sc.final < 0 ? T.signalRed : ink);
+    label('BASE', W / 2 - 130, 490, 22);
+    data(String(sc.base), W / 2 - 130, 540, 44);
+    label('MULTIPLIER', W / 2 + 130, 490, 22);
+    data('×' + fmt(sc.multiplier, 1), W / 2 + 130, 540, 44);
+
+    // Passage plot, volt-inked, fitted to a square plate.
+    var route = sim.inputs.route;
+    var plate = { x: 170, y: 620, s: W - 340 };
+    ctx.strokeStyle = ink; ctx.lineWidth = 2;
+    ctx.strokeRect(plate.x, plate.y, plate.s, plate.s);
+    if (route.length > 1) {
+      var minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      route.forEach(function (n) {
+        var p = PROJ.portPos(n);
+        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+        minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
+      });
+      var span = Math.max(maxX - minX, maxZ - minZ, 1) * 1.25;
+      var cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+      function m(p) {
+        return { x: plate.x + plate.s / 2 + (p.x - cx) / span * plate.s,
+                 y: plate.y + plate.s / 2 + (p.z - cz) / span * plate.s };
+      }
+      var pts = route.map(function (n) { return m(PROJ.portPos(n)); });
+      ctx.strokeStyle = T.volt; ctx.lineWidth = 9; ctx.lineJoin = 'round';
+      ctx.beginPath();
+      pts.forEach(function (p, i) { if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
+      ctx.stroke();
+      ctx.strokeStyle = ink; ctx.lineWidth = 3;
+      pts.forEach(function (p) {
+        ctx.beginPath();
+        ctx.moveTo(p.x - 14, p.y); ctx.lineTo(p.x + 14, p.y);
+        ctx.moveTo(p.x, p.y - 14); ctx.lineTo(p.x, p.y + 14);
+        ctx.stroke();
+      });
+      data(route[0].toUpperCase(), pts[0].x, pts[0].y - 24, 26, ink);
+      var lastP = pts[pts.length - 1];
+      data(route[route.length - 1].toUpperCase(), lastP.x, lastP.y + 44, 26, ink);
+    }
+
+    var yStats = plate.y + plate.s + 90;
+    data(fmt(sim.coveredNm) + ' NM · ' + fmt(sim.totalMwh, 1) + ' MWH', W / 2, yStats, 40);
+    data(sim.dieselMwh > 0 ? fmt(sim.dieselMwh, 1) + ' MWH DIESEL' : 'DIESELS NEVER WOKE',
+      W / 2, yStats + 62, 34, sim.dieselMwh > 0 ? T.signalRed : ink);
+    data(sim.distinctPorts.length + ' PORTS · ' + sim.countries.length + ' COUNTRIES · ' +
+      sim.inputs.nights + ' ANCHOR NIGHTS', W / 2, yStats + 124, 30);
+
+    // Nine-dot state.
+    var dotsY = H - 220;
+    D.achievements.list.forEach(function (a, i) {
+      var got = S.persistent.unlocked[a.id];
+      var dx = W / 2 + (i % 3 - 1) * 64;
+      var dy = dotsY + (Math.floor(i / 3) - 1) * 42;
+      ctx.beginPath();
+      if (ctx.arc) ctx.arc(dx, dy, 13, 0, Math.PI * 2);
+      if (got) { ctx.fillStyle = T.volt; ctx.fill(); }
+      ctx.strokeStyle = ink; ctx.lineWidth = 3; ctx.stroke();
+    });
+    label('70 M E-HYBRID · 50 MWH BATTERY', W / 2, H - 84, 22);
+    return cnv;
   }
 
   // ------------------------------------------------------------ render loop
@@ -2084,6 +2308,7 @@ globalThis.LEIP_APP = (function () {
       on('btn-sim', 'click', function () { API.simulate(); });
       on('btn-skip', 'click', function () { API.skip(); });
       on('btn-board', 'click', function () { API.showBoard(); });
+      on('tb-dots', 'click', function () { API.openDots(); });
       if (typeof addEventListener === 'function') addEventListener('resize', resize);
       bindStageInput();
       fitCamera(null);
@@ -2146,6 +2371,7 @@ globalThis.LEIP_APP = (function () {
         try { console.info('LEIP poster parity: exact-match override engaged for ' + S.sim.poster.id); } catch (e) {}
       }
       S.playT = 0; S.revealed = {}; lastInkNm = 0;
+      S.savedThisCharter = false; S.savedRank = -1;
       if (S.webgl) {
         S.phase = 'playback';
         var plan = $('plan');
@@ -2204,15 +2430,80 @@ globalThis.LEIP_APP = (function () {
       requestChart();
     },
 
+    // Lifetime leaderboard (spec §8): device-local, top N, optional save.
+    saveScore: function (name) {
+      if (S.phase !== 'results' || !S.sim) return { ok: false, reason: 'no-results' };
+      if (S.savedThisCharter) return { ok: false, reason: 'already-saved' };
+      var dateIso = '';
+      try { dateIso = new Date().toISOString().slice(0, 10); } catch (e) {}
+      var entry = E.leaderboardEntry(S.sim, name, dateIso);
+      if (!entry) return { ok: false, reason: 'name-required' };   // §11.7: no name, no save
+      var res = E.leaderboardInsert(S.persistent.board, entry);
+      S.persistent.board = res.board;
+      savePersistent();
+      S.savedThisCharter = true;
+      S.savedRank = res.rank;
+      return { ok: true, rank: res.rank };
+    },
+
     showBoard: function () {
-      // Filled out in Phase 3 (lifetime leaderboard); view-only stub now.
       var card = $('board-card');
       if (card) {
-        card.innerHTML = '<h2>High scores</h2><p class="hint">The lifetime board arrives with Phase 3.</p>' +
+        var board = S.persistent.board || [];
+        var rows = board.map(function (e, i) {
+          return '<tr><td class="num">' + (i + 1) + '</td><td class="num">' + esc(e.name) + '</td>' +
+            '<td class="num">' + fmt(e.score, 1) + '</td>' +
+            '<td>' + esc(e.route) + ' · ' + e.ports + 'P/' + e.countries + 'C</td>' +
+            '<td class="num">' + esc(e.date || '') + '</td></tr>';
+        }).join('');
+        card.innerHTML = '<h2>High scores — this helm</h2>' +
+          (board.length
+            ? '<table class="board"><tr><th>#</th><th>Name</th><th>Score</th><th>Charter</th><th>Date</th></tr>' + rows + '</table>'
+            : '<p class="hint">No charters saved yet. Finish a week and sign the board.</p>') +
           '<div class="row"><button id="btn-board-close">Close</button></div>';
         on('btn-board-close', 'click', function () { show('board', false); });
       }
       show('board', true);
+    },
+
+    openDots: function () { showDots(); },
+
+    renderShareCard: function (cnv) {
+      if (!S.sim) return null;
+      return renderShareCard(cnv);
+    },
+
+    // Share: Web Share API with the image file where supported (the path
+    // into story sheets), image download everywhere else.
+    shareCard: function () {
+      if (!S.sim || !doc) return Promise.resolve('no-charter');
+      var cnv = doc.createElement('canvas');
+      renderShareCard(cnv);
+      function download() {
+        try {
+          var a = doc.createElement('a');
+          a.href = cnv.toDataURL('image/png');
+          a.download = 'leip-best-week.png';
+          if (doc.body && doc.body.appendChild) { doc.body.appendChild(a); a.click(); a.remove(); }
+          else if (a.click) a.click();
+          return 'downloaded';
+        } catch (e) { return 'failed'; }
+      }
+      return new Promise(function (resolve) {
+        try {
+          if (typeof navigator !== 'undefined' && navigator.canShare && typeof File === 'function' && cnv.toBlob) {
+            cnv.toBlob(function (blob) {
+              if (!blob) { resolve(download()); return; }
+              var file = new File([blob], 'leip-best-week.png', { type: 'image/png' });
+              if (navigator.canShare({ files: [file] })) {
+                navigator.share({ files: [file], title: 'LEIP — Best Week of Charter' })
+                  .then(function () { resolve('shared'); })
+                  .catch(function () { resolve(download()); });
+              } else resolve(download());
+            });
+          } else resolve(download());
+        } catch (e) { resolve(download()); }
+      });
     },
 
     getState: function () {
