@@ -53,7 +53,9 @@ Nothing above 600 weight. The world is the display face.
 
 ## HUD — the title block
 
-One corner panel styled as an engineering-drawing title block: thin ruled cells, small-caps labels, mono values (MODE · SPEED · BATTERY · DAY · LEG). No cards, no glass, no shadows. Achievements: nine ink-outlined dots, filling volt when earned.
+All readouts live in **one corner panel styled as an engineering-drawing title block**: thin ruled cells, small caps labels, mono values (MODE · SPEED · BATTERY · DAY · LEG). No cards, no glass, no shadows, no icons where a word will do. Achievements: nine small dots, ink-outlined, filling volt when earned.
+
+**Glass override (scoped):** the *interactive UI* — the left selection panel and the activity buttons — uses a frosted "liquid glass" treatment as a deliberate exception to the no-glass rule below. This is scoped to controls only. The **data layers stay ink on paper**: the title-block HUD, the results screen, the leaderboard and the achievements screen carry no glass. The split is the point — glass on the things you touch, ink on the things you read. Country flags live in the selection UI only, not on the map labels (the chart stays clear of icon noise).
 
 ## Motion
 
@@ -61,4 +63,4 @@ Calm, linear, unhurried — the Monument Valley temperament. Scene tints crossfa
 
 ## Never
 
-Bloom, glow, or neon gradients · glassy cards and drop shadows · photographic water or sky · texture maps · teardrop map pins · cast shadows or ambient occlusion showpieces · emoji or icon noise · more than one accent colour · volt on anything that isn't energy · detail for detail's sake — when in doubt, remove.
+Bloom, glow, or neon gradients · glassy cards and drop shadows *(except the scoped liquid-glass treatment on interactive UI — selection panel and activity buttons — see HUD section; data layers stay ink)* · photographic water or sky · texture maps · teardrop map pins · cast shadows or ambient occlusion showpieces · emoji or icon noise · more than one accent colour · volt on anything that isn't energy · detail for detail's sake — when in doubt, remove.
