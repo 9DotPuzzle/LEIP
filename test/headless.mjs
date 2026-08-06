@@ -217,10 +217,23 @@ section('Achievements — trophies only (spec §7)');
   const green = E.simulate({ route: ['Nice', 'Monaco'], speed: 'slow', nights: 4, activities: {} });
   check('Green Charge on a green-energy finish',
     E.evaluateAchievements(green, null).newly.some(a => a.id === 'green-charge'));
+  // 50 MWh Hit — battery brinkmanship, not a failure badge: the full
+  // battery drawn AND the diesels never woken.
   const dieselSim = E.simulate({ route: ['Palma', 'Bonifacio', 'Naples', 'Monaco'], speed: 'fast', nights: 4, activities: {} });
-  const dr = E.evaluateAchievements(dieselSim, null);
-  check('50 MWh Hit fires at the diesel moment',
-    dr.newly.some(a => a.id === 'mwh-hit' && a.atHour === dieselSim.dieselStartH));
+  check('50 MWh Hit does NOT fire on a diesel-soaked week', dieselSim.dieselMwh > 0 &&
+    !E.evaluateAchievements(dieselSim, null).newly.some(a => a.id === 'mwh-hit'));
+  const easy = E.simulate({ route: ['Nice', 'Monaco'], speed: 'slow', nights: 4, activities: {} });
+  check('50 MWh Hit does NOT fire on a comfortable week', easy.totalMwh < 49 &&
+    !E.evaluateAchievements(easy, null).newly.some(a => a.id === 'mwh-hit'));
+  const brink = E.simulate(D.achievementFixtures.batteryBrinkmanship);
+  const band = D.battery.gameThresholdMwh - th.batteryBandMwh;
+  check(`50 MWh Hit fires on the full battery with zero diesel (${brink.totalMwh.toFixed(2)} MWh)`,
+    brink.dieselMwh === 0 && brink.totalMwh >= band && brink.totalMwh <= D.battery.gameThresholdMwh &&
+    E.evaluateAchievements(brink, null).newly.some(a => a.id === 'mwh-hit'),
+    `total ${brink.totalMwh.toFixed(3)}, diesel ${brink.dieselMwh}`);
+  check('50 MWh Hit fires mid-sim, at the moment the band is crossed',
+    E.evaluateAchievements(brink, null).newly.find(a => a.id === 'mwh-hit').atHour === brink.bandStartH &&
+    brink.bandStartH > 0 && brink.bandStartH < 168, String(brink.bandStartH));
 
   let persistent = null;
   for (const pr of D.posterRoutes.slice(0, th.posterRoutesRequired)) {

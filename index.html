@@ -191,7 +191,29 @@ table.board { width: 100%; border-collapse: collapse; font-size: 12.5px; margin:
 table.board td, table.board th { padding: 4px 5px; border-bottom: var(--hairline) solid var(--ink-fixed); text-align: left; }
 table.board th { font-size: 10px; letter-spacing: var(--label-tracking); text-transform: uppercase; opacity: 0.7; }
 table.board td.num { font-family: var(--font-data); }
-#dots-svg { width: 100%; max-width: 300px; display: block; margin: 8px auto; }
+/* The nine dots, in the diamond formation. */
+#dots-field { position: relative; width: 100%; max-width: 340px; margin: 14px auto 6px; }
+#dots-field::before { content: ''; display: block; padding-top: 100%; }
+#dots-arrow { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.dot9 {
+  position: absolute; width: calc(var(--dot9-r) * 2px); height: calc(var(--dot9-r) * 2px);
+  margin: calc(var(--dot9-r) * -1px) 0 0 calc(var(--dot9-r) * -1px);
+  border-radius: 50%; border: var(--rule) solid var(--ink-fixed); background: none;
+  padding: 0; cursor: default;
+}
+.dot9.earned { background: var(--volt); cursor: help; }
+.dot9:hover, .dot9:focus { outline: none; }
+.dot9.low .callout { bottom: auto; top: calc(100% + 10px); }
+.dot9 .callout {
+  position: absolute; left: 50%; bottom: calc(100% + 10px); transform: translateX(-50%);
+  width: max-content; max-width: 220px; padding: 6px 9px; text-align: left;
+  background: var(--paper); border: var(--rule) solid var(--ink-fixed); color: var(--ink-fixed);
+  opacity: 0; visibility: hidden; transition: opacity 0.12s linear; z-index: 3; pointer-events: none;
+}
+.dot9.earned:hover .callout, .dot9.earned:focus .callout { opacity: 1; visibility: visible; }
+.callout b { display: block; font-size: 11px; letter-spacing: var(--label-tracking); text-transform: uppercase; }
+.callout span { display: block; font-size: 11.5px; text-transform: none; letter-spacing: 0; opacity: 0.8; margin-top: 2px; }
+#dots-count { text-align: center; font-family: var(--font-data); font-size: 13px; margin-top: 10px; }
 
 @media (max-width: 760px) {
   main { flex-direction: column-reverse; }
@@ -210,6 +232,7 @@ table.board td.num { font-family: var(--font-data); }
 <div id="app">
   <header id="topbar">
     <div id="brand">LEIP<span>BEST WEEK OF CHARTER</span></div>
+    <button id="btn-achievements">Achievements</button>
     <button id="btn-board">High scores</button>
   </header>
   <main>
@@ -422,7 +445,9 @@ globalThis.LEIP_THEME = {
     labelPx: 10,
     valuePx: 16,
     panelWidthPx: 300,
-    dotRadiusPx: 5
+    dotRadiusPx: 5,
+    diamondDotRadiusPx: 13,     // achievements screen
+    diamondSpreadPct: 38        // dot spread across the diamond field
   },
 
   lines: { hairlinePx: 1, rulePx: 1.5, routePx: 1.75 },
@@ -683,21 +708,24 @@ globalThis.LEIP_DATA = {
       worldTravellerCountries: 3,
       posterRoutesRequired: 5,   // spec §7 name is 'The Five Routes'; the poster carries 7 — any 5 complete it
       repeatClientCharters: 3,
-      repeatClientMinScore: 400
+      repeatClientMinScore: 400,
+      // 50 MWh Hit: battery brinkmanship, not a failure badge. The week must
+      // land inside this band below the 50 MWh line with the diesels asleep.
+      batteryBandMwh: 0.5
     },
     diveActivityIds: ['A08', 'A09'],
     divePortTag: 'dive',
     santoriniTag: 'achievement:santorini',
     list: [
-      { id: 'green-charge',    name: 'Green Charge',    desc: 'Finish at a green-energy port',           midSim: false },
-      { id: 'score-900',       name: 'Score Over 900',  desc: 'Final score above 900',                   midSim: false },
-      { id: 'mwh-hit',         name: '50 MWh Hit',      desc: 'Wake the diesels',                        midSim: true  },
-      { id: 'submerged-ruins', name: 'Submerged Ruins', desc: 'Dive activity at a dive-tagged location', midSim: false },
-      { id: 'five-routes',     name: 'The Five Routes', desc: 'Complete five poster routes',             midSim: false },
-      { id: 'long-haul',       name: 'Long Haul',       desc: 'Over 400 nm in one charter',              midSim: false },
-      { id: 'world-traveller', name: 'World Traveller', desc: 'Three countries in one week',             midSim: false },
-      { id: 'volcano-chief',   name: 'Volcano Chief',   desc: 'Reach Santorini',                         midSim: true  },
-      { id: 'repeat-client',   name: 'Repeat Client',   desc: 'Three charters above the bar',            midSim: false }
+      { id: 'green-charge',    name: 'Green Charge',    desc: 'Finish at a green-energy port',                     midSim: false },
+      { id: 'score-900',       name: 'Score Over 900',  desc: 'Score above 900',                                   midSim: false },
+      { id: 'mwh-hit',         name: '50 MWh Hit',      desc: 'Draw the full 50 MWh battery — diesels never woke', midSim: true  },
+      { id: 'submerged-ruins', name: 'Submerged Ruins', desc: 'Dive at a dive-tagged location',                    midSim: false },
+      { id: 'five-routes',     name: 'The Five Routes', desc: 'Complete five of the published routes',             midSim: false },
+      { id: 'long-haul',       name: 'Long Haul',       desc: 'Cover over 400 nm in one charter',                  midSim: false },
+      { id: 'world-traveller', name: 'World Traveller', desc: 'Visit three countries in one week',                 midSim: false },
+      { id: 'volcano-chief',   name: 'Volcano Chief',   desc: 'Reach Santorini',                                   midSim: true  },
+      { id: 'repeat-client',   name: 'Repeat Client',   desc: 'Bring three charters home above the bar',           midSim: false }
     ]
   },
 
@@ -723,6 +751,15 @@ globalThis.LEIP_DATA = {
       activities: { A02: 2, A07: 1, R01: 1, R06: 2 }
     },
     expected: { base: 78, multiplier: 6.2, final: 483.6 }
+  },
+
+  // Regression fixture for the 50 MWh Hit rule: a week that draws the
+  // battery down into the band with the diesels asleep (49.84 MWh).
+  achievementFixtures: {
+    batteryBrinkmanship: {
+      route: ['Bonifacio', "Port d'Andratx", 'Monaco'], speed: 'slow', nights: 4,
+      activities: { A08: 2, A07: 2, R06: 1 }
+    }
   },
 
   // ---- Balance scenarios (spec §11.4) with intended score bands ----
@@ -1018,13 +1055,17 @@ globalThis.LEIP_ENGINE = (function () {
              hours: Math.max(0, T.charterHours - t), frac: legFracs[stops - 1], partial: true });
     }
 
-    var cumMwh = 0, dieselStartH = null;
+    var cumMwh = 0, dieselStartH = null, bandStartH = null;
+    var bandLine = cap - d.achievements.thresholds.batteryBandMwh;
     timeline.forEach(function (seg) {
       seg.powerKw = actKw + snapKw + (seg.type === 'transit' ? hotelUwKw + propKw : hotelStatKw);
       seg.startMwh = cumMwh;
       var segMwh = seg.powerKw * seg.hours / 1000;
       if (dieselStartH === null && cumMwh < cap && cumMwh + segMwh > cap) {
         dieselStartH = seg.startH + (cap - cumMwh) / (seg.powerKw / 1000);
+      }
+      if (bandStartH === null && cumMwh < bandLine && cumMwh + segMwh > bandLine) {
+        bandStartH = seg.startH + (bandLine - cumMwh) / (seg.powerKw / 1000);
       }
       cumMwh += segMwh;
       seg.endMwh = cumMwh;
@@ -1071,7 +1112,7 @@ globalThis.LEIP_ENGINE = (function () {
       underwayH: underwayH, anchorH: anchorH, transitBudgetH: transitBudgetH,
       hotelMwh: e.hotelMwh, travelMwh: e.travelMwh, activitiesMwh: activitiesMwh,
       totalMwh: totalMwh, batteryMwh: batteryMwh, dieselMwh: dieselMwh,
-      dieselStartH: dieselStartH,
+      dieselStartH: dieselStartH, bandStartH: bandStartH,
       reached: reached, distinctPorts: distinctPorts, countries: countries,
       rechargePort: rechargePortName,
       poster: posterInfo,
@@ -1113,7 +1154,10 @@ globalThis.LEIP_ENGINE = (function () {
 
     if (sim.completed && portByName(sim.rechargePort).energy === 'green') unlock('green-charge');
     if (sim.score.final > th.scoreOver) unlock('score-900');
-    if (sim.dieselMwh > 0) unlock('mwh-hit', sim.dieselStartH);
+    // Battery brinkmanship: the full 50 MWh drawn, and the diesels never woke.
+    if (sim.dieselMwh === 0 && sim.totalMwh >= d.battery.gameThresholdMwh - th.batteryBandMwh) {
+      unlock('mwh-hit', sim.bandStartH);
+    }
     var hasDive = Object.keys(sim.inputs.activities).some(function (id) {
       return cfg.diveActivityIds.indexOf(id) >= 0;
     });
@@ -1294,6 +1338,7 @@ globalThis.LEIP_APP = (function () {
     st.setProperty('--tb-value-px', T.hud.valuePx + 'px');
     st.setProperty('--tb-w', T.hud.panelWidthPx + 'px');
     st.setProperty('--dot-r', String(T.hud.dotRadiusPx));
+    st.setProperty('--dot9-r', String(T.hud.diamondDotRadiusPx));
     st.setProperty('--panel-w', T.ui.panelWidthPx + 'px');
     st.setProperty('--sheet-max-h', T.ui.sheetMaxVh + 'vh');
     st.setProperty('--label-tracking', T.ui.labelTrackingEm + 'em');
@@ -2295,35 +2340,49 @@ globalThis.LEIP_APP = (function () {
     renderDots();
   }
 
-  // ------------------------------------------------------------ nine dots modal
-  function dotXY(i) { return { x: 60 + (i % 3) * 90, y: 60 + Math.floor(i / 3) * 90 }; }
+  // ------------------------------------------------------------ achievements
+  // The nine dots in the diamond formation: the 3x3 pattern turned 45°,
+  // which lays the dots out 1-2-3-2-1. Percentages of the square field.
+  function dotXY(i) {
+    var dx = (i % 3) - 1, dy = Math.floor(i / 3) - 1;
+    var s = T.hud.diamondSpreadPct;
+    return { x: 50 + (dx - dy) / 2 * s, y: 50 + (dx + dy) / 2 * s };
+  }
   function showDots() {
     var card = $('dots-card');
     if (card) {
-      var unlocked = 0;
-      var parts = [];
+      var unlocked = 0, dots = [];
       D.achievements.list.forEach(function (a, i) {
-        var got = S.persistent.unlocked[a.id] || S.revealed[a.id];
+        var got = !!(S.persistent.unlocked[a.id] || S.revealed[a.id]);
         if (got) unlocked++;
         var p = dotXY(i);
-        parts.push('<circle cx="' + p.x + '" cy="' + p.y + '" r="11" fill="' +
-          (got ? T.volt : 'none') + '" stroke="' + T.ink.onLight + '" stroke-width="2"/>');
-        if (got) {
-          parts.push('<text x="' + p.x + '" y="' + (p.y + 29) + '" text-anchor="middle" fill="' + T.ink.onLight +
-            '" font-size="11" font-family="' + esc(T.type.ui) + '">' + esc(a.name) + '</text>');
-        }
+        // Locked dots stay unlabelled mysteries: no name, no hint, no callout.
+        dots.push('<button class="dot9' + (got ? ' earned' : '') + (p.y < 45 ? ' low' : '') +
+          '" style="left:' + p.x + '%;top:' + p.y + '%"' +
+          (got ? ' aria-label="' + esc(a.name) + '"' : ' aria-label="Locked" tabindex="-1"') + '>' +
+          (got ? '<span class="callout"><b>' + esc(a.name) + '</b><span>' + esc(a.desc) + '</span></span>' : '') +
+          '</button>');
       });
+      var arrow = '';
       if (unlocked === D.achievements.list.length) {
-        // All nine: the arrow draws itself through the dots.
-        parts.push('<path d="M 60 240 L 240 60 M 240 60 L 168 60 M 240 60 L 240 132" fill="none" stroke="' +
-          T.ink.onLight + '" stroke-width="7" stroke-linecap="round"' +
-          (S.reducedMotion ? '' : '><animate attributeName="stroke-dasharray" from="0 620" to="620 0" dur="1.4s" fill="freeze"/') +
-          '></path>');
+        // All nine: the arrow draws itself through the dots — left point to
+        // right point, barbs back to the top and bottom points.
+        var l = dotXY(6), r = dotXY(2), t = dotXY(0), b = dotXY(8);
+        var dpath = 'M ' + l.x + ' ' + l.y + ' L ' + r.x + ' ' + r.y +
+                    ' M ' + r.x + ' ' + r.y + ' L ' + t.x + ' ' + t.y +
+                    ' M ' + r.x + ' ' + r.y + ' L ' + b.x + ' ' + b.y;
+        arrow = '<svg id="dots-arrow" viewBox="0 0 100 100" preserveAspectRatio="none">' +
+          '<path d="' + dpath + '" fill="none" stroke="' + T.ink.onLight +
+          '" stroke-width="2.2" stroke-linecap="round" vector-effect="non-scaling-stroke"' +
+          (S.reducedMotion ? '/>' :
+            '><animate attributeName="stroke-dasharray" from="0 400" to="400 0" dur="1.4s" fill="freeze"/></path>') +
+          '</svg>';
       }
       card.innerHTML =
-        '<h2>The nine dots</h2>' +
-        '<p class="hint">Unlabelled until earned. No hints.</p>' +
-        '<svg id="dots-svg" viewBox="0 0 300 300">' + parts.join('') + '</svg>' +
+        '<h2>Achievements</h2>' +
+        '<p class="hint">Nine dots. Unlabelled until earned — hover an earned dot for its name.</p>' +
+        '<div id="dots-field">' + arrow + dots.join('') + '</div>' +
+        '<div id="dots-count">' + unlocked + ' / ' + D.achievements.list.length + '</div>' +
         '<div class="row"><button id="btn-dots-close">Close</button></div>';
       on('btn-dots-close', 'click', function () { show('dots', false); });
     }
@@ -2529,6 +2588,7 @@ globalThis.LEIP_APP = (function () {
       on('btn-sim', 'click', function () { API.simulate(); });
       on('btn-skip', 'click', function () { API.skip(); });
       on('btn-board', 'click', function () { API.showBoard(); });
+      on('btn-achievements', 'click', function () { API.openDots(); });
       on('tb-dots', 'click', function () { API.openDots(); });
       if (typeof addEventListener === 'function') addEventListener('resize', resize);
       bindStageInput();
