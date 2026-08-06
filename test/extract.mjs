@@ -19,13 +19,13 @@ export function extractBlock(html, id) {
   return m[1];
 }
 
-// THEME + DATA + ENGINE in a fresh sandbox.
+// THEME + generated terrain/sea lanes + DATA + ENGINE in a fresh sandbox.
 export function loadEngine(extraSandbox = {}) {
   const html = readHtml();
   const sandbox = { console, ...extraSandbox };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
-  for (const id of ['leip-theme', 'leip-data', 'leip-engine']) {
+  for (const id of ['leip-theme', 'leip-terrain', 'leip-sealanes', 'leip-data', 'leip-engine']) {
     vm.runInContext(extractBlock(html, id), sandbox, { filename: id + '.js' });
   }
   return sandbox;

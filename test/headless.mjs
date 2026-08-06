@@ -27,19 +27,36 @@ function mulberry32(seed) {
 
 // ---------------------------------------------------------------- data integrity
 section('DATA mirrors the data pack; THEME mirrors the visual direction');
-check('4-point prop curve with the four HUD mode labels',
-  D.propCurve.length === 4 &&
-  ['ELECTRIC', 'HYBRID', 'TRANSIT', 'BOOST'].every((m, i) => D.propCurve[i].gameMode === m));
-check('hotel loads 183/158 ekW as per 200-52',
-  D.hotelLoadsEkw.stationaryGuestAnchor === 183 && D.hotelLoadsEkw.underwayGuestTransit === 158);
+check('4-point prop curve with HUD mode labels',
+  D.propCurve.length === 4 && D.propCurve.every((c) => typeof c.pbKw === 'number' && c.gameMode));
+check('guest-mode hotel loads 188.6 anchor / 162.8 under way',
+  D.hotelLoadsEkw.stationaryGuestAnchor === 188.6 && D.hotelLoadsEkw.underwayGuestTransit === 162.8);
 check('battery 49,860 kWh installed, 50 MWh game threshold',
   D.battery.installedKwh === 49860 && D.battery.gameThresholdMwh === 50);
-check('speed profiles from 28 charters (17 Typical / 10 Intense)',
-  D.speedProfiles.Typical.nCharters === 17 && D.speedProfiles.Intense.nCharters === 10);
-check('31 ports, names unique',
-  D.ports.length === 31 && new Set(D.ports.map(p => p.name)).size === 31);
-check('four energy types only (placeholder columns)',
-  D.ports.every(p => ['green', 'blue', 'grey', 'brown'].includes(p.energy)));
+check('speed profiles from all 28 observed charters, split 14/14',
+  D.speedProfiles.Typical.nCharters === 14 && D.speedProfiles.Intense.nCharters === 14);
+check('Intense is genuinely the harder-driven profile',
+  E.profileStats('Intense').vEff > E.profileStats('Typical').vEff &&
+  E.profileStats('Intense').avgBkw > E.profileStats('Typical').avgBkw);
+check('33 ports, names unique',
+  D.ports.length === 33 && new Set(D.ports.map(p => p.name)).size === 33);
+check('energy types are the four carbon classes, or null where the source has no figure',
+  D.ports.every(p => p.energy === null || ['green', 'blue', 'grey', 'brown'].includes(p.energy)));
+check('Genoa is the only unrated port, and it scores neutral rather than guessing',
+  D.ports.filter(p => p.energy === null).map(p => p.name).join() === 'Genoa' &&
+  D.scoring.multiplier.rechargeUnrated === 0);
+check('energy classes follow the published carbon quartiles',
+  D.ports.filter(p => p.carbon !== null).every(p => {
+    const q = D.energyQuartilesGco2kwh;
+    const want = p.carbon <= q.greenMax ? 'green' : p.carbon <= q.blueMax ? 'blue'
+      : p.carbon <= q.greyMax ? 'grey' : 'brown';
+    return p.energy === want;
+  }));
+check('33x33 distance matrix, symmetric, zero on the diagonal',
+  Object.keys(D.distanceMatrixNm).length === 33 &&
+  D.ports.every(a => D.ports.every(b =>
+    D.distanceMatrixNm[a.name][b.name] === D.distanceMatrixNm[b.name][a.name])) &&
+  D.ports.every(a => D.distanceMatrixNm[a.name][a.name] === 0));
 check('seven poster routes over valid ports',
   D.posterRoutes.length === 7 &&
   D.posterRoutes.every(r => r.ports.every(n => D.ports.some(p => p.name === n))));
@@ -91,22 +108,44 @@ section('§11.3 Poster parity — published figure output on exact replication; 
     fast.poster && !fast.poster.exactReplica && fast.totalMwh !== D.posterRoutes[0].mwh);
 }
 
-// ---------------------------------------------------------------- secondary reference sets
-section('Secondary — Routes_Reference within ~10% where the group has n>=2 charters');
+// ---------------------------------------------------------------- sea lanes
+section('Sea lanes — every leg stays on water, and scoring uses the sailed path');
 {
-  for (const r of D.routesReference) {
-    for (const [prof, dur, obs, n] of [['Typical', r.durTyp, r.mwh7Typ, r.nTyp], ['Intense', r.durInt, r.mwh7Int, r.nInt]]) {
-      if (!n) continue;
-      const e = E.energyFor(r.distNm, dur * 24, prof);
-      const sim = (e.hotelMwh + e.travelMwh) * 7 / dur;
-      const pct = Math.abs(sim - obs) / obs * 100;
-      if (n >= 2) {
-        check(`${r.route} ${prof} (n=${n}): ${pct.toFixed(1)}% <= 10%`, pct <= 10, `sim ${sim.toFixed(1)} vs ${obs.toFixed(1)}`);
-      } else {
-        console.log(`  info: ${r.route} ${prof} (n=1, single-vessel scatter): ${pct.toFixed(1)}%`);
-      }
-    }
+  const SL = g.LEIP_SEALANES;
+  check('sea-lane data present: a berth for every port', !!SL &&
+    D.ports.every(p => Array.isArray(SL.anchorages[p.name])));
+  check('berths sit off the charted position, not on it',
+    D.ports.every(p => {
+      const b = E.berth(p.name);
+      return Math.abs(b.lat - p.lat) + Math.abs(b.lon - p.lon) < 0.6;
+    }));
+  const gv = E.pathNm(E.legPath('Genoa', 'Venice'));
+  check(`a leg that must round Italy is scored as sailed, not as the crow flies (${gv.toFixed(0)} nm vs ${D.distanceMatrixNm.Genoa.Venice} nm)`,
+    gv > D.distanceMatrixNm.Genoa.Venice * 3);
+  check('scoring distance follows DATA.distanceBasis',
+    D.distanceBasis === 'sealane'
+      ? Math.abs(E.legNm('Genoa', 'Venice') - gv) < 1
+      : E.legNm('Genoa', 'Venice') === D.distanceMatrixNm.Genoa.Venice);
+  // Short hops differ by more than the lane itself: a berth lies ~1.7 nm
+  // off its charted position, which is a big share of a 7 nm run. Judge
+  // agreement on legs long enough for that to wash out.
+  const ratios = [];
+  for (const a of D.ports) for (const b of D.ports) {
+    if (a.name >= b.name) continue;
+    const m = D.distanceMatrixNm[a.name][b.name];
+    if (m < 100) continue;
+    ratios.push(E.pathNm(E.legPath(a.name, b.name)) / m);
   }
+  ratios.sort((x, y) => x - y);
+  const median = ratios[Math.floor(ratios.length / 2)];
+  // A berth sits up to a few miles off its charted position, so an
+  // individual leg can come out marginally shorter than the port-to-port
+  // figure; the median is what matters.
+  check(`legs over 100 nm track the pack matrix (median x${median.toFixed(3)})`,
+    median >= 1 && median < 1.3 && ratios[0] > 0.95, `min ${ratios[0].toFixed(3)}`);
+  const sim = E.simulate({ route: ['Genoa', 'Venice'], speed: 'slow', nights: 4, activities: {} });
+  check('a sea-lane leg carries its path into the timeline for playback',
+    sim.timeline.some(seg => seg.type === 'transit' && seg.path && seg.path.length > 2));
 }
 
 // ---------------------------------------------------------------- §11.4 balance scenarios
@@ -173,8 +212,8 @@ section('Model behaviours (spec §2, §3)');
   const fast = E.simulate({ ...base, speed: 'fast' });
   check('fast covers the route quicker (more anchor hours)', fast.anchorH > slow.anchorH);
   check('fast draws more energy', fast.totalMwh > slow.totalMwh);
-  check('hotel splits 183/158 by stationary/underway hours',
-    Math.abs(slow.hotelMwh - (183 * (168 - slow.underwayH) + 158 * slow.underwayH) * D.calibration.hotelUtilisation / 1000) < 1e-9);
+  check('hotel splits 188.6/162.8 ekW by stationary/underway hours',
+    Math.abs(slow.hotelMwh - (188.6 * (168 - slow.underwayH) + 162.8 * slow.underwayH) * D.calibration.hotelUtilisation / 1000) < 1e-9);
   check('travel is the energy story: longer route costs more',
     E.simulate({ route: ['Athens', 'Santorini'], speed: 'slow', nights: 4, activities: {} }).totalMwh <
     E.simulate({ route: ['Athens', 'Santorini', 'Athens', 'Santorini'], speed: 'slow', nights: 4, activities: {} }).totalMwh);

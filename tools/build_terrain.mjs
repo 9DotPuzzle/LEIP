@@ -237,6 +237,30 @@ let oddRowCount = 0;
     }
   }
 }
+// Stamp every coastline edge into the grid. The scanline fill only marks a
+// cell when its CENTRE is inside land, so a spit or isthmus narrower than a
+// cell leaves no land cells at all — and a path would thread straight
+// through it. Stamping the boundary closes those slivers, and the clearance
+// transform then keeps traffic off them.
+{
+  for (const r of rings) {
+    for (let i = 0, n = r.length; i < n; i++) {
+      const p = r[i], q = r[(i + 1) % n];
+      let x = G.x(p[0]), y = G.y(p[1]);
+      const x1 = G.x(q[0]), y1 = G.y(q[1]);
+      const dx = Math.abs(x1 - x), dy = Math.abs(y1 - y);
+      const sx = x1 > x ? 1 : -1, sy = y1 > y ? 1 : -1;
+      let err = dx - dy;
+      for (let guard = 0; guard < 1e5; guard++) {
+        if (x >= 0 && y >= 0 && x < G.w && y < G.h) land[y * G.w + x] = 1;
+        if (x === x1 && y === y1) break;
+        const e2 = 2 * err;
+        if (e2 > -dy) { err -= dy; x += sx; }
+        if (e2 < dx) { err += dx; y += sy; }
+      }
+    }
+  }
+}
 let landCells = 0;
 for (let i = 0; i < land.length; i++) landCells += land[i];
 console.log(`raster: ${G.w}x${G.h} cells, ${(landCells / land.length * 100).toFixed(1)}% land, ${oddRowCount} odd-parity rows`);
@@ -429,13 +453,69 @@ if (args.includes('--dump')) {                       // navigable-water diagnost
   console.log(`dumped ${out} (${w}x${h}; dark=land, mid=too close to shore, light=navigable)`);
 }
 
-function losClear(a, b) {
-  const steps = Math.ceil(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1])) * 1.5) + 1;
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    if (!navigable(Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t))) return false;
+// Exact segment-vs-coastline test, indexed by a coarse grid of the ring
+// segments. The raster alone is not enough: it discretises the coast, so a
+// shortcut can slice a headland the grid rounded away. Every shortcut must
+// satisfy BOTH the raster clearance and this exact test.
+const SEGIDX = (() => {
+  const CELL = 0.5;
+  const key = (x, y) => Math.floor(x / CELL) + ':' + Math.floor(y / CELL);
+  const map = new Map();
+  for (const r of rings) {
+    for (let i = 0, n = r.length; i < n; i++) {
+      const p = r[i], q = r[(i + 1) % n];
+      const x0 = Math.min(p[0], q[0]), x1 = Math.max(p[0], q[0]);
+      const y0 = Math.min(p[1], q[1]), y1 = Math.max(p[1], q[1]);
+      for (let x = Math.floor(x0 / CELL) * CELL; x <= x1; x += CELL) {
+        for (let y = Math.floor(y0 / CELL) * CELL; y <= y1; y += CELL) {
+          const k = key(x, y);
+          if (!map.has(k)) map.set(k, []);
+          map.get(k).push([p, q]);
+        }
+      }
+    }
   }
-  return true;
+  const orient = (p, q, r) => Math.sign((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]));
+  return function crossesLandExact(a, b) {
+    const x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]);
+    const y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
+    const seen = new Set();
+    for (let x = Math.floor(x0 / CELL) * CELL; x <= x1 + CELL; x += CELL) {
+      for (let y = Math.floor(y0 / CELL) * CELL; y <= y1 + CELL; y += CELL) {
+        const list = map.get(key(x, y));
+        if (!list) continue;
+        for (const [p, q] of list) {
+          const id = p[0] + ',' + p[1] + ',' + q[0] + ',' + q[1];
+          if (seen.has(id)) continue;
+          seen.add(id);
+          if (orient(a, b, p) !== orient(a, b, q) && orient(p, q, a) !== orient(p, q, b)) return true;
+        }
+      }
+    }
+    return false;
+  };
+})();
+
+// Raster clearance along a segment, walking every cell the line touches
+// (not just sampled centres, which can step over a one-cell isthmus).
+function rasterClear(a, b) {
+  let x = a[0], y = a[1];
+  const dx = Math.abs(b[0] - a[0]), dy = Math.abs(b[1] - a[1]);
+  const sx = b[0] > a[0] ? 1 : -1, sy = b[1] > a[1] ? 1 : -1;
+  let err = dx - dy;
+  for (let guard = 0; guard < 1e6; guard++) {
+    if (!navigable(x, y)) return false;
+    if (x === b[0] && y === b[1]) return true;
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x += sx; if (!navigable(x, y)) return false; }
+    if (e2 < dx) { err += dx; y += sy; }
+  }
+  return false;
+}
+
+function losClear(a, b) {
+  if (!rasterClear(a, b)) return false;
+  return !SEGIDX([G.lon(a[0]), G.lat(a[1])], [G.lon(b[0]), G.lat(b[1])]);
 }
 
 const N8 = [[1,0,1],[-1,0,1],[0,1,1],[0,-1,1],[1,1,1.414],[1,-1,1.414],[-1,1,1.414],[-1,-1,1.414]];
