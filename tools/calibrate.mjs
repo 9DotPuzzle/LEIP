@@ -17,15 +17,20 @@ for (const p of ['Typical', 'Intense']) {
 }
 
 console.log('\n=== PRIMARY — Poster parity (§6): published nm & days, Typical profile ===');
-console.log('route        published   simulated   delta    status');
+console.log(`distance basis in play: '${D.distanceBasis}' — every in-game leg is measured`);
+console.log('along the sailed sea lane; the published nm column is the poster sheet\'s own');
+console.log('figure, which is what the calibration constants are fitted against.');
+console.log('route        published   simulated   delta    sailed nm   status');
 let ok = 0;
 for (const pr of D.posterRoutes) {
   const s = E.posterAssumptionMwh(pr);
   const d = s - pr.mwh;
   const within = Math.abs(d) <= cal.posterToleranceMwh;
   ok += within;
+  const sailed = E.simulate({ route: pr.ports, speed: 'slow', nights: 4, activities: {} }).distanceNm;
   console.log(`${pr.id.padEnd(12)} ${String(pr.mwh).padStart(6)} MWh ${s.toFixed(2).padStart(8)} MWh ` +
-    `${((d >= 0 ? '+' : '') + d.toFixed(2)).padStart(6)}   ${within ? 'calibrated' : 'OVERRIDE (exact-match snap)'}`);
+    `${((d >= 0 ? '+' : '') + d.toFixed(2)).padStart(6)}   ${sailed.toFixed(0).padStart(6)} nm  ` +
+    `${within ? 'calibrated' : 'OVERRIDE (exact-match snap)'}`);
 }
 console.log(`${ok}/${D.posterRoutes.length} within ±${cal.posterToleranceMwh} MWh from first principles.`);
 
@@ -86,4 +91,29 @@ for (const s of D.balanceScenarios) {
   console.log(`  ${s.id.padEnd(15)} base ${String(sim.score.base).padStart(4)}  ` +
     `mult ${sim.score.multiplier.toFixed(1).padStart(5)}  final ${sim.score.final.toFixed(1).padStart(7)}  ` +
     `diesel ${sim.dieselMwh.toFixed(1)} MWh  dist ${sim.distanceNm.toFixed(0)} nm`);
+}
+
+console.log('\n=== SECONDARY — Fleet reference (scaffold) ===');
+{
+  const F = D.fleetReference;
+  const emptyC = F.charters.filter((c) => c.mwh == null || c.durationDays == null).length;
+  const emptyG = F.routeGroups.filter((g) => g.distNm == null).length;
+  console.log(`  populated=${F.populated} · tolerance ±${F.tolerancePct}% · basis '${F.basis}'`);
+  if (!F.populated) {
+    console.log(`  awaiting values: ${emptyC}/${F.charters.length} charters, ${emptyG}/${F.routeGroups.length} route groups`);
+    console.log(`  pending: ${F.pending}`);
+  } else {
+    for (const r of F.routeGroups) {
+      if (r.distNm == null) continue;
+      for (const [prof, dur, obs, n] of [['Typical', r.durTyp, r.mwh7Typ, r.nTyp],
+                                         ['Intense', r.durInt, r.mwh7Int, r.nInt]]) {
+        if (!n || dur == null || obs == null) continue;
+        const e = E.energyFor(r.distNm, dur * 24, prof);
+        const sim = (e.hotelMwh + e.travelMwh) * 7 / dur;
+        const pct = (sim - obs) / obs * 100;
+        console.log(`  ${r.route.padEnd(26)} ${prof.padEnd(8)} n=${n}  obs ${obs.toFixed(1).padStart(5)}  ` +
+          `sim ${sim.toFixed(1).padStart(5)}  ${((pct >= 0 ? '+' : '') + pct.toFixed(1)).padStart(6)}%`);
+      }
+    }
+  }
 }

@@ -148,6 +148,73 @@ section('Sea lanes — every leg stays on water, and scoring uses the sailed pat
     sim.timeline.some(seg => seg.type === 'transit' && seg.path && seg.path.length > 2));
 }
 
+// ---------------------------------------------------------------- secondary reference sets
+section('Secondary — fleet reference (28 observed charters + route groups)');
+{
+  const F = D.fleetReference;
+  check('fleet reference scaffold present and shaped', !!F &&
+    Array.isArray(F.charters) && Array.isArray(F.routeGroups) &&
+    typeof F.tolerancePct === 'number' && typeof F.populated === 'boolean');
+  check('all 28 observed charters have a slot, split 14 Typical / 14 Intense',
+    F.charters.length === 28 &&
+    F.charters.filter(c => c.profile === 'Typical').length === 14 &&
+    F.charters.filter(c => c.profile === 'Intense').length === 14);
+  check('every poster route points at a named group in the table',
+    D.posterRoutes.every(pr => F.routeGroups.some(g => g.route === pr.refGroup)),
+    D.posterRoutes.filter(pr => !F.routeGroups.some(g => g.route === pr.refGroup)).map(pr => pr.id).join(', '));
+  check('the fleet check is stated on sea-lane distance, the scoring basis',
+    F.basis === D.distanceBasis, `${F.basis} vs ${D.distanceBasis}`);
+
+  const emptyCharters = F.charters.filter(c => c.mwh == null || c.durationDays == null);
+  const emptyGroups = F.routeGroups.filter(g => g.distNm == null ||
+    (g.mwh7Typ == null && g.mwh7Int == null));
+
+  if (!F.populated) {
+    check('scaffold honestly declares itself unpopulated (no vacuous passes)',
+      emptyCharters.length > 0 || emptyGroups.length > 0);
+    console.log(`  SKIP: fleet reference awaiting values — ${emptyCharters.length}/28 charters ` +
+      `and ${emptyGroups.length}/${F.routeGroups.length} route groups have no observed figures.`);
+    console.log(`  SKIP: pending — ${F.pending}`);
+  } else {
+    check('populated fleet reference has no empty slots left',
+      emptyCharters.length === 0 && emptyGroups.length === 0,
+      `${emptyCharters.length} charters, ${emptyGroups.length} groups still null`);
+    // Route groups: the simulated whole-charter energy, normalised to a
+    // 7-day week the way the source table publishes it.
+    for (const r of F.routeGroups) {
+      if (r.distNm == null) continue;
+      for (const [prof, dur, obs, n] of [['Typical', r.durTyp, r.mwh7Typ, r.nTyp],
+                                         ['Intense', r.durInt, r.mwh7Int, r.nInt]]) {
+        if (!n || dur == null || obs == null) continue;
+        const e = E.energyFor(r.distNm, dur * 24, prof);
+        const sim = (e.hotelMwh + e.travelMwh) * 7 / dur;
+        const pct = Math.abs(sim - obs) / obs * 100;
+        if (n >= F.minGroupN) {
+          check(`${r.route} ${prof} (n=${n}): ${pct.toFixed(1)}% <= ${F.tolerancePct}%`,
+            pct <= F.tolerancePct, `sim ${sim.toFixed(1)} vs ${obs.toFixed(1)}`);
+        } else {
+          console.log(`  info: ${r.route} ${prof} (n=${n}, single-vessel scatter): ${pct.toFixed(1)}%`);
+        }
+      }
+    }
+    // Individual charters are scatter by nature — reported as a spread,
+    // with only the fleet-wide mean held to the tolerance.
+    const errs = [];
+    for (const c of F.charters) {
+      if (c.mwh == null || c.durationDays == null) continue;
+      const e = E.energyFor(c.totalNm, c.durationDays * 24, c.profile);
+      errs.push(((e.hotelMwh + e.travelMwh) - c.mwh) / c.mwh * 100);
+    }
+    if (errs.length) {
+      const mean = errs.reduce((a, b) => a + b, 0) / errs.length;
+      const spread = [Math.min(...errs), Math.max(...errs)];
+      console.log(`  info: per-charter error spread ${spread[0].toFixed(1)}% to ${spread[1].toFixed(1)}% across ${errs.length}`);
+      check(`fleet-wide mean error ${mean.toFixed(1)}% within ±${F.tolerancePct}%`,
+        Math.abs(mean) <= F.tolerancePct);
+    }
+  }
+}
+
 // ---------------------------------------------------------------- §11.4 balance scenarios
 section('§11.4 Balance scenarios land in their intended bands');
 for (const s of D.balanceScenarios) {

@@ -36,13 +36,14 @@ node tools/calibrate.mjs
 ## Calibration (spec §6)
 
 Constants live in `DATA.calibration`: knot bins ≤ 1 kt are station-keeping,
-hotel utilisation 0.66 on the 183/158 ekW guest loads, propulsion factors
-0.68 (Typical) / 0.90 (Intense) on brake power. Four of the seven published
-poster routes reconcile within ±1 MWh from first principles (SOF_BLUE,
-BALEARICS, GREECE, TURKEY); the other three are irreconcilable by any
-distance/duration model (near-identical nm/days, published figures 15 MWh
+hotel utilisation 0.635 on the guest loads, propulsion factor 0.69 on brake
+power. Scoring distance is the **actual sailed sea-lane distance**
+(`DATA.distanceBasis: 'sealane'`), not the great-circle matrix. Four of the
+seven published poster routes reconcile within ±1 MWh from first principles
+(SOF_BLUE, BALEARICS, GREECE, TURKEY); the other three are irreconcilable by
+any distance/duration model (near-identical nm/days, published figures 15 MWh
 apart) and output their published figure via the §6 exact-match override,
-logged. Every n≥2 reference route group lands within 10%.
+logged.
 
 The §5 worked example reproduces the canonical multiplier of **6.2** exactly. The
 base is scored on a 0–50 board scale (a 0–100 energy frame mapped by
@@ -50,5 +51,14 @@ base is scored on a 0–50 board scale (a 0–100 energy frame mapped by
 
 ## Pending data
 
-Port **energy types, charge scores and tags** (Ports tab yellow columns) are
-clearly marked placeholders in the DATA block; everything else is real.
+Port **energy types** are now real — derived by quartile from each port's
+carbon intensity. **Genoa** carries no carbon figure in the source, so its
+`energy` is `null` and it scores neutral on the recharge factor; the team is
+to confirm a value.
+
+`DATA.fleetReference` is a **scaffold**: the secondary check behind poster
+parity, covering the 28 observed charters and their route groups. Vessel
+names, distances and effective speeds are real; the observed durations and
+MWh are `null` and `populated` is `false`, so the suite reports those checks
+SKIPPED rather than passing vacuously. Fill the slots in and the checks come
+to life with no code change.
