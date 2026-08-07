@@ -41,7 +41,7 @@ const CFG = {
   minAreaDeg2: 0.0016,       // drop specks...
   portKeepDeg: 0.25,         // ...unless a port sits on one
   grid: { cell: 0.01 },      // ~1.1 km routing raster
-  clearanceCells: 2,         // keep this far off the beach
+  clearanceCells: 5,         // keep this far off the beach (~3 nm)
   anchorMaxCells: 40,        // how far offshore a port may be pushed
   reliefCell: 0.04,          // coarse raster for the relief tier only
   reliefInsetCells: 4,       // how far inside the coast the highland step starts

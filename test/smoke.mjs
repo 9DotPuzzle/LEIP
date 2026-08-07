@@ -175,6 +175,40 @@ section('Planning panel — the playtest rules the markup must keep');
     !!g2.LEIP_THEME.icons.defs.SPD_TURTLE && !!g2.LEIP_THEME.icons.defs.SPD_HARE);
 }
 
+// ================================================================ playback HUD
+section('Playback HUD — time of day and charter progress');
+{
+  const { sandbox: sb4 } = makeSandbox();
+  const g4 = loadGame(sb4);
+  const A4 = g4.LEIP_APP;
+  A4.init();
+  const T4 = g4.LEIP_THEME, D4 = g4.LEIP_DATA;
+  check('the charter start hour is a THEME token, shared by the light and the clock',
+    typeof T4.charterStartHour === 'number');
+  check('playback pace is a THEME token', typeof T4.motion.weekSeconds === 'number');
+  ['Ajaccio', 'Antibes', 'Porto Cervo', 'Monaco'].forEach(n => A4.pickPort(n));
+  A4.simulate();
+  const el = (id) => sb4.document.getElementById(id);
+  check('the clock reads a time of day with AM/PM', /^\d{1,2}:\d{2} (AM|PM)$/.test(el('tb-clock').textContent),
+    el('tb-clock').textContent);
+  check('progress starts at 0%', el('tb-progpct').textContent === '0%', el('tb-progpct').textContent);
+  const seen = new Set();
+  for (let i = 0; i < 40 && A4.getState().phase === 'playback'; i++) {
+    A4.tick(1);
+    seen.add(el('tb-clock').textContent);
+  }
+  check('the clock advances through the week', seen.size > 5, `${seen.size} distinct readings`);
+  const pctText = el('tb-progpct').textContent;
+  const pct = parseInt(pctText, 10);
+  check(`progress advances and stays in range (${pctText})`, pct > 0 && pct <= 100);
+  // Run to the end: the bar must land on exactly 100, not 99 or 101.
+  for (let i = 0; i < 200 && A4.getState().phase === 'playback'; i++) A4.tick(1);
+  check('progress finishes at 100%', el('tb-progpct').textContent === '100%',
+    el('tb-progpct').textContent);
+  check('the bar width tracks the percentage', el('tb-progbar').style.width === '100%',
+    el('tb-progbar').style.width);
+}
+
 // ================================================================ chart frame
 section('Chart frame — the view is bounded and the grid fills it');
 {

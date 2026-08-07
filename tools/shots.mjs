@@ -39,19 +39,27 @@ const shots = {
   },
   // --- 3: label de-collision on the densest cluster
   riviera: async (page) => {
-    await page.evaluate(() => window.LEIP_APP.debugView({ focus: ['Saint Tropez', 'Cannes', 'Antibes', 'Nice', 'Monaco', 'Saint-Jean-Cap-Ferrat'] }));
+    await page.evaluate(() => {
+      window.LEIP_APP.debugView({ focus: ['Saint Tropez', 'Cannes', 'Antibes', 'Nice', 'Monaco', 'Saint-Jean-Cap-Ferrat'] });
+      window.LEIP_APP.debugView({ zoom: 150 });   // the cluster, at a readable scale
+    });
     await settle(page);
     return { clip: stageClip };
   },
   // --- 4 & 5: yacht and route clear of land; markers never buried
+  // A route that must round Sicily: the leg Naples -> Taormina threads the
+  // Strait of Messina, and Taormina -> Cagliari runs the length of the
+  // island. Both hugged the coast before the clearance went up.
   'route-sicily': async (page) => {
-    await page.evaluate(() => window.LEIP_APP.debugRoute(['Naples', 'Taormina', 'Valletta'].filter(
-      (n) => window.LEIP_DATA.ports.some((p) => p.name === n))));
+    await page.evaluate(() => window.LEIP_APP.debugRoute(['Naples', 'Taormina', 'Cagliari']));
     await settle(page);
     return { clip: stageClip };
   },
   'route-sardinia': async (page) => {
-    await page.evaluate(() => window.LEIP_APP.debugRoute(['Olbia', 'Porto Cervo', 'Porto Rotondo', 'Bonifacio']));
+    await page.evaluate(() => {
+      window.LEIP_APP.debugRoute(['Olbia', 'Porto Cervo', 'Bonifacio', 'Ajaccio']);
+      window.LEIP_APP.debugView({ zoom: 260 });
+    });
     await settle(page);
     return { clip: stageClip };
   },
@@ -77,7 +85,7 @@ const shots = {
       ['Ajaccio', 'Antibes', 'Porto Cervo', 'Monaco'].forEach((n) => A.pickPort(n));
       A.simulate();
     });
-    await page.waitForTimeout(2600);
+    await page.waitForTimeout(22000);   // well into the week, not the first hour
     return { clip: stageClip };
   }
 };

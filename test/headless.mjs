@@ -208,9 +208,9 @@ section('Per-leg sea-lane correction — read through the one accessor');
   check('scoring multiplies the point-to-point leg by the correction',
     Math.abs(E.legNm('Monaco', 'Naples') -
       D.distanceMatrixNm.Monaco.Naples * E.getLegCorrection('Monaco', 'Naples')) < 1e-9);
-  // Short hops differ by more than the lane itself: a berth lies ~1.7 nm
-  // off its charted position, which is a big share of a 7 nm run. Judge
-  // agreement on legs long enough for that to wash out.
+  // Short hops differ by more than the lane itself: a berth lies several
+  // miles off its charted position, which is a big share of a 7 nm run.
+  // Judge agreement on legs long enough for that to wash out.
   const ratios = [];
   for (const a of D.ports) for (const b of D.ports) {
     if (a.name >= b.name) continue;
@@ -220,11 +220,12 @@ section('Per-leg sea-lane correction — read through the one accessor');
   }
   ratios.sort((x, y) => x - y);
   const median = ratios[Math.floor(ratios.length / 2)];
-  // A berth sits up to a few miles off its charted position, so an
-  // individual leg can come out marginally shorter than the port-to-port
-  // figure; the median is what matters.
+  // Berths sit up to ~10 nm off the charted position now that lanes hold
+  // 3 nm of clearance off the beach, so a berth-to-berth run can come out
+  // a few percent SHORTER than the charted-position figure. The median is
+  // what matters; the floor only guards against a lane collapsing.
   check(`legs over 100 nm track the pack matrix (median x${median.toFixed(3)})`,
-    median >= 1 && median < 1.3 && ratios[0] > 0.95, `min ${ratios[0].toFixed(3)}`);
+    median >= 1 && median < 1.3 && ratios[0] > 0.9, `min ${ratios[0].toFixed(3)}`);
   const sim = E.simulate({ route: ['Genoa', 'Venice'], speed: 'slow', nights: 4, activities: {} });
   check('a sea-lane leg carries its path into the timeline for playback',
     sim.timeline.some(seg => seg.type === 'transit' && seg.path && seg.path.length > 2));
