@@ -56,6 +56,25 @@ carbon intensity. **Genoa** carries no carbon figure in the source, so its
 `energy` is `null` and it scores neutral on the recharge factor; the team is
 to confirm a value.
 
+## Distance model
+
+Two quantities, deliberately separated, from `leip_distance_model.json`:
+
+- **Poster routes** are curated real charters. If the player's route is an
+  exact ordered match for one of the seven sequences, the game outputs that
+  route's published nm whole — no speed or activity qualifier. The published
+  figures are charter distances (a week's real cruising, wandering between
+  bays), and the implied factors over the passage sum run ×1.16 to ×2.87, so
+  they cannot be decomposed into legs.
+- **Everything else** is a planned passage, scored leg by leg as
+  `matrix[a][b] × getLegCorrection(a, b)`.
+
+`ENGINE.posterByRoute` is the single exact-ordered-match detector, shared by
+the distance rule and the §6 MWh override. `ENGINE.getLegCorrection` is the
+single boundary to the correction table — a test asserts the ENGINE block
+references `LEIP_LEG_CORRECTION` exactly once, so replacing the table with
+lanes the game computes itself is a one-function change.
+
 ## Fleet reference (secondary validation)
 
 `DATA.fleetReference` carries the 28 observed charters from

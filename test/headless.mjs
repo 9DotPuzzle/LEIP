@@ -131,6 +131,55 @@ section('Sea lanes — every leg stays on water, and scoring uses the sailed pat
     `basis ${D.distanceBasis}, legNm ${E.legNm('Genoa', 'Venice').toFixed(1)}`);
 }
 
+// ---------------------------------------------------------------- poster distance rule
+section('Poster distance rule — an exact ordered match outputs published nm, full stop');
+{
+  for (const pr of D.posterRoutes) {
+    // No speed/activity qualifier: matching the ordered sequence is what
+    // makes it that charter, so every profile must produce the figure.
+    const variants = [
+      { route: pr.ports, speed: 'slow', nights: 4, activities: {} },
+      { route: pr.ports, speed: 'fast', nights: 2, activities: { A08: 1, R06: 2 } }
+    ];
+    check(`${pr.id}: ${pr.nm} nm on every profile, exactly`,
+      variants.every(v => E.simulate(v).distanceNm === pr.nm),
+      variants.map(v => E.simulate(v).distanceNm).join(' / '));
+  }
+  // The legs must still sum to the published figure with no rounding drift,
+  // or playback and the reached-ports walk would disagree with the score.
+  check('legs sum to the published figure with no drift',
+    D.posterRoutes.every(pr => {
+      const legs = E.routeLegs(pr.ports);
+      return legs.reduce((s, l) => s + l.nm, 0) === pr.nm;
+    }));
+  check('the planned-passage distance is kept alongside, not discarded',
+    D.posterRoutes.every(pr => {
+      const s = E.simulate({ route: pr.ports, speed: 'slow', nights: 4, activities: {} });
+      return s.poster.plannedNm > 0 && s.poster.publishedNm === pr.nm;
+    }));
+  // Match detection is exact and ordered — near misses are player routes.
+  const gr = D.posterRoutes.find(p => p.id === 'GREECE');
+  const reversed = gr.ports.slice().reverse();
+  const extended = gr.ports.concat([gr.ports[0]]);
+  check('a reversed sequence is not a poster match', E.posterByRoute(reversed) === null);
+  check('an extended sequence is not a poster match', E.posterByRoute(extended) === null);
+  check('a dropped port is not a poster match', E.posterByRoute(gr.ports.slice(0, -1)) === null);
+  check('near-miss routes fall through to the planned-passage basis',
+    E.simulate({ route: reversed, speed: 'slow', nights: 4, activities: {} }).distanceNm !== gr.nm &&
+    E.simulate({ route: extended, speed: 'slow', nights: 4, activities: {} }).distanceNm !== gr.nm);
+  check('one detector serves both the distance rule and the §6 MWh override',
+    D.posterRoutes.every(pr => {
+      const s = E.simulate({ route: pr.ports, speed: 'slow', nights: 4, activities: {} });
+      return s.poster.id === E.posterByRoute(pr.ports).id && s.distanceNm === pr.nm;
+    }));
+  // Published nm are charter distances, not passage sums: the implied
+  // factors run 0.95 to 3.17, which is why they cannot be decomposed.
+  const factors = D.posterRoutes.map(pr => pr.nm /
+    E.routeLegs(pr.ports).reduce((s, l) => s + l.plannedNm, 0));
+  check(`charter factors span x${Math.min(...factors).toFixed(2)}-x${Math.max(...factors).toFixed(2)}, so no single scalar fits`,
+    Math.max(...factors) / Math.min(...factors) > 2);
+}
+
 // ---------------------------------------------------------------- leg correction
 section('Per-leg sea-lane correction — read through the one accessor');
 {

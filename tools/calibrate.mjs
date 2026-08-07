@@ -34,22 +34,22 @@ for (const pr of D.posterRoutes) {
 }
 console.log(`${ok}/${D.posterRoutes.length} within ±${cal.posterToleranceMwh} MWh from first principles.`);
 
-// What the correction DID move: the distance the game sails on each poster
-// route. Shown against the sheet's nm so the remaining gap is visible.
-console.log('\n=== What the per-leg correction moved: in-game poster distances ===');
-console.log('route        sheet nm   point-to-point   corrected   mean ratio   vs sheet');
+// The distance rule: an exact ordered poster match outputs the published
+// charter distance whole. Everything else is a planned passage.
+console.log('\n=== Distance rule — poster routes output published nm by construction ===');
+console.log('route        published   simulated   planned passage   charter factor');
+let exactNm = 0;
 for (const pr of D.posterRoutes) {
-  let raw = 0, corr = 0;
-  for (let i = 0; i + 1 < pr.ports.length; i++) {
-    const a = pr.ports[i], b = pr.ports[i + 1];
-    const m = D.distanceMatrixNm[a][b];
-    raw += m;
-    corr += m * E.getLegCorrection(a, b);
-  }
-  console.log(`${pr.id.padEnd(12)} ${String(pr.nm).padStart(6)} nm ${raw.toFixed(1).padStart(13)} nm ` +
-    `${corr.toFixed(1).padStart(10)} nm ${(corr / raw).toFixed(3).padStart(11)} ` +
-    `${((corr / pr.nm - 1) * 100).toFixed(0).padStart(9)}%`);
+  const sim = E.simulate({ route: pr.ports, speed: 'slow', nights: 4, activities: {} });
+  const planned = E.routeLegs(pr.ports).reduce((s, l) => s + l.plannedNm, 0);
+  exactNm += sim.distanceNm === pr.nm;
+  console.log(`${pr.id.padEnd(12)} ${String(pr.nm).padStart(6)} nm ${sim.distanceNm.toFixed(1).padStart(9)} nm ` +
+    `${planned.toFixed(1).padStart(14)} nm ${('x' + (pr.nm / planned).toFixed(2)).padStart(13)}` +
+    `${sim.distanceNm === pr.nm ? '' : '   <- MISMATCH'}`);
 }
+console.log(`${exactNm}/${D.posterRoutes.length} poster routes output their published nm exactly.`);
+console.log('The charter factors span too wide a range to be one scalar — which is why the');
+console.log('published figures are taken whole rather than decomposed into legs.');
 
 // Why the remainder cannot be reconciled by any distance/duration model:
 // find published pairs that are near-identical in nm and days yet far apart
