@@ -4937,13 +4937,20 @@ globalThis.LEIP_DATA = {
   scoring: {
     weeklyEnergyRefMwh: 50,     // activity energyPct is a share of this budget
 
-    base: {                     // Base 0-100: pure energy performance
+    // Base: pure energy performance, computed on the natural 0-100 frame
+    // from real consumption, then mapped to the 0-50 board scale by
+    // outputScale. The energy model, the MWh figures and the poster-parity
+    // calibration are untouched by that mapping — only the number printed
+    // on the board changes. Final = base x multiplier, so the ceiling is
+    // 50 x 10 = 500.
+    base: {
       disciplineWeight: 65,     // full when the diesels never wake
       efficiencyWeight: 35,     // scaled by nm-per-MWh vs the reference
       effRefNmPerMwh: 9.0,      // efficiency earning the full efficiency weight
       dieselPenaltyPerMwh: 2.5, // diesel is the dominant penalty
       incompletePenalty: 35,    // route not finished inside the week
-      min: -100, max: 100
+      outputScale: 0.5,         // 0-100 energy frame -> the 0-50 board scale
+      min: -50, max: 50
     },
 
     // Multiplier -10..+10: five factors, averaged. Integer tables so the
@@ -4974,7 +4981,7 @@ globalThis.LEIP_DATA = {
       worldTravellerCountries: 3,
       posterRoutesRequired: 5,   // spec §7 name is 'The Five Routes'; the poster carries 7 — any 5 complete it
       repeatClientCharters: 3,
-      repeatClientMinScore: 400,
+      repeatClientMinScore: 200,   // same share of the ceiling as before the rescale
       // 50 MWh Hit: battery brinkmanship, not a failure badge. The week must
       // land inside this band below the 50 MWh line with the diesels asleep.
       batteryBandMwh: 0.5
@@ -5010,22 +5017,23 @@ globalThis.LEIP_DATA = {
   // ---- Canonical worked example (spec §5): base 78 x 6.2 = 483.6 ---
   // Factors: countries 2->6, ports 5->7, nights 4->10, recharge blue->5,
   // activities (4 distinct, both categories, no spam)->3. Sum 31 -> 6.2.
-  // ---- Canonical worked example (spec §5): base 78 x 6.2 = 483.6 ------
+  // ---- Canonical worked example (spec §5): base 39 x 6.2 = 241.8 ------
   // Factors: countries 2->6, ports 5->7, activities (4 distinct, both
   // categories)->3, nights 3->5, recharge Nice green->10. Sum 31 -> x6.2.
   // NOTE: the refreshed carbon data reclassified Nice from blue to green
   // (31 gCO2/kWh), worth +5 on the recharge factor. The input set moved
   // from four anchor nights to three — the one change with provably zero
   // energy effect, since nights alter only the transit budget and this
-  // route completes either way — so the base stays exactly 78 and the
-  // spec's 483.6 still lands on the nose.
+  // route completes either way — so the base stays put and the worked
+  // example still lands on the nose. On the 0-50 board scale that is
+  // base 39 x 6.2 = 241.8 (the same 78.1 on the 0-100 energy frame).
   canonicalTest: {
     inputs: {
       route: ['Monaco', 'Saint-Jean-Cap-Ferrat', 'Antibes', 'Saint Tropez', 'Nice'],
       speed: 'slow', nights: 3,
       activities: { A02: 2, A07: 1, R01: 1, R06: 2 }
     },
-    expected: { base: 78, multiplier: 6.2, final: 483.6 }
+    expected: { base: 39, multiplier: 6.2, final: 241.8 }
   },
 
   // Regression fixture for the 50 MWh Hit rule: a week that draws the
@@ -5038,25 +5046,27 @@ globalThis.LEIP_DATA = {
   },
 
   // ---- Balance scenarios (spec §11.4) with intended score bands ----
+  // Bands restate the same design intent on the 0-50 base / 0-500 final
+  // scale; the inputs and the energy behind them are unchanged.
   balanceScenarios: [
     { id: 'modest-local', name: 'Modest local charter',
       inputs: { route: ['Nice', 'Antibes', 'Saint-Jean-Cap-Ferrat', 'Nice'], speed: 'slow', nights: 3,
                 activities: { A07: 1, R03: 1, R06: 1 } },
-      band: { baseMin: 60, multiplierMax: 4.5, finalMin: 100, finalMax: 400 } },
+      band: { baseMin: 30, multiplierMax: 4.5, finalMin: 50, finalMax: 200 } },
     { id: 'balanced-multi', name: 'Balanced multi-country',
       inputs: { route: ['Monaco', 'Calvi', 'Porto Cervo', 'Olbia', 'Monaco'], speed: 'slow', nights: 4,
                 activities: { A02: 1, A07: 2, A10: 1, R03: 1, R06: 1, R08: 1 } },
-      band: { baseMin: 75, multiplierMin: 7, finalMin: 550, finalMax: 900 } },
+      band: { baseMin: 38, multiplierMin: 7, finalMin: 275, finalMax: 450 } },
     // A superb itinerary wrecked by energy profligacy: 1,014 nm at the
     // Intense profile wakes the diesels for 23 MWh.
     { id: 'diesel-dash', name: 'Diesel-soaked dash',
       inputs: { route: ['Antibes', 'Palma', 'Cagliari', 'Monaco'], speed: 'fast', nights: 4,
                 activities: { A02: 1, A07: 2, A10: 1, R03: 1, R06: 1, R08: 1 } },
-      band: { baseMax: 45, multiplierMin: 7, finalMin: 150, finalMax: 450, dieselRequired: true } },
+      band: { baseMax: 23, multiplierMin: 7, finalMin: 75, finalMax: 225, dieselRequired: true } },
     // Never left the Costa Smeralda: clean, and pointless.
     { id: 'go-nowhere', name: 'Go-nowhere anchor week',
       inputs: { route: ['Porto Cervo'], speed: 'slow', nights: 6, activities: {} },
-      band: { baseMin: 55, multiplierMax: 0, finalMax: -100 } }
+      band: { baseMin: 28, multiplierMax: 0, finalMax: -50 } }
   ],
 
   playback: {}   // playback pacing lives in THEME.motion (visual value)
@@ -5396,7 +5406,9 @@ globalThis.LEIP_ENGINE = (function () {
     var nmPerMwh = totalMwh > 0 ? coveredNm / totalMwh : 0;
     var effPart = bc.efficiencyWeight * clamp(nmPerMwh / bc.effRefNmPerMwh, 0, 1);
     var discPart = bc.disciplineWeight - bc.dieselPenaltyPerMwh * dieselMwh;
-    var rawBase = discPart + effPart - (completed ? 0 : bc.incompletePenalty);
+    var incPart = completed ? 0 : bc.incompletePenalty;
+    var energyBase = discPart + effPart - incPart;      // the 0-100 energy frame
+    var rawBase = energyBase * bc.outputScale;          // mapped to the board scale
     var base = clamp(Math.round(rawBase), bc.min, bc.max);
 
     // ---- Multiplier (-10..+10): five factors, averaged (spec §5).
@@ -5441,7 +5453,10 @@ globalThis.LEIP_ENGINE = (function () {
       poster: posterInfo,
       timeline: timeline,
       funMetric: funMetric(inputs.activities, mc.activities),
-      score: { base: base, rawBase: rawBase, factors: factors, factorSum: factorSum,
+      score: { base: base, rawBase: rawBase, energyBase: energyBase,
+               baseParts: { discipline: discPart, efficiency: effPart, incomplete: -incPart,
+                            nmPerMwh: nmPerMwh, outputScale: bc.outputScale },
+               factors: factors, factorSum: factorSum,
                multiplier: multiplier, final: final }
     };
   }
