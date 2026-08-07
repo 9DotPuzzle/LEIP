@@ -17,22 +17,39 @@ for (const p of ['Typical', 'Intense']) {
 }
 
 console.log('\n=== PRIMARY — Poster parity (§6): published nm & days, Typical profile ===');
-console.log(`distance basis in play: '${D.distanceBasis}' — every in-game leg is measured`);
-console.log('along the sailed sea lane; the published nm column is the poster sheet\'s own');
-console.log('figure, which is what the calibration constants are fitted against.');
-console.log('route        published   simulated   delta    sailed nm   status');
+console.log(`engine distance basis: '${D.distanceBasis}'. NOTE the parity check runs on the`);
+console.log('sheet basis — the poster\'s OWN published nm over its published days — which is');
+console.log('what the calibration constants are fitted against. The per-leg correction scales');
+console.log('the game\'s leg distances, not the sheet figures, so it does not move this table.');
+console.log('route        published   simulated   delta    status');
 let ok = 0;
 for (const pr of D.posterRoutes) {
   const s = E.posterAssumptionMwh(pr);
   const d = s - pr.mwh;
   const within = Math.abs(d) <= cal.posterToleranceMwh;
   ok += within;
-  const sailed = E.simulate({ route: pr.ports, speed: 'slow', nights: 4, activities: {} }).distanceNm;
   console.log(`${pr.id.padEnd(12)} ${String(pr.mwh).padStart(6)} MWh ${s.toFixed(2).padStart(8)} MWh ` +
-    `${((d >= 0 ? '+' : '') + d.toFixed(2)).padStart(6)}   ${sailed.toFixed(0).padStart(6)} nm  ` +
+    `${((d >= 0 ? '+' : '') + d.toFixed(2)).padStart(6)}   ` +
     `${within ? 'calibrated' : 'OVERRIDE (exact-match snap)'}`);
 }
 console.log(`${ok}/${D.posterRoutes.length} within ±${cal.posterToleranceMwh} MWh from first principles.`);
+
+// What the correction DID move: the distance the game sails on each poster
+// route. Shown against the sheet's nm so the remaining gap is visible.
+console.log('\n=== What the per-leg correction moved: in-game poster distances ===');
+console.log('route        sheet nm   point-to-point   corrected   mean ratio   vs sheet');
+for (const pr of D.posterRoutes) {
+  let raw = 0, corr = 0;
+  for (let i = 0; i + 1 < pr.ports.length; i++) {
+    const a = pr.ports[i], b = pr.ports[i + 1];
+    const m = D.distanceMatrixNm[a][b];
+    raw += m;
+    corr += m * E.getLegCorrection(a, b);
+  }
+  console.log(`${pr.id.padEnd(12)} ${String(pr.nm).padStart(6)} nm ${raw.toFixed(1).padStart(13)} nm ` +
+    `${corr.toFixed(1).padStart(10)} nm ${(corr / raw).toFixed(3).padStart(11)} ` +
+    `${((corr / pr.nm - 1) * 100).toFixed(0).padStart(9)}%`);
+}
 
 // Why the remainder cannot be reconciled by any distance/duration model:
 // find published pairs that are near-identical in nm and days yet far apart

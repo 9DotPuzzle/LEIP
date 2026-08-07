@@ -1,7 +1,7 @@
 // Headless validation — spec §11.2-11.6 plus poster parity (§6), the
 // leaderboard's pure logic (§8/§11.7 name rule) and model behaviours.
 // Runs the THEME/DATA/ENGINE blocks extracted verbatim from index.html.
-import { loadEngine } from './extract.mjs';
+import { loadEngine, readHtml } from './extract.mjs';
 
 const g = loadEngine();
 const D = g.LEIP_DATA;
@@ -122,10 +122,43 @@ section('Sea lanes — every leg stays on water, and scoring uses the sailed pat
   const gv = E.pathNm(E.legPath('Genoa', 'Venice'));
   check(`a leg that must round Italy is scored as sailed, not as the crow flies (${gv.toFixed(0)} nm vs ${D.distanceMatrixNm.Genoa.Venice} nm)`,
     gv > D.distanceMatrixNm.Genoa.Venice * 3);
+  const gvMatrix = D.distanceMatrixNm.Genoa.Venice;
   check('scoring distance follows DATA.distanceBasis',
-    D.distanceBasis === 'sealane'
-      ? Math.abs(E.legNm('Genoa', 'Venice') - gv) < 1
-      : E.legNm('Genoa', 'Venice') === D.distanceMatrixNm.Genoa.Venice);
+    D.distanceBasis === 'sealane' ? Math.abs(E.legNm('Genoa', 'Venice') - gv) < 1
+      : D.distanceBasis === 'corrected'
+        ? Math.abs(E.legNm('Genoa', 'Venice') - gvMatrix * E.getLegCorrection('Genoa', 'Venice')) < 1e-9
+        : E.legNm('Genoa', 'Venice') === gvMatrix,
+    `basis ${D.distanceBasis}, legNm ${E.legNm('Genoa', 'Venice').toFixed(1)}`);
+}
+
+// ---------------------------------------------------------------- leg correction
+section('Per-leg sea-lane correction — read through the one accessor');
+{
+  const names = D.ports.map((p) => p.name);
+  check('correction table present for every port pair',
+    names.every(a => names.every(b => a === b || E.getLegCorrection(a, b) > 0)));
+  check('the accessor is symmetric whichever way the leg is sailed',
+    names.every(a => names.every(b => E.getLegCorrection(a, b) === E.getLegCorrection(b, a))));
+  check('a port to itself needs no correction', names.every(a => E.getLegCorrection(a, a) === 1));
+  check('no leg is shorter than its point-to-point distance',
+    names.every(a => names.every(b => E.getLegCorrection(a, b) >= 1)));
+  // Legs that must round a landmass carry the large corrections; open-water
+  // legs carry none. Both extremes must be present or the table is inert.
+  check('legs that round land are corrected hardest',
+    E.getLegCorrection('Genoa', 'Venice') > 4 &&
+    E.getLegCorrection('Ajaccio', 'Calvi') > 1.5,
+    `Genoa-Venice ×${E.getLegCorrection('Genoa', 'Venice')}, Ajaccio-Calvi ×${E.getLegCorrection('Ajaccio', 'Calvi')}`);
+  check('open-water legs are left alone',
+    names.some(a => names.some(b => a !== b && E.getLegCorrection(a, b) === 1)));
+  // The accessor is the only boundary: the engine must not read the table.
+  const engineSrc = readHtml().match(/<script id="leip-engine">([\s\S]*?)<\/script>/)[1]
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  const reads = (engineSrc.match(/LEIP_LEG_CORRECTION/g) || []).length;
+  check('LEIP_LEG_CORRECTION is touched in exactly one place — getLegCorrection',
+    reads === 1, `${reads} references in the ENGINE block`);
+  check('scoring multiplies the point-to-point leg by the correction',
+    Math.abs(E.legNm('Monaco', 'Naples') -
+      D.distanceMatrixNm.Monaco.Naples * E.getLegCorrection('Monaco', 'Naples')) < 1e-9);
   // Short hops differ by more than the lane itself: a berth lies ~1.7 nm
   // off its charted position, which is a big share of a 7 nm run. Judge
   // agreement on legs long enough for that to wash out.
@@ -165,8 +198,9 @@ section('Secondary — fleet reference is present and wired to this engine');
   check('every poster route points at a named group in the table',
     D.posterRoutes.every(pr => F.routeGroups.some(g => g.route === pr.refGroup)),
     D.posterRoutes.filter(pr => !F.routeGroups.some(g => g.route === pr.refGroup)).map(pr => pr.id).join(', '));
-  check('the fleet check is stated on sea-lane distance, the scoring basis',
-    F.basis === D.distanceBasis, `${F.basis} vs ${D.distanceBasis}`);
+  check('the fleet check assumes a navigable distance basis, and gets one',
+    ['sealane', 'corrected'].includes(D.distanceBasis),
+    `fleet basis '${F.basis}' vs engine basis '${D.distanceBasis}'`);
   const populatedGroups = F.routeGroups.filter(g => g.distNm != null &&
     (g.mwh7Typ != null || g.mwh7Int != null)).length;
   check('populated flag matches the data actually present',

@@ -25,7 +25,8 @@ export function loadEngine(extraSandbox = {}) {
   const sandbox = { console, ...extraSandbox };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
-  for (const id of ['leip-theme', 'leip-terrain', 'leip-sealanes', 'leip-data', 'leip-engine']) {
+  for (const id of ['leip-theme', 'leip-terrain', 'leip-sealanes', 'leip-leg-correction',
+                    'leip-data', 'leip-engine']) {
     vm.runInContext(extractBlock(html, id), sandbox, { filename: id + '.js' });
   }
   return sandbox;

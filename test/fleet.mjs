@@ -36,8 +36,12 @@ section('Fleet reference integrity');
     F.charters.every(c => F.routeGroups.some(r => r.route === c.group)));
   check('every poster route points at a group in the table',
     D.posterRoutes.every(pr => F.routeGroups.some(r => r.route === pr.refGroup)));
-  check('the check is stated on sea-lane distance, the scoring basis',
-    F.basis === D.distanceBasis, `${F.basis} vs ${D.distanceBasis}`);
+  // The group distNm are observed navigable distances, so the engine must
+  // be scoring on a navigable basis too — comparing them against raw
+  // great-circle legs would be comparing two different quantities.
+  check('the engine scores on a navigable basis, as these figures assume',
+    ['sealane', 'corrected'].includes(D.distanceBasis),
+    `fleet basis '${F.basis}' vs engine basis '${D.distanceBasis}'`);
   // Each group's headcount must equal the charters filed under it, or the
   // group averages are being computed over a different set than they claim.
   const bad = [];
