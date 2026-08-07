@@ -454,8 +454,8 @@ globalThis.LEIP_THEME = {
     graticuleAlpha: 0.28,
     graticuleLabelEvery: 3,       // label every Nth meridian/parallel
     roseLatLon: [40.6, 5.2],      // open water south of the Riviera
+    soundingsPerPort: 2,          // sparse: chart texture, not a halo
     soundingsAlpha: 0.45,
-    hatchSpacingPx: 5,
     routeDash: [6, 5],         // thin dashed rhumb lines, px at chart scale
     waypointTickPx: 7,
     annotationGapPx: 4
@@ -7456,32 +7456,27 @@ globalThis.LEIP_APP = (function () {
       ctx.fillText('N', rose.x, rose.y - 86);
       ctx.restore();
 
-      // Hatched coastline edge + sparse soundings around each landmark.
+      // Sparse soundings near each landmark. The radiating hatch that used
+      // to ring every port is gone: the visual direction asks for a hatched
+      // edge WHERE LAND MEETS SEA, and ringing the charted position was a
+      // stand-in from before the real coastline existed. Across Corsica,
+      // Sardinia and the Riviera those rings overlapped into noise, and an
+      // unselected port should read as its monument and its name, nothing
+      // more. The foam line along the coast carries that job now.
+      ctx.globalAlpha = T.chart.soundingsAlpha;
+      ctx.font = '22px OCR-A-LEIP, monospace'; ctx.fillStyle = ink; ctx.textAlign = 'center';
       D.ports.forEach(function (port) {
         var w = PROJ.pos(port.lat, port.lon);
         var c = Chart.w2c(w.x, w.z);
         var R = T.world.isletRadius / (PROJ.rect.maxX - PROJ.rect.minX) * W;
         var h = hashStr(port.name);
-        ctx.strokeStyle = ink; ctx.globalAlpha = 0.55; ctx.lineWidth = 2;
-        var n = 18, k;
-        for (k = 0; k < n; k++) {
-          var a = k / n * Math.PI * 2 + (h % 7) * 0.13;
-          var r1 = R * 1.25, r2 = R * 1.25 + T.chart.hatchSpacingPx + 6;
-          ctx.beginPath();
-          ctx.moveTo(c.x + Math.cos(a) * r1, c.y + Math.sin(a) * r1);
-          ctx.lineTo(c.x + Math.cos(a) * r2, c.y + Math.sin(a) * r2);
-          ctx.stroke();
-        }
-        ctx.globalAlpha = T.chart.soundingsAlpha;
-        ctx.font = '22px OCR-A-LEIP, monospace'; ctx.fillStyle = ink; ctx.textAlign = 'center';
-        for (k = 0; k < 3; k++) {
+        for (var k = 0; k < T.chart.soundingsPerPort; k++) {
           var sa = (h >> (k * 5)) % 628 / 100;
-          var sr = R * (2.2 + ((h >> (k * 3)) % 10) / 6);
+          var sr = R * (2.6 + ((h >> (k * 3)) % 10) / 5);
           ctx.fillText(String(8 + ((h >> (k * 4)) % 40)), c.x + Math.cos(sa) * sr, c.y + Math.sin(sa) * sr);
         }
-        ctx.globalAlpha = 1;
-
       });
+      ctx.globalAlpha = 1;
       // Port names are NOT drawn here — they live on their own plates
       // above the relief, so land never swallows a label while the
       // graticule below stays sea-only.
