@@ -7,7 +7,9 @@
     "test": "test"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node test/headless.mjs && node test/smoke.mjs && node test/geometry.mjs",
+    "test:fleet": "node test/fleet.mjs",
+    "calibrate": "node tools/calibrate.mjs"
   },
   "repository": {
     "type": "git",

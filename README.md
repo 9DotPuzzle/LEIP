@@ -56,9 +56,19 @@ carbon intensity. **Genoa** carries no carbon figure in the source, so its
 `energy` is `null` and it scores neutral on the recharge factor; the team is
 to confirm a value.
 
-`DATA.fleetReference` is a **scaffold**: the secondary check behind poster
-parity, covering the 28 observed charters and their route groups. Vessel
-names, distances and effective speeds are real; the observed durations and
-MWh are `null` and `populated` is `false`, so the suite reports those checks
-SKIPPED rather than passing vacuously. Fill the slots in and the checks come
-to life with no code change.
+## Fleet reference (secondary validation)
+
+`DATA.fleetReference` carries the 28 observed charters from
+`leip_fleet_reference.json` (Report 835-52 AIS analysis) and their route
+groups. It runs on its own — `npm run test:fleet` — deliberately outside the
+primary suite: it is a real-world anchor with real-world scatter, held to the
+source's own ±15% band, and folding it into the primary suite would put
+pressure on the contractual §6 calibration.
+
+Current state: **6 of 8** multi-charter group cells pass. The two misses
+(SoF→Italy Intense −20.9%, Greece Intense −15.8%) share one cause — the model
+runs **−23.7% light on propulsion** fleet-wide while hotel load tracks at
++4.0%. The source's own per-knot hour profiles imply 852/1152 bkW against the
+shipped 694/868, which accounts for the gap. Closing it means re-deriving the
+speed profiles, which would move poster parity, so it is reported rather than
+tuned away.

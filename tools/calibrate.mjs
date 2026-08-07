@@ -93,12 +93,13 @@ for (const s of D.balanceScenarios) {
     `diesel ${sim.dieselMwh.toFixed(1)} MWh  dist ${sim.distanceNm.toFixed(0)} nm`);
 }
 
-console.log('\n=== SECONDARY — Fleet reference (scaffold) ===');
+console.log('\n=== SECONDARY — Fleet reference (28 observed charters) ===');
 {
   const F = D.fleetReference;
   const emptyC = F.charters.filter((c) => c.mwh == null || c.durationDays == null).length;
   const emptyG = F.routeGroups.filter((g) => g.distNm == null).length;
   console.log(`  populated=${F.populated} · tolerance ±${F.tolerancePct}% · basis '${F.basis}'`);
+  console.log('  (asserted in test/fleet.mjs; n=1 cells are scatter, reported not asserted)');
   if (!F.populated) {
     console.log(`  awaiting values: ${emptyC}/${F.charters.length} charters, ${emptyG}/${F.routeGroups.length} route groups`);
     console.log(`  pending: ${F.pending}`);

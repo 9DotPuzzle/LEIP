@@ -4902,70 +4902,95 @@ globalThis.LEIP_DATA = {
       refGroup: "Turkey" }
   ],
 
-  // ---- Fleet reference — SECONDARY external check (SCAFFOLD) --------
-  // The poster routes are the contractual parity target (§6). This is the
-  // wider sanity net behind them: the 28 observed charters and the route
-  // groups they fall into. The refreshed data pack dropped the observed
-  // energy and duration figures, so the slots below are null and
-  // `populated` is false — the validation suite reports SKIPPED rather
-  // than passing vacuously. Fill in durationDays and mwh (and the group
-  // figures) and every check comes to life with no code change.
+  // ---- Fleet reference — SECONDARY external check (REAL) ------------
+  // The poster routes are the contractual parity target (§6) but they are
+  // self-referential: they are the figures the game is fitted to. This is
+  // the real-world anchor behind them — Report 835-52's AIS analysis of 28
+  // observed 68-75m charters, from leip_fleet_reference.json.
   //
-  // What IS real here: vessel names, total_nm and the effective speed
-  // derived from vessel_speed_distributions — the same harmonic mean over
-  // distance share that splits the fleet into the Typical/Intense toggles
-  // (median at 10.735 kt). mwh is the whole-charter figure; mwh7 is the
-  // 7-day-normalised figure the group table used to publish.
+  // Tolerance is ±15% on the 7-day-normalised MWh, per the source's own
+  // note: observed charters carry real operational scatter, so the ±1 MWh
+  // used for poster parity would be meaningless here.
+  //
+  // NOTE on the profile split: `profile` below is the SOURCE's own category
+  // for each charter (18 Typical / 10 Intense). DATA.speedProfiles splits
+  // the same 28 charters 14/14 at their median effective speed, derived
+  // from the pack's speed distributions. The two disagree on where the line
+  // falls; the source's category is authoritative for this check, and the
+  // disagreement is flagged rather than reconciled, because re-deriving the
+  // speed profiles would move the poster-parity calibration. The source's
+  // own `profiles` block also counts 17+10=27, one short of its 28-charter
+  // list — a minor internal inconsistency in the source, reported not fixed.
+  //
+  // totalNm per charter comes from the pack's vessel_speed_distributions,
+  // joined on vessel name (all 28 match exactly).
   fleetReference: {
-    populated: false,
-    tolerancePct: 10,          // the band a group must land in to pass
-    minGroupN: 2,              // single-charter groups are scatter, info only
+    populated: true,
+    tolerancePct: 15,          // the band a group cell must land in
+    minGroupN: 2,              // single-charter cells are scatter, info only
     basis: 'sealane',          // group distances are sailed distance
-    pending: 'durationDays + mwh per charter; nTyp/durTyp/mwh7Typ, nInt/durInt/mwh7Int and distNm per group',
-    // Route groups, named as the source names them (poster routes point at
-    // these through refGroup). Figures pending.
+    source: 'leip_fleet_reference.json — Report 835-52 AIS analysis, 28 charters',
     routeGroups: [
-      { route: 'South of France (SoF)',   nTyp: null, durTyp: null, mwh7Typ: null, nInt: null, durInt: null, mwh7Int: null, distNm: null },
-      { route: 'Sardinia & Corsica',      nTyp: null, durTyp: null, mwh7Typ: null, nInt: null, durInt: null, mwh7Int: null, distNm: null },
-      { route: 'SoF to Sardinia/Corsica', nTyp: null, durTyp: null, mwh7Typ: null, nInt: null, durInt: null, mwh7Int: null, distNm: null },
-      { route: 'Italy',                   nTyp: null, durTyp: null, mwh7Typ: null, nInt: null, durInt: null, mwh7Int: null, distNm: null },
-      { route: 'SoF to Italy',            nTyp: null, durTyp: null, mwh7Typ: null, nInt: null, durInt: null, mwh7Int: null, distNm: null },
-      { route: 'Sicily/Italy',            nTyp: null, durTyp: null, mwh7Typ: null, nInt: null, durInt: null, mwh7Int: null, distNm: null },
-      { route: 'Greece',                  nTyp: null, durTyp: null, mwh7Typ: null, nInt: null, durInt: null, mwh7Int: null, distNm: null },
-      { route: 'Turkey',                  nTyp: null, durTyp: null, mwh7Typ: null, nInt: null, durInt: null, mwh7Int: null, distNm: null },
-      { route: 'Tivat to Venice',         nTyp: null, durTyp: null, mwh7Typ: null, nInt: null, durInt: null, mwh7Int: null, distNm: null },
-      { route: 'Baleriacs',               nTyp: null, durTyp: null, mwh7Typ: null, nInt: null, durInt: null, mwh7Int: null, distNm: null }
+      { route: "South of France (SoF)",       distNm:  221.3,
+        nTyp:    2, durTyp:   9.0, mwhTyp:  35.5, mwh7Typ:  28.0,
+        nInt:    0, durInt:  null, mwhInt:  null, mwh7Int:  null },
+      { route: "Sardinia & Corsica",          distNm:  370.9,
+        nTyp:    5, durTyp:   8.4, mwhTyp:  37.9, mwh7Typ:  31.4,
+        nInt:    0, durInt:  null, mwhInt:  null, mwh7Int:  null },
+      { route: "SoF to Sardinia/Corsica",     distNm:  439.3,
+        nTyp:    1, durTyp:   6.5, mwhTyp:  47.2, mwh7Typ:  51.1,
+        nInt:    2, durInt:   7.8, mwhInt:  52.5, mwh7Int:  47.1 },
+      { route: "Italy",                       distNm:  400.2,
+        nTyp:    1, durTyp:  10.0, mwhTyp:  53.9, mwh7Typ:  37.7,
+        nInt:    1, durInt:   6.9, mwhInt:  59.6, mwh7Int:  60.3 },
+      { route: "SoF to Italy",                distNm:  387.6,
+        nTyp:    1, durTyp:   6.4, mwhTyp:  37.8, mwh7Typ:  41.1,
+        nInt:    3, durInt:   9.8, mwhInt:  61.2, mwh7Int:  43.7 },
+      { route: "Sicily/Italy",                distNm:  537.1,
+        nTyp:    1, durTyp:   7.5, mwhTyp:  38.4, mwh7Typ:  36.1,
+        nInt:    0, durInt:  null, mwhInt:  null, mwh7Int:  null },
+      { route: "Greece",                      distNm:  399.2,
+        nTyp:    2, durTyp:   8.3, mwhTyp:  42.9, mwh7Typ:  36.0,
+        nInt:    2, durInt:   7.6, mwhInt:  50.4, mwh7Int:  46.7 },
+      { route: "Turkey",                      distNm:  295.9,
+        nTyp:    2, durTyp:   8.6, mwhTyp:  38.5, mwh7Typ:  30.9,
+        nInt:    1, durInt:   5.6, mwhInt:  35.6, mwh7Int:  44.5 },
+      { route: "Tivat to Venice",             distNm:  798.5,
+        nTyp:    1, durTyp:  12.8, mwhTyp:  58.8, mwh7Typ:  32.1,
+        nInt:    1, durInt:   9.0, mwhInt:  56.2, mwh7Int:  43.7 },
+      { route: "Baleriacs",                   distNm:  376.4,
+        nTyp:    2, durTyp:   6.9, mwhTyp:  36.0, mwh7Typ:  37.0,
+        nInt:    0, durInt:  null, mwhInt:  null, mwh7Int:  null }
     ],
-    // The 28 observed charters, ordered by effective speed.
     charters: [
-      { vessel: "Saluzi (3)",        totalNm: 168.7, effKts: 9.78,  profile: "Typical", durationDays: null, mwh: null },
-      { vessel: "Siren",             totalNm: 445.7, effKts: 10.01, profile: "Typical", durationDays: null, mwh: null },
-      { vessel: "Vassa",             totalNm: 400.2, effKts: 10.06, profile: "Typical", durationDays: null, mwh: null },
-      { vessel: "Arrow",             totalNm: 338.9, effKts: 10.29, profile: "Typical", durationDays: null, mwh: null },
-      { vessel: "Saluzi",            totalNm: 146.5, effKts: 10.49, profile: "Typical", durationDays: null, mwh: null },
-      { vessel: "Titania",           totalNm: 286.5, effKts: 10.49, profile: "Typical", durationDays: null, mwh: null },
-      { vessel: "Lunasea",           totalNm: 268.1, effKts: 10.50, profile: "Typical", durationDays: null, mwh: null },
-      { vessel: "Lunasea (3)",       totalNm: 431.0, effKts: 10.51, profile: "Typical", durationDays: null, mwh: null },
-      { vessel: "Joy",               totalNm: 153.1, effKts: 10.61, profile: "Typical", durationDays: null, mwh: null },
-      { vessel: "Laurel",            totalNm: 304.2, effKts: 10.63, profile: "Typical", durationDays: null, mwh: null },
-      { vessel: "Talisman C",        totalNm: 337.9, effKts: 10.64, profile: "Typical", durationDays: null, mwh: null },
-      { vessel: "Vassa (2)",         totalNm: 123.7, effKts: 10.64, profile: "Typical", durationDays: null, mwh: null },
-      { vessel: "Atlas",             totalNm: 605.3, effKts: 10.65, profile: "Typical", durationDays: null, mwh: null },
-      { vessel: "Axioma (2)",        totalNm: 327.3, effKts: 10.73, profile: "Typical", durationDays: null, mwh: null },
-      { vessel: "Alfa",              totalNm: 485.2, effKts: 10.74, profile: "Intense", durationDays: null, mwh: null },
-      { vessel: "Laurel (2)",        totalNm: 425.7, effKts: 10.76, profile: "Intense", durationDays: null, mwh: null },
-      { vessel: "Calex",             totalNm: 238.3, effKts: 10.89, profile: "Intense", durationDays: null, mwh: null },
-      { vessel: "Saluzi (2)",        totalNm: 387.6, effKts: 10.93, profile: "Intense", durationDays: null, mwh: null },
-      { vessel: "Lunasea (4)",       totalNm: 158.5, effKts: 10.96, profile: "Intense", durationDays: null, mwh: null },
-      { vessel: "Illusion",          totalNm: 384.9, effKts: 11.00, profile: "Intense", durationDays: null, mwh: null },
-      { vessel: "Quantum of Solace", totalNm: 642.4, effKts: 11.00, profile: "Intense", durationDays: null, mwh: null },
-      { vessel: "Starburst IV",      totalNm: 400.5, effKts: 11.00, profile: "Intense", durationDays: null, mwh: null },
-      { vessel: "Utopia",            totalNm: 392.2, effKts: 11.12, profile: "Intense", durationDays: null, mwh: null },
-      { vessel: "Synthesis",         totalNm: 170.5, effKts: 11.27, profile: "Intense", durationDays: null, mwh: null },
-      { vessel: "Lady A",            totalNm: 461.3, effKts: 11.52, profile: "Intense", durationDays: null, mwh: null },
-      { vessel: "Axioma",            totalNm: 510.8, effKts: 11.61, profile: "Intense", durationDays: null, mwh: null },
-      { vessel: "Silver Angel",      totalNm: 314.6, effKts: 11.63, profile: "Intense", durationDays: null, mwh: null },
-      { vessel: "Lunasea (2)",       totalNm: 479.0, effKts: 11.70, profile: "Intense", durationDays: null, mwh: null }
+      { vessel: "Vassa",             group: "Italy",                    profile: "Typical",  totalNm:  400.2, durationDays:  10.0, hotelMwh:  28.6, propulsionMwh:  25.3, mwh:  53.9, mwh7:  37.7 },
+      { vessel: "Vassa (2)",         group: "Turkey",                   profile: "Typical",  totalNm:  123.7, durationDays:   7.1, hotelMwh:  20.7, propulsionMwh:   7.6, mwh:  28.2, mwh7:  27.7 },
+      { vessel: "Atlas",             group: "Greece",                   profile: "Intense",  totalNm:  605.3, durationDays:   7.5, hotelMwh:  18.7, propulsionMwh:  38.3, mwh:  56.9, mwh7:  53.4 },
+      { vessel: "Starburst IV",      group: "SoF to Sardinia/Corsica",  profile: "Intense",  totalNm:  400.5, durationDays:   7.7, hotelMwh:  22.6, propulsionMwh:  27.7, mwh:  50.2, mwh7:  45.9 },
+      { vessel: "Laurel",            group: "Sardinia & Corsica",       profile: "Typical",  totalNm:  304.2, durationDays:  10.4, hotelMwh:  24.6, propulsionMwh:  12.7, mwh:  37.3, mwh7:  25.2 },
+      { vessel: "Laurel (2)",        group: "Tivat to Venice",          profile: "Intense",  totalNm:  425.7, durationDays:   9.0, hotelMwh:  25.9, propulsionMwh:  30.3, mwh:  56.2, mwh7:  43.7 },
+      { vessel: "Arrow",             group: "Turkey",                   profile: "Intense",  totalNm:  338.9, durationDays:   5.6, hotelMwh:  13.0, propulsionMwh:  22.6, mwh:  35.6, mwh7:  44.5 },
+      { vessel: "Saluzi",            group: "South of France (SoF)",    profile: "Typical",  totalNm:  146.5, durationDays:   7.0, hotelMwh:  20.2, propulsionMwh:   9.0, mwh:  29.2, mwh7:  29.4 },
+      { vessel: "Saluzi (2)",        group: "SoF to Italy",             profile: "Typical",  totalNm:  387.6, durationDays:   6.4, hotelMwh:  14.2, propulsionMwh:  23.7, mwh:  37.8, mwh7:  41.1 },
+      { vessel: "Saluzi (3)",        group: "Sardinia & Corsica",       profile: "Typical",  totalNm:  168.7, durationDays:   6.9, hotelMwh:  19.9, propulsionMwh:   9.7, mwh:  29.6, mwh7:  30.2 },
+      { vessel: "Illusion",          group: "SoF to Sardinia/Corsica",  profile: "Intense",  totalNm:  384.9, durationDays:   8.0, hotelMwh:  22.6, propulsionMwh:  32.3, mwh:  54.8, mwh7:  48.3 },
+      { vessel: "Joy",               group: "South of France (SoF)",    profile: "Typical",  totalNm:  153.1, durationDays:  11.0, hotelMwh:  31.8, propulsionMwh:  10.0, mwh:  41.8, mwh7:  26.7 },
+      { vessel: "Axioma",            group: "SoF to Italy",             profile: "Intense",  totalNm:  510.8, durationDays:   9.5, hotelMwh:  27.1, propulsionMwh:  32.2, mwh:  59.4, mwh7:  43.9 },
+      { vessel: "Axioma (2)",        group: "Sardinia & Corsica",       profile: "Typical",  totalNm:  327.3, durationDays:   7.5, hotelMwh:  15.0, propulsionMwh:  18.3, mwh:  33.4, mwh7:  31.1 },
+      { vessel: "Utopia",            group: "SoF to Sardinia/Corsica",  profile: "Typical",  totalNm:  392.2, durationDays:   6.5, hotelMwh:  19.6, propulsionMwh:  27.5, mwh:  47.2, mwh7:  51.1 },
+      { vessel: "Silver Angel",      group: "Greece",                   profile: "Intense",  totalNm:  314.6, durationDays:   7.7, hotelMwh:  22.8, propulsionMwh:  21.1, mwh:  43.9, mwh7:  40.1 },
+      { vessel: "Lunasea",           group: "Baleriacs",                profile: "Typical",  totalNm:  268.1, durationDays:   6.3, hotelMwh:  18.4, propulsionMwh:  19.0, mwh:  37.3, mwh7:  41.8 },
+      { vessel: "Lunasea (2)",       group: "Tivat to Venice",          profile: "Typical",  totalNm:  479.0, durationDays:  12.8, hotelMwh:  34.6, propulsionMwh:  24.2, mwh:  58.8, mwh7:  32.1 },
+      { vessel: "Lunasea (3)",       group: "SoF to Italy",             profile: "Intense",  totalNm:  431.0, durationDays:   9.2, hotelMwh:  25.8, propulsionMwh:  28.7, mwh:  54.5, mwh7:  41.6 },
+      { vessel: "Lunasea (4)",       group: "Sardinia & Corsica",       profile: "Typical",  totalNm:  158.5, durationDays:   6.0, hotelMwh:  18.0, propulsionMwh:  10.5, mwh:  28.4, mwh7:  33.1 },
+      { vessel: "Titania",           group: "Sicily/Italy",             profile: "Typical",  totalNm:  286.5, durationDays:   7.5, hotelMwh:  20.8, propulsionMwh:  17.6, mwh:  38.4, mwh7:  36.1 },
+      { vessel: "Alfa",              group: "Greece",                   profile: "Typical",  totalNm:  485.2, durationDays:   8.4, hotelMwh:  16.2, propulsionMwh:  25.1, mwh:  41.3, mwh7:  34.4 },
+      { vessel: "Calex",             group: "Greece",                   profile: "Typical",  totalNm:  238.3, durationDays:   8.3, hotelMwh:  24.1, propulsionMwh:  20.4, mwh:  44.6, mwh7:  37.7 },
+      { vessel: "Siren",             group: "Sardinia & Corsica",       profile: "Typical",  totalNm:  445.7, durationDays:  11.4, hotelMwh:  32.9, propulsionMwh:  27.8, mwh:  60.8, mwh7:  37.2 },
+      { vessel: "Talisman C",        group: "Turkey",                   profile: "Typical",  totalNm:  337.9, durationDays:  10.0, hotelMwh:  28.4, propulsionMwh:  20.5, mwh:  48.8, mwh7:  34.1 },
+      { vessel: "Synthesis",         group: "Baleriacs",                profile: "Typical",  totalNm:  170.5, durationDays:   7.5, hotelMwh:  22.6, propulsionMwh:  12.0, mwh:  34.6, mwh7:  32.3 },
+      { vessel: "Quantum of Solace", group: "SoF to Italy",             profile: "Intense",  totalNm:  642.4, durationDays:  10.7, hotelMwh:  28.6, propulsionMwh:  41.1, mwh:  69.7, mwh7:  45.4 },
+      { vessel: "Lady A",            group: "Italy",                    profile: "Intense",  totalNm:  461.3, durationDays:   6.9, hotelMwh:  20.2, propulsionMwh:  39.4, mwh:  59.6, mwh7:  60.3 }
     ]
   },
 
