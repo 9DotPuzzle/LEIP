@@ -209,6 +209,53 @@ section('Playback HUD — time of day and charter progress');
     el('tb-progbar').style.width);
 }
 
+// ================================================================ map legibility
+section('Map legibility — no port rings, callouts in the collision pass');
+{
+  const html = readHtml();
+  const { sandbox: sb5 } = makeSandbox();
+  const g5 = loadGame(sb5);
+  const A5 = g5.LEIP_APP;
+  A5.init();
+  const T5 = g5.LEIP_THEME;
+
+  // 1. The per-port radiating hatch is gone, token and all.
+  check('the per-port hatch token is gone from the THEME',
+    T5.chart.hatchSpacingPx === undefined);
+  const chartBlock = html.slice(html.indexOf('<script id="leip-app">'));
+  check('nothing draws a radial tick ring around a port',
+    !/hatchSpacing/.test(chartBlock));
+  check('soundings survive as sparse chart texture',
+    T5.chart.soundingsPerPort >= 1 && T5.chart.soundingsPerPort <= 3);
+  check('the single main compass rose is still charted',
+    Array.isArray(T5.chart.roseLatLon) && T5.chart.roseLatLon.length === 2);
+
+  // 2. Callouts are plates in the label system, not baked route ink.
+  check('the callout plate is a THEME token with its own candidates',
+    !!T5.world.calloutPlate && Array.isArray(T5.world.calloutPlate.candidates));
+  check('callouts draw under port names',
+    T5.world.order.callout < T5.world.order.label);
+  check('both plate kinds offset in screen space, in units of their own size',
+    T5.world.labelPlate.candidates.every(c => Math.abs(c[0]) <= 4 && Math.abs(c[1]) <= 4) &&
+    T5.world.calloutPlate.candidates.every(c => Math.abs(c[0]) <= 4 && Math.abs(c[1]) <= 4));
+  check('the monument footprint is reserved before any type is placed',
+    typeof T5.world.labelPlate.monumentPad === 'number' && T5.world.labelPlate.monumentPad >= 1);
+
+  // A route with three legs must produce three callouts, and clearing the
+  // route must not leave any behind.
+  ['Olbia', 'Porto Cervo', 'Bonifacio', 'Ajaccio'].forEach(n => A5.pickPort(n));
+  A5.tick(0.016);          // the chart redraw is what hands callouts over
+  const labels = g5.LEIP_APP.debugLabels();
+  check('one callout per leg, carrying bearing and distance',
+    labels.callouts.length === 3 &&
+    labels.callouts.every(c => /^\d{3}° · \d+ NM$/.test(c.text)),
+    labels.callouts.map(c => c.text).join(' | '));
+  A5.clearRoute();
+  A5.tick(0.016);
+  check('clearing the route retires every callout',
+    g5.LEIP_APP.debugLabels().callouts.length === 0);
+}
+
 // ================================================================ chart frame
 section('Chart frame — the view is bounded and the grid fills it');
 {
