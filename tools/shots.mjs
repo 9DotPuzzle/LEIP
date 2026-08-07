@@ -73,8 +73,22 @@ const shots = {
     await settle(page, 5);
     return { clip: await page.locator('#plan').boundingBox() };
   },
+  'panel-speed': async (page) => {
+    // Scroll the panel so the speed toggle sits in view with its icons.
+    await page.evaluate(() => {
+      const plan = document.getElementById('plan');
+      const el = document.getElementById('speed-toggle');
+      plan.scrollTop = el.offsetTop - plan.offsetTop - 40;
+    });
+    await settle(page, 5);
+    return { clip: await page.locator('#plan').boundingBox() };
+  },
   'panel-activities': async (page) => {
-    await page.evaluate(() => document.getElementById('activity-list').scrollIntoView());
+    await page.evaluate(() => {
+      const plan = document.getElementById('plan');
+      const el = document.getElementById('activity-list');
+      plan.scrollTop = el.offsetTop - plan.offsetTop - 30;
+    });
     await settle(page, 5);
     return { clip: await page.locator('#plan').boundingBox() };
   },

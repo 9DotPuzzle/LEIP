@@ -31,6 +31,7 @@ results — the math never depends on either.
 | `test/fleet.mjs` | Secondary validation against the observed fleet, ±15% (`npm run test:fleet`) |
 | `test/smoke.mjs` | §11.1 + §11.7 + §11.8: stubbed Three.js/DOM boot → plan → simulate → playback → results → save → share (22 checks) |
 | `tools/calibrate.mjs` | Prints the calibration table and canonical breakdown |
+| `tools/shots.mjs` | Playtest screenshots driven through the real page in Chromium (`shots/`, gitignored) |
 
 ```
 npm test              # headless + smoke + geometry
