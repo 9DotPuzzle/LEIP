@@ -71,7 +71,7 @@ check('THEME carries the four scene tints and the volt accent',
   T.volt === '#F5D90A' && T.ink.onLight === '#22344A' && T.ink.onDark === '#E8EEF2');
 
 // ---------------------------------------------------------------- §11.2 canonical
-section('§11.2 Canonical — base 78 x multiplier 6.2 = 483.6, exactly');
+section('§11.2 Canonical — base 39 x multiplier 6.2 = 241.8, exactly (0-50 base scale)');
 {
   const sim = E.simulate(D.canonicalTest.inputs);
   const exp = D.canonicalTest.expected;
@@ -253,6 +253,26 @@ section('Achievements — trophies only (spec §7)');
     ids.includes('volcano-chief') && r1.newly.find(a => a.id === 'volcano-chief').atHour > 0);
   check('Submerged Ruins: dive activity at dive-tagged location', ids.includes('submerged-ruins'));
   check('Long Haul over 400 nm', sim.coveredNm > th.longHaulNm === ids.includes('long-haul'));
+  // Score Over 400 — retargeted for the 0-50 base scale (ceiling 500).
+  const big = E.simulate(D.achievementFixtures.scoreOver400);
+  check(`a strong charter clears the bar and unlocks Score Over 400 (${big.score.final})`,
+    big.score.final > th.scoreOver &&
+    E.evaluateAchievements(big, null).newly.some(a => a.id === 'score-400'),
+    `final ${big.score.final} vs bar ${th.scoreOver}`);
+  const modest = E.simulate(D.balanceScenarios.find(s => s.id === 'modest-local').inputs);
+  check(`a charter at or under the bar does not (${modest.score.final})`,
+    modest.score.final <= th.scoreOver &&
+    !E.evaluateAchievements(modest, null).newly.some(a => a.id === 'score-400'));
+  // Ceiling = best base x best multiplier, both read from the data.
+  const mc = D.scoring.multiplier;
+  const best = (t) => Math.max(...Object.values(t));
+  const maxMultiplier = (best(mc.countries) + best(mc.ports) + best(mc.nights) +
+    Math.min(best(mc.activities.varietyTable) + mc.activities.bothCategoriesBonus, mc.activities.clampMax) +
+    best(mc.recharge)) / 5;
+  const ceiling = D.scoring.base.max * maxMultiplier;
+  check(`the bar sits inside the reachable range, under the ${ceiling} ceiling`,
+    th.scoreOver < ceiling, `bar ${th.scoreOver}, ceiling ${ceiling}`);
+
   const green = E.simulate({ route: ['Nice', 'Monaco'], speed: 'slow', nights: 4, activities: {} });
   check('Green Charge on a green-energy finish',
     E.evaluateAchievements(green, null).newly.some(a => a.id === 'green-charge'));

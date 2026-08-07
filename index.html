@@ -4976,7 +4976,7 @@ globalThis.LEIP_DATA = {
   // ---- Achievements — the nine dots (spec §7). Trophies only. ------
   achievements: {
     thresholds: {
-      scoreOver: 900,
+      scoreOver: 400,        // of a 500 ceiling on the 0-50 base scale
       longHaulNm: 400,
       worldTravellerCountries: 3,
       posterRoutesRequired: 5,   // spec §7 name is 'The Five Routes'; the poster carries 7 — any 5 complete it
@@ -4991,7 +4991,7 @@ globalThis.LEIP_DATA = {
     santoriniTag: 'achievement:santorini',
     list: [
       { id: 'green-charge',    name: 'Green Charge',    desc: 'Finish at a green-energy port',                     midSim: false },
-      { id: 'score-900',       name: 'Score Over 900',  desc: 'Score above 900',                                   midSim: false },
+      { id: 'score-400',       name: 'Score Over 400',  desc: 'Score above 400',                                   midSim: false },
       { id: 'mwh-hit',         name: '50 MWh Hit',      desc: 'Draw the full 50 MWh battery — diesels never woke', midSim: true  },
       { id: 'submerged-ruins', name: 'Submerged Ruins', desc: 'Dive at a dive-tagged location',                    midSim: false },
       { id: 'five-routes',     name: 'The Five Routes', desc: 'Complete five of the published routes',             midSim: false },
@@ -5014,9 +5014,6 @@ globalThis.LEIP_DATA = {
     activityChance: 0.35
   },
 
-  // ---- Canonical worked example (spec §5): base 78 x 6.2 = 483.6 ---
-  // Factors: countries 2->6, ports 5->7, nights 4->10, recharge blue->5,
-  // activities (4 distinct, both categories, no spam)->3. Sum 31 -> 6.2.
   // ---- Canonical worked example (spec §5): base 39 x 6.2 = 241.8 ------
   // Factors: countries 2->6, ports 5->7, activities (4 distinct, both
   // categories)->3, nights 3->5, recharge Nice green->10. Sum 31 -> x6.2.
@@ -5039,6 +5036,12 @@ globalThis.LEIP_DATA = {
   // Regression fixture for the 50 MWh Hit rule: a week that draws the
   // battery down into the band with the diesels asleep (49.84 MWh).
   achievementFixtures: {
+    // Clears the Score Over 400 bar: clean week, three countries, five
+    // distinct ports, finishing on Monaco's green grid.
+    scoreOver400: {
+      route: ['Ajaccio', 'Antibes', 'Porto Cervo', 'Monaco'], speed: 'slow', nights: 4,
+      activities: { A02: 1, A07: 2, A10: 1, R03: 1, R06: 1, R08: 1, R04: 1 }
+    },
     batteryBrinkmanship: {
       route: ['Cagliari', 'Palma', 'Cannes'], speed: 'slow', nights: 4,
       activities: { A08: 1, A07: 2, R06: 1 }
@@ -5491,7 +5494,7 @@ globalThis.LEIP_ENGINE = (function () {
     }
 
     if (sim.completed && portByName(sim.rechargePort).energy === 'green') unlock('green-charge');
-    if (sim.score.final > th.scoreOver) unlock('score-900');
+    if (sim.score.final > th.scoreOver) unlock('score-400');
     // Battery brinkmanship: the full 50 MWh drawn, and the diesels never woke.
     if (sim.dieselMwh === 0 && sim.totalMwh >= d.battery.gameThresholdMwh - th.batteryBandMwh) {
       unlock('mwh-hit', sim.bandStartH);
@@ -5622,7 +5625,10 @@ globalThis.LEIP_APP = (function () {
     reducedMotion: false,
     inkDark: false
   };
-  var STORAGE_KEY = 'leip.charter.v2';
+  // v3: the 0-50 base rescale. Anything saved under v2 was scored on the
+  // old 0-1000 board and would misread against new scores, so it is left
+  // behind rather than migrated.
+  var STORAGE_KEY = 'leip.charter.v3';
 
   function $(id) { return doc ? doc.getElementById(id) : null; }
   function on(id, ev, fn) { var el = $(id); if (el && el.addEventListener) el.addEventListener(ev, fn); }

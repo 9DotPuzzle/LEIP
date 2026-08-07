@@ -44,7 +44,9 @@ distance/duration model (near-identical nm/days, published figures 15 MWh
 apart) and output their published figure via the §6 exact-match override,
 logged. Every n≥2 reference route group lands within 10%.
 
-The §5 worked example reproduces **base 78 × multiplier 6.2 = 483.6** exactly.
+The §5 worked example reproduces the canonical multiplier of **6.2** exactly. The
+base is scored on a 0–50 board scale (a 0–100 energy frame mapped by
+`outputScale`), so the canonical charter lands on **base 39 × 6.2 = 241.8**.
 
 ## Pending data
 

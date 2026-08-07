@@ -125,7 +125,7 @@ section('§11.1 Full planning -> simulation -> playback -> results -> save score
   const sim = app.simulate();
   check('simulate() locks inputs and starts playback', sim !== null && app.getState().phase === 'playback');
   check('playback runs to results', runTicksUntil(app, () => app.getState().phase === 'results'));
-  check('app-path score is the canonical 483.6', app.getState().sim.score.final === canon.expected.final,
+  check(`app-path score is the canonical ${canon.expected.final}`, app.getState().sim.score.final === canon.expected.final,
     String(app.getState().sim.score.final));
 
   // §11.7: saving with no name entered is impossible.
