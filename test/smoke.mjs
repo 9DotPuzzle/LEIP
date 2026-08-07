@@ -2,7 +2,7 @@
 // boot -> scene build -> full planning -> simulation -> playback ->
 // results -> save score, plus §11.7 (persistence, name rule) and §11.8
 // (share card). The APP block runs verbatim from index.html.
-import { loadGame } from './extract.mjs';
+import { loadGame, readHtml } from './extract.mjs';
 
 let passed = 0, failed = 0;
 function check(name, cond, detail) {
@@ -139,6 +139,72 @@ section('§11.1 Full planning -> simulation -> playback -> results -> save score
   // §11.7: skipping the save never blocks returning to the start screen.
   app.playAgain();
   check('playAgain returns to planning (no save required)', app.getState().phase === 'planning');
+}
+
+// ================================================================ planning UI
+section('Planning panel — the playtest rules the markup must keep');
+{
+  const html = readHtml();
+  const panel = html.slice(html.indexOf('<aside id="plan">'), html.indexOf('</aside>'));
+  check('section headings carry no step numbers',
+    !/stepno/.test(html) && !/<h3>\s*\d/.test(panel));
+  check('the four headings read plainly',
+    ['>Route<', '>Speed<', 'Nights at anchor', '>Activities<'].every(h => panel.includes(h)));
+  check('the intro block leads the panel',
+    panel.indexOf('id="intro"') > 0 &&
+    panel.indexOf('id="intro"') < panel.indexOf('>Route<') &&
+    panel.includes('A week at sea, on battery alone.') &&
+    panel.includes('Nine achievements are hidden in the planning.'));
+
+  const { sandbox: sb2 } = makeSandbox();
+  const g2 = loadGame(sb2);
+  g2.LEIP_APP.init();
+  // Eco still scores; it just must not reach the player.
+  check('eco values are still in the model',
+    g2.LEIP_DATA.activities.every(a => typeof a.eco === 'number'));
+  const rendered = sb2.document.getElementById('activity-list').innerHTML;
+  check('no eco number is rendered on any activity tile',
+    rendered.length > 0 && !/eco\s*<b>/.test(rendered) && !/>\s*eco\b/i.test(rendered));
+  const spd = sb2.document.getElementById('speed-toggle').innerHTML;
+  check('the speed toggle carries a turtle and a hare',
+    g2.LEIP_DATA.speedToggles.slow.icon === 'SPD_TURTLE' &&
+    g2.LEIP_DATA.speedToggles.fast.icon === 'SPD_HARE' &&
+    (spd.match(/<svg/g) || []).length === 2,
+    `${(spd.match(/<svg/g) || []).length} icons rendered`);
+  check('both speed icons live in the THEME, not inline in the UI',
+    !!g2.LEIP_THEME.icons.defs.SPD_TURTLE && !!g2.LEIP_THEME.icons.defs.SPD_HARE);
+}
+
+// ================================================================ chart frame
+section('Chart frame — the view is bounded and the grid fills it');
+{
+  const g3 = loadGame(makeSandbox().sandbox);
+  const T3 = g3.LEIP_THEME, D3 = g3.LEIP_DATA;
+  const fb = T3.frame.boundsDeg;
+  check('the frame is stated in the THEME, not derived per-viewport',
+    fb && typeof fb.minLon === 'number' && typeof fb.maxLat === 'number');
+  check('every port lies inside the frame',
+    D3.ports.every(p => p.lon > fb.minLon && p.lon < fb.maxLon &&
+                        p.lat > fb.minLat && p.lat < fb.maxLat),
+    D3.ports.filter(p => !(p.lon > fb.minLon && p.lon < fb.maxLon &&
+                           p.lat > fb.minLat && p.lat < fb.maxLat)).map(p => p.name).join(', '));
+  // The frame must sit inside the drawn terrain, or its edge shows void.
+  const TER = g3.LEIP_TERRAIN;
+  let tl = 180, tr = -180, tb = 90, tt = -90;
+  for (const ring of TER.coasts) {
+    for (let i = 0; i < ring.length; i += 2) {
+      tl = Math.min(tl, ring[i]); tr = Math.max(tr, ring[i]);
+      tb = Math.min(tb, ring[i + 1]); tt = Math.max(tt, ring[i + 1]);
+    }
+  }
+  check(`the frame sits inside the drawn terrain (lon ${tl.toFixed(0)}..${tr.toFixed(0)}, lat ${tb.toFixed(0)}..${tt.toFixed(0)})`,
+    fb.minLon >= tl && fb.maxLon <= tr && fb.minLat >= tb && fb.maxLat <= tt);
+  // ...and inside the sea field, so water fills whatever the land does not.
+  const seaLon = (fb.maxLon - fb.minLon), seaLat = (fb.maxLat - fb.minLat);
+  check('the sea field is wider than the frame in both axes',
+    T3.world.seaSpread.x > 1 && T3.world.seaSpread.z > 1 && seaLon > 0 && seaLat > 0);
+  check('the graticule labels every Nth line, so marginalia stay legible',
+    T3.chart.graticuleLabelEvery >= 2);
 }
 
 // ================================================================ share card

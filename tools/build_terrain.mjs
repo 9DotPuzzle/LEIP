@@ -35,7 +35,7 @@ const CFG = {
   // enters shot at the charted camera distance. `route` is what gets
   // RASTERISED for navigation: the basin the ports actually live in, kept
   // tight so the grid and the A* over it stay tractable.
-  clip: { lon0: -22, lat0: 20, lon1: 52, lat1: 58 },
+  clip: { lon0: -32, lat0: 17, lon1: 62, lat1: 61 },
   route: { lon0: -8, lat0: 30, lon1: 38, lat1: 48 },
   simplifyDeg: 0.008,        // ~0.9 km — kills jaggedness, keeps identity
   minAreaDeg2: 0.0016,       // drop specks...

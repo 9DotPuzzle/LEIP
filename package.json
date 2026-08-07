@@ -23,6 +23,8 @@
   },
   "homepage": "https://github.com/9DotPuzzle/LEIP#readme",
   "devDependencies": {
+    "playwright": "^1.62.1",
+    "three": "^0.152.2",
     "world-atlas": "^2.0.2"
   }
 }
