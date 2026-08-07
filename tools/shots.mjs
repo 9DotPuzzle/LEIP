@@ -92,6 +92,18 @@ const shots = {
     await settle(page, 5);
     return { clip: await page.locator('#plan').boundingBox() };
   },
+  // --- 3: the densest clusters during a live run, callouts and all
+  'sim-costa-smeralda': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      ['Olbia', 'Porto Cervo', 'Porto Rotondo', 'Bonifacio', 'Ajaccio'].forEach((n) => A.pickPort(n));
+      A.simulate();
+    });
+    await page.waitForTimeout(9000);
+    await page.evaluate(() => window.LEIP_APP.debugView({ zoom: 150 }));
+    await settle(page);
+    return { clip: stageClip };
+  },
   // --- 11 & 12: playback pace, clock and progress
   'mid-simulation': async (page) => {
     await page.evaluate(() => {
