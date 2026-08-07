@@ -363,7 +363,23 @@ section('Achievements — trophies only (spec §7)');
   check('Volcano Chief fires mid-sim with an hour',
     ids.includes('volcano-chief') && r1.newly.find(a => a.id === 'volcano-chief').atHour > 0);
   check('Submerged Ruins: dive activity at dive-tagged location', ids.includes('submerged-ruins'));
-  check('Long Haul over 400 nm', sim.coveredNm > th.longHaulNm === ids.includes('long-haul'));
+  // Long Haul is battery-only: distance alone does not earn it.
+  {
+    const far = E.simulate(D.achievementFixtures.longHaulClean);
+    const farDirty = E.simulate(D.achievementFixtures.longHaulDiesel);
+    check(`Long Haul unlocks on ${far.coveredNm.toFixed(0)} nm with zero diesel`,
+      far.coveredNm > th.longHaulNm && far.dieselMwh === 0 &&
+      E.evaluateAchievements(far, null).newly.some(a => a.id === 'long-haul'),
+      `${far.coveredNm.toFixed(1)} nm, diesel ${far.dieselMwh.toFixed(2)}`);
+    check(`Long Haul does NOT unlock on ${farDirty.coveredNm.toFixed(0)} nm that burned ${farDirty.dieselMwh.toFixed(1)} MWh of diesel`,
+      farDirty.coveredNm > th.longHaulNm && farDirty.dieselMwh > 0 &&
+      !E.evaluateAchievements(farDirty, null).newly.some(a => a.id === 'long-haul'));
+    check('a short battery-only week does not earn it either',
+      !E.evaluateAchievements(E.simulate({ route: ['Nice', 'Monaco'], speed: 'slow', nights: 4, activities: {} }), null)
+        .newly.some(a => a.id === 'long-haul'));
+    check('the condition text states the battery requirement',
+      /diesel/i.test(D.achievements.list.find(a => a.id === 'long-haul').desc));
+  }
   // Score Over 400 — retargeted for the 0-50 base scale (ceiling 500).
   const big = E.simulate(D.achievementFixtures.scoreOver400);
   check(`a strong charter clears the bar and unlocks Score Over 400 (${big.score.final})`,

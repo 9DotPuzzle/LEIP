@@ -5120,7 +5120,7 @@ globalThis.LEIP_DATA = {
   achievements: {
     thresholds: {
       scoreOver: 400,        // of a 500 ceiling on the 0-50 base scale
-      longHaulNm: 400,
+      longHaulNm: 400,      // and battery-only: see evaluateAchievements
       worldTravellerCountries: 3,
       posterRoutesRequired: 5,   // spec §7 name is 'The Five Routes'; the poster carries 7 — any 5 complete it
       repeatClientCharters: 3,
@@ -5138,7 +5138,7 @@ globalThis.LEIP_DATA = {
       { id: 'mwh-hit',         name: '50 MWh Hit',      desc: 'Draw the full 50 MWh battery — diesels never woke', midSim: true  },
       { id: 'submerged-ruins', name: 'Submerged Ruins', desc: 'Dive at a dive-tagged location',                    midSim: false },
       { id: 'five-routes',     name: 'The Five Routes', desc: 'Complete five of the published routes',             midSim: false },
-      { id: 'long-haul',       name: 'Long Haul',       desc: 'Cover over 400 nm in one charter',                  midSim: false },
+      { id: 'long-haul',       name: 'Long Haul',       desc: 'Cover over 400 nm without waking the diesels',      midSim: false },
       { id: 'world-traveller', name: 'World Traveller', desc: 'Visit three countries in one week',                 midSim: false },
       { id: 'volcano-chief',   name: 'Volcano Chief',   desc: 'Reach Santorini',                                   midSim: true  },
       { id: 'repeat-client',   name: 'Repeat Client',   desc: 'Bring three charters home above the bar',           midSim: false }
@@ -5189,6 +5189,14 @@ globalThis.LEIP_DATA = {
     // (Cagliari-Palma-Cannes) grew past the cap and woke the diesels, which
     // is the one thing this fixture must not do. 49.84 MWh, band crossed at
     // hour 165 of 168.
+    // Long Haul: over 400 nm with the diesels asleep. The paired negative
+    // is a week that goes further still but burns diesel to do it.
+    longHaulClean: {
+      route: ['Eivissa', 'Palma', 'Salerno'], speed: 'slow', nights: 4, activities: {}
+    },
+    longHaulDiesel: {
+      route: ['Palma', 'Bonifacio', 'Naples', 'Monaco'], speed: 'fast', nights: 4, activities: {}
+    },
     batteryBrinkmanship: {
       route: ['Bonifacio', 'Salerno', 'Cannes'], speed: 'slow', nights: 4,
       activities: { A08: 1, A07: 2, R06: 1 }
@@ -5718,7 +5726,9 @@ globalThis.LEIP_ENGINE = (function () {
     if (hasDive && atDiveSpot) unlock('submerged-ruins');
     if (sim.poster && sim.completed && p.posterDone.indexOf(sim.poster.id) < 0) p.posterDone.push(sim.poster.id);
     if (p.posterDone.length >= th.posterRoutesRequired) unlock('five-routes');
-    if (sim.coveredNm > th.longHaulNm) unlock('long-haul');
+    // Distance alone is not the feat — distance on the battery is. A week
+    // that burned diesel to get there does not qualify, however far it went.
+    if (sim.coveredNm > th.longHaulNm && sim.dieselMwh === 0) unlock('long-haul');
     if (sim.countries.length >= th.worldTravellerCountries) unlock('world-traveller');
     var sanPort = null;
     d.ports.forEach(function (port) { if (port.tags.indexOf(cfg.santoriniTag) >= 0) sanPort = port; });
