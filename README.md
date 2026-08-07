@@ -24,21 +24,26 @@ results — the math never depends on either.
 | `LEIP_activities_data.xlsx` | Dataset 5 (activities), mirrored 1:1 |
 | `fonts/leip-ocra.woff2` | **OCR-A LEIP** — original CC0 digitization of the ANSI X3.17 OCR-A model, built by `tools/build_ocra_font.py`. See `fonts/LICENSE-OCR-A-LEIP.txt` for the license-verification record (the common "free" OCR-A lineage carries a no-profit restriction and was rejected) |
 | `fonts/LICENSE-SAIRA-OFL.txt` | Saira SemiCondensed license (embedded in the HTML as base64 by `tools/embed_fonts.mjs`) |
-| `test/headless.mjs` | §11.2–11.6 + poster parity + leaderboard logic (73 checks) |
+| `leip_distance_model.json` | Poster charter distances + per-leg sea-lane corrections (see Distance model) |
+| `leip_fleet_reference.json` | 28 observed charters + route groups, the secondary external check |
+| `test/headless.mjs` | §11.2–11.6 + poster parity + distance rule + leaderboard logic (109 checks) |
+| `test/geometry.mjs` | Ports on real coastline, no sailed leg crossing land (8 checks) |
+| `test/fleet.mjs` | Secondary validation against the observed fleet, ±15% (`npm run test:fleet`) |
 | `test/smoke.mjs` | §11.1 + §11.7 + §11.8: stubbed Three.js/DOM boot → plan → simulate → playback → results → save → share (22 checks) |
 | `tools/calibrate.mjs` | Prints the calibration table and canonical breakdown |
 
 ```
-node test/headless.mjs && node test/smoke.mjs
-node tools/calibrate.mjs
+npm test              # headless + smoke + geometry
+npm run test:fleet    # secondary: the 28 observed charters
+npm run calibrate     # parity table, distance rule, canonical breakdown
 ```
 
 ## Calibration (spec §6)
 
 Constants live in `DATA.calibration`: knot bins ≤ 1 kt are station-keeping,
 hotel utilisation 0.635 on the guest loads, propulsion factor 0.69 on brake
-power. Scoring distance is the **actual sailed sea-lane distance**
-(`DATA.distanceBasis: 'sealane'`), not the great-circle matrix. Four of the
+power. Scoring distance follows the distance model below
+(`DATA.distanceBasis: 'corrected'`), never the raw great-circle matrix. Four of the
 seven published poster routes reconcile within ±1 MWh from first principles
 (SOF_BLUE, BALEARICS, GREECE, TURKEY); the other three are irreconcilable by
 any distance/duration model (near-identical nm/days, published figures 15 MWh
