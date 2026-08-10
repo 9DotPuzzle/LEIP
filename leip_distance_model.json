@@ -1,95 +1,156 @@
 {
- "_comment": "LEIP distance model. TWO distinct quantities, deliberately separated.",
- "_poster_routes_rule": "If the player's selected route EXACTLY matches one of these seven ordered port sequences, the game MUST output published_nm for that route (charter distance \u2014 includes real charter cruising/wandering, not just port-to-port). This is a hard parity requirement. Detect exact ordered match (the same mechanism as the scoring override) and return published_nm.",
- "_other_legs_rule": "For any route NOT matching a poster, score each leg as matrix[a][b] \u00d7 ratio[a][b] from leg_correction below (geometric sea-lane distance around land). This is the honest 'as-sailed passage' distance for a player-planned route.",
- "_why_two": "Poster routes are curated real charters (a week's genuine cruising, wandering between bays); their factors (0.95\u20133.17) reflect charter behaviour, not leg geometry, so they cannot be decomposed to individual legs. Player-invented routes are planned passages, correctly measured as sailing distance between chosen ports.",
+ "_comment": "LEIP distance model v3 \u2014 poster routes with EXACT ordered sequences (incl. returns to start and repeated ports) from the team Route Planner. published_nm is authoritative: exact-ordered-sequence match MUST output it.",
+ "_poster_routes_rule": "If player's selected route EXACTLY matches a poster's ordered 'ports' sequence (including any repeated ports and return-to-start), output that route's published_nm. Detect exact ordered match.",
+ "_other_legs_rule": "For non-poster routes, score each leg as matrix[a][b] \u00d7 leg_correction.ratio[a][b].",
+ "_leg_correction_note": "leg_correction.ratio is now cross-validated identical to the team's per-leg correction matrix in Game_Inputs.xlsx \u2014 same authority, not an approximation.",
  "poster_routes": {
   "SOF_BLUE": {
-   "computed_nm": 145.6,
-   "published_nm": 220,
-   "charter_factor": 1.51091899,
+   "name": "South of France \u2014 Blue",
    "ports": [
     "Savona",
     "Monaco",
-    "Saint-Jean-Cap-Ferrat",
     "Nice",
     "Antibes",
-    "Saint Tropez"
+    "Saint Tropez",
+    "Antibes",
+    "Saint-Jean-Cap-Ferrat",
+    "Monaco"
    ],
+   "legs_nm": [
+    null,
+    56.9,
+    6.9,
+    9.7,
+    28.1,
+    28.1,
+    10.9,
+    5.3
+   ],
+   "computed_total_nm": 145.9,
+   "correction_factor": 1.521,
+   "published_nm": 220,
    "published_nm_authoritative": 220
   },
   "SOF_GREEN": {
-   "computed_nm": 286.9,
-   "published_nm": 440,
-   "charter_factor": 1.53363541,
+   "name": "South of France & Corsica \u2014 Green",
    "ports": [
     "Monaco",
     "Calvi",
     "Ajaccio",
     "Saint Tropez"
    ],
-   "published_nm_authoritative": 440
+   "legs_nm": [
+    null,
+    91.2,
+    38.9,
+    123.3
+   ],
+   "computed_total_nm": 253.5,
+   "correction_factor": 1.521,
+   "published_nm": 440,
+   "published_nm_authoritative": 440,
+   "note": "sheet marks 'Not Comparable for correction factor'"
   },
   "SARD_BLUE": {
-   "computed_nm": 224.0,
-   "published_nm": 370,
-   "charter_factor": 1.65178571,
+   "name": "Sardinia & Corsica \u2014 Blue",
    "ports": [
-    "Ajaccio",
     "Calvi",
-    "Porto Vecchio",
+    "Ajaccio",
     "Bonifacio",
-    "Porto Cervo",
     "Porto Rotondo",
-    "Olbia"
+    "Porto Cervo",
+    "Porto Vecchio",
+    "Calvi"
    ],
+   "legs_nm": [
+    null,
+    38.9,
+    37.1,
+    37.6,
+    18.5,
+    29.6,
+    63.1
+   ],
+   "computed_total_nm": 224.8,
+   "correction_factor": 1.521,
+   "published_nm": 370,
    "published_nm_authoritative": 370
   },
   "SARD_GREEN": {
-   "computed_nm": 292.9,
-   "published_nm": 390,
-   "charter_factor": 1.33151246,
+   "name": "Sardinia to Italy \u2014 Green",
    "ports": [
-    "Porto Vecchio",
-    "Porto Rotondo",
+    "Salerno",
     "Olbia",
-    "Naples",
-    "Ponte Persica",
-    "Salerno"
+    "Porto Cervo",
+    "Porto Rotondo",
+    "Porto Vecchio"
    ],
+   "legs_nm": [
+    null,
+    239.7,
+    12.8,
+    18.5,
+    47.2
+   ],
+   "computed_total_nm": 318.2,
+   "correction_factor": 1.521,
+   "published_nm": 390,
    "published_nm_authoritative": 390
   },
   "BALEARICS": {
-   "computed_nm": 139.3,
-   "published_nm": 380,
-   "charter_factor": 2.72792534,
+   "name": "Balearics",
    "ports": [
-    "Port d'Andratx",
+    "Palma",
     "Eivissa",
+    "Port d'Andratx",
     "Palma"
    ],
-   "published_nm_authoritative": 380
+   "legs_nm": [
+    null,
+    68.8,
+    58.2,
+    12.3
+   ],
+   "computed_total_nm": 139.3,
+   "correction_factor": 1.521,
+   "published_nm": 380,
+   "published_nm_authoritative": 380,
+   "note": "sheet marks 'Not really comparable for correction factor'"
   },
   "GREECE": {
-   "computed_nm": 421.4,
-   "published_nm": 400,
-   "charter_factor": 0.9492169,
+   "name": "Greece",
    "ports": [
     "Athens",
     "Santorini",
-    "Livadia"
+    "Livadia",
+    "Athens"
    ],
-   "published_nm_authoritative": 400
+   "legs_nm": [
+    null,
+    126.5,
+    94.4,
+    200.5
+   ],
+   "computed_total_nm": 421.4,
+   "correction_factor": 1.521,
+   "published_nm": 408,
+   "published_nm_authoritative": 408
   },
   "TURKEY": {
-   "computed_nm": 93.2,
-   "published_nm": 295,
-   "charter_factor": 3.16523605,
+   "name": "Turkey",
    "ports": [
     "Gulluk",
     "Bodrum",
     "Gocek"
    ],
+   "legs_nm": [
+    null,
+    18.6,
+    74.6
+   ],
+   "computed_total_nm": 93.2,
+   "correction_factor": 1.521,
+   "published_nm": 295,
    "published_nm_authoritative": 295
   }
  },
