@@ -134,17 +134,58 @@ section('Sea lanes — every leg stays on water, and scoring uses the sailed pat
 // ---------------------------------------------------------------- poster distance rule
 section('Poster distance rule — an exact ordered match outputs published nm, full stop');
 {
+  // The exact sequences, spelled out. These are the charters as sailed —
+  // repeated ports and returns to the start included — and they are what a
+  // player must enter for the published figure to come out. Written
+  // literally so a sequence edit that breaks the match fails here rather
+  // than quietly scoring the passage sum instead.
+  const SEQUENCES = {
+    SOF_BLUE: ['Savona', 'Monaco', 'Nice', 'Antibes', 'Saint Tropez', 'Antibes',
+               'Saint-Jean-Cap-Ferrat', 'Monaco'],
+    SOF_GREEN: ['Monaco', 'Calvi', 'Ajaccio', 'Saint Tropez'],
+    SARD_BLUE: ['Calvi', 'Ajaccio', 'Bonifacio', 'Porto Rotondo', 'Porto Cervo',
+                'Porto Vecchio', 'Calvi'],
+    SARD_GREEN: ['Salerno', 'Olbia', 'Porto Cervo', 'Porto Rotondo', 'Porto Vecchio'],
+    BALEARICS: ['Palma', 'Eivissa', "Port d'Andratx", 'Palma'],
+    GREECE: ['Athens', 'Santorini', 'Livadia', 'Athens'],
+    TURKEY: ['Gulluk', 'Bodrum', 'Gocek']
+  };
+  const PUBLISHED_NM = { SOF_BLUE: 220, SOF_GREEN: 440, SARD_BLUE: 370, SARD_GREEN: 390,
+                         BALEARICS: 380, GREECE: 408, TURKEY: 295 };
+  check('the shipped sequences are the full charters, verbatim',
+    D.posterRoutes.every(pr => JSON.stringify(pr.ports) === JSON.stringify(SEQUENCES[pr.id])),
+    D.posterRoutes.filter(pr => JSON.stringify(pr.ports) !== JSON.stringify(SEQUENCES[pr.id]))
+      .map(pr => pr.id).join(', '));
+  check('the shipped published nm are the model\'s figures',
+    D.posterRoutes.every(pr => pr.nm === PUBLISHED_NM[pr.id]),
+    D.posterRoutes.filter(pr => pr.nm !== PUBLISHED_NM[pr.id])
+      .map(pr => `${pr.id} ${pr.nm} vs ${PUBLISHED_NM[pr.id]}`).join(', '));
+
   for (const pr of D.posterRoutes) {
+    // Entered in full, from the literal sequence — not from the data the
+    // engine also reads — so this fails if either side drifts.
+    const seq = SEQUENCES[pr.id], want = PUBLISHED_NM[pr.id];
+    check(`${pr.id}: the full ${seq.length}-stop sequence outputs ${want} nm`,
+      E.posterByRoute(seq) !== null &&
+      E.simulate({ route: seq, speed: 'slow', nights: 4, activities: {} }).distanceNm === want,
+      `got ${E.simulate({ route: seq, speed: 'slow', nights: 4, activities: {} }).distanceNm}`);
     // No speed/activity qualifier: matching the ordered sequence is what
     // makes it that charter, so every profile must produce the figure.
     const variants = [
-      { route: pr.ports, speed: 'slow', nights: 4, activities: {} },
-      { route: pr.ports, speed: 'fast', nights: 2, activities: { A08: 1, R06: 2 } }
+      { route: seq, speed: 'slow', nights: 4, activities: {} },
+      { route: seq, speed: 'fast', nights: 2, activities: { A08: 1, R06: 2 } }
     ];
-    check(`${pr.id}: ${pr.nm} nm on every profile, exactly`,
-      variants.every(v => E.simulate(v).distanceNm === pr.nm),
+    check(`${pr.id}: ${want} nm on every profile, exactly`,
+      variants.every(v => E.simulate(v).distanceNm === want),
       variants.map(v => E.simulate(v).distanceNm).join(' / '));
   }
+  // Repeats and returns are load-bearing: dropping them must break the match.
+  check('a poster sequence with its repeated port removed is NOT a match',
+    E.posterByRoute(SEQUENCES.SOF_BLUE.filter((p, i) => i !== 5)) === null);
+  check('a poster sequence with its return-to-start removed is NOT a match',
+    E.posterByRoute(SEQUENCES.BALEARICS.slice(0, -1)) === null &&
+    E.posterByRoute(SEQUENCES.GREECE.slice(0, -1)) === null &&
+    E.posterByRoute(SEQUENCES.SARD_BLUE.slice(0, -1)) === null);
   // The legs must still sum to the published figure with no rounding drift,
   // or playback and the reached-ports walk would disagree with the score.
   check('legs sum to the published figure with no drift',

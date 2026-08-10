@@ -15,6 +15,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { loadEngine } from '../test/extract.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const model = JSON.parse(readFileSync(join(ROOT, 'leip_distance_model.json'), 'utf8'));
@@ -76,32 +77,48 @@ if (src.sea_nm) {
 // --- working and are NOT used. Reconciled here so any drift is visible.
 if (model.poster_routes) {
   const m = pack.distance_matrix_nm;
+  // The distance model is the authority for the poster SEQUENCES and their
+  // published nm; the data pack's poster_routes still carry the older
+  // one-way sequences and are stale on both counts. What must agree is the
+  // model and what the game actually ships, so that is what is asserted —
+  // the pack divergence is reported below, not enforced.
+  const shipped = loadEngine().LEIP_DATA.posterRoutes;
   console.log('\nPoster routes — published_nm (authoritative) vs the file\'s own working:');
-  const drift = [];
+  const drift = [], stalePack = [];   // drift: published / passage-sum ratios
   for (const [id, pr] of Object.entries(model.poster_routes)) {
+    const ship = shipped.find((p) => p.id === id);
+    if (!ship) throw new Error(`poster ${id} is not in the shipped DATA block`);
+    if (JSON.stringify(ship.ports) !== JSON.stringify(pr.ports)) {
+      throw new Error(`poster ${id}: shipped sequence differs from the distance model\n` +
+        `  model:   ${pr.ports.join(' -> ')}\n  shipped: ${ship.ports.join(' -> ')}`);
+    }
+    if (ship.nm !== pr.published_nm) {
+      throw new Error(`poster ${id}: published_nm ${pr.published_nm} != shipped nm ${ship.nm}`);
+    }
     const sheet = pack.poster_routes.find((p) => p.id === id);
-    if (!sheet) throw new Error(`poster ${id} is not in the data pack`);
-    if (JSON.stringify(sheet.ports) !== JSON.stringify(pr.ports)) {
-      throw new Error(`poster ${id}: port sequence differs from the data pack`);
-    }
-    if (sheet.nm !== pr.published_nm) {
-      throw new Error(`poster ${id}: published_nm ${pr.published_nm} != pack nm ${sheet.nm}`);
-    }
+    if (sheet && (JSON.stringify(sheet.ports) !== JSON.stringify(pr.ports) ||
+                  sheet.nm !== pr.published_nm)) stalePack.push(id);
     let corrected = 0;
     for (let i = 0; i + 1 < pr.ports.length; i++) {
       const a = pr.ports[i], b = pr.ports[i + 1];
       corrected += m[a][b] * ratio[a][b];
     }
-    const off = Math.abs(corrected - pr.computed_nm) / pr.computed_nm > 0.02;
-    if (off) drift.push(id);
+    // The gap between the two is the charter's own wandering — the reason
+    // published_nm is taken whole rather than decomposed into legs.
+    drift.push(pr.published_nm / corrected);
     console.log(`  ${id.padEnd(11)} published ${String(pr.published_nm).padStart(4)} nm · ` +
-      `this model's legs ${corrected.toFixed(1).padStart(6)} nm · ` +
-      `file's computed_nm ${String(pr.computed_nm).padStart(6)} nm${off ? '  <- disagree' : ''}`);
+      `passage sum ${corrected.toFixed(1).padStart(6)} nm · ` +
+      `x${(pr.published_nm / corrected).toFixed(2)}`);
   }
   if (drift.length) {
-    console.log(`  NOTE: computed_nm disagrees with this file's own leg_correction on ` +
-      `${drift.join(', ')} — so charter_factor is unreliable on those rows. Unused: the ` +
-      `game takes published_nm whole.`);
+    console.log(`  charter factors span x${Math.min(...drift).toFixed(2)} to ` +
+      `x${Math.max(...drift).toFixed(2)} — no single scalar fits, which is why an exact ` +
+      `sequence match outputs published_nm whole.`);
+  }
+  if (stalePack.length) {
+    console.log(`  NOTE: leip_game_data.json's poster_routes are stale on ` +
+      `${stalePack.join(', ')} (older one-way sequences and/or nm). The distance model ` +
+      `is the authority and is what the game ships; the pack is not read for these.`);
   }
 }
 

@@ -6310,26 +6310,33 @@ globalThis.LEIP_DATA = {
   nav: { routeFactor: 1.0 },   // sea-lane geometry is already the true path
 
   // ---- DATASET 4 — The seven published poster routes (REAL)
+  // `ports` and `nm` come from leip_distance_model.json, which is the
+  // authority for the distance model. The sequences are the FULL charter
+  // as sailed — repeated ports and returns to the start included — and an
+  // exact ordered match on them is what makes the game output the
+  // published figure. The earlier one-way sequences here never matched a
+  // real player route, which is why SOF Blue was scoring its passage sum
+  // (152 nm) instead of its published 220.
   posterRoutes: [
-    { id: "SOF_BLUE",   name: "South of France — Blue",            days: 9,    nm: 220,  mwh: 35,   
-      ports: ["Savona","Monaco","Saint-Jean-Cap-Ferrat","Nice","Antibes","Saint Tropez"],
+    { id: "SOF_BLUE",   name: "South of France — Blue", days: 9, nm: 220, mwh: 35,
+      ports: ["Savona","Monaco","Nice","Antibes","Saint Tropez","Antibes","Saint-Jean-Cap-Ferrat","Monaco"],
       refGroup: "South of France (SoF)" },
-    { id: "SOF_GREEN",  name: "South of France & Corsica — Green", days: 6.5,  nm: 440,  mwh: 48,   
+    { id: "SOF_GREEN",  name: "South of France & Corsica — Green", days: 6.5, nm: 440, mwh: 48,
       ports: ["Monaco","Calvi","Ajaccio","Saint Tropez"],
       refGroup: "SoF to Sardinia/Corsica" },
-    { id: "SARD_BLUE",  name: "Sardinia & Corsica — Blue",         days: 8.5,  nm: 370,  mwh: 35,   
-      ports: ["Ajaccio","Calvi","Porto Vecchio","Bonifacio","Porto Cervo","Porto Rotondo","Olbia"],
+    { id: "SARD_BLUE",  name: "Sardinia & Corsica — Blue", days: 8.5, nm: 370, mwh: 35,
+      ports: ["Calvi","Ajaccio","Bonifacio","Porto Rotondo","Porto Cervo","Porto Vecchio","Calvi"],
       refGroup: "Sardinia & Corsica" },
-    { id: "SARD_GREEN", name: "Sardinia to Italy — Green",         days: 9,    nm: 390,  mwh: 50,   
-      ports: ["Porto Vecchio","Porto Rotondo","Olbia","Naples","Ponte Persica","Salerno"],
+    { id: "SARD_GREEN", name: "Sardinia to Italy — Green", days: 9, nm: 390, mwh: 50,
+      ports: ["Salerno","Olbia","Porto Cervo","Porto Rotondo","Porto Vecchio"],
       refGroup: "Italy" },
-    { id: "BALEARICS",  name: "Balearics",                         days: 7,    nm: 380,  mwh: 36,   
-      ports: ["Port d'Andratx","Eivissa","Palma"],
+    { id: "BALEARICS",  name: "Balearics", days: 7, nm: 380, mwh: 36,
+      ports: ["Palma","Eivissa","Port d'Andratx","Palma"],
       refGroup: "Baleriacs" },
-    { id: "GREECE",     name: "Greece",                            days: 8.5,  nm: 400,  mwh: 43,   
-      ports: ["Athens","Santorini","Livadia"],
+    { id: "GREECE",     name: "Greece", days: 8.5, nm: 408, mwh: 43,
+      ports: ["Athens","Santorini","Livadia","Athens"],
       refGroup: "Greece" },
-    { id: "TURKEY",     name: "Turkey",                            days: 8.5,  nm: 295,  mwh: 38.5, 
+    { id: "TURKEY",     name: "Turkey", days: 8.5, nm: 295, mwh: 38.5,
       ports: ["Gulluk","Bodrum","Gocek"],
       refGroup: "Turkey" }
   ],

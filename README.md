@@ -68,10 +68,11 @@ Two quantities, deliberately separated, from `leip_distance_model.json`:
 
 - **Poster routes** are curated real charters. If the player's route is an
   exact ordered match for one of the seven sequences, the game outputs that
-  route's published nm whole — no speed or activity qualifier. The published
-  figures are charter distances (a week's real cruising, wandering between
-  bays), and the implied factors over the passage sum run ×1.16 to ×2.87, so
-  they cannot be decomposed into legs.
+  route's published nm whole — no speed or activity qualifier. The sequences
+  are the charters **as sailed**: repeated ports and returns to the start
+  included (SOF Blue is eight stops and visits Antibes twice). The published
+  figures are charter distances, and the implied factors over the passage sum
+  run ×0.92 to ×2.37, so they cannot be decomposed into legs.
 - **Everything else** is a planned passage, scored leg by leg as
   `matrix[a][b] × getLegCorrection(a, b)`.
 
