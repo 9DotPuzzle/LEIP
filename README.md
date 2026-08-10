@@ -55,6 +55,37 @@ The §5 worked example reproduces the canonical multiplier of **6.2** exactly. T
 base is scored on a 0–50 board scale (a 0–100 energy frame mapped by
 `outputScale`), so the canonical charter lands on **base 39 × 6.2 = 241.8**.
 
+## Diesel reserve
+
+Diesel is a **finite, depletable energy reserve**, not an unlimited fallback.
+`DATA.dieselReserveMwh` is **251.4 MWh** — the published 4,500 nm range
+expressed as energy through the same model everything else uses: 431.8 h at
+the Typical cruise of 10.42 kt, propulsion 479 kW plus hotel 103 kW.
+
+Resources deplete in order. The 50 MWh battery goes first; only once it is
+spent do the diesels wake and start drawing the reserve down by **actual
+generator energy**, so a fast week burns it faster per mile than the nominal
+range implies. A clean week never touches it.
+
+The penalty scales with **depth into the reserve** rather than per MWh:
+
+```
+penalty = maxPenalty x (1 - exp(-(f / depthScale) ^ exponent))    f = dieselMwh / reserve
+```
+
+A megawatt-hour past the battery costs **0.36** of the hundred-point energy
+frame — you clipped it, and the score barely notices. By 24.5 MWh it costs
+61.2; by 68 MWh (the deepest a single week can reach) it costs 126.5, which
+drives the base well below zero. `maxPenalty` is deliberately twice the
+discipline weight so an emptied reserve is worse than merely losing all
+discipline. There is **no hard fail and no route-stop** — a doomed week still
+runs, still completes what it can, and still scores.
+
+The reserve is **hidden** during planning and through the battery phase of
+playback. It appears in the title block at the moment the diesels wake — the
+same moment the smoke starts — and the results sheet reports the reserve used
+in MWh and as a percentage.
+
 ## Pending data
 
 Port **energy types** are now real — derived by quartile from each port's

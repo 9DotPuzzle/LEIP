@@ -301,6 +301,60 @@ section('Secondary — fleet reference is present and wired to this engine');
     `run \`node test/fleet.mjs\` for the ±${F.tolerancePct}% tolerance report.`);
 }
 
+// ---------------------------------------------------------------- diesel reserve
+section('Diesel reserve — finite, depletable, and second in line');
+{
+  const cal = D.calibration, hl = D.hotelLoadsEkw;
+  // Recompute the reserve from the prop curve rather than trusting the
+  // stored figure: 4,500 nm at the Typical cruise, all of it under way.
+  const st = E.profileStats('Typical');
+  const hours = D.dieselRangeNm / st.vEff;
+  const propMwh = st.avgBkw * cal.propFactor * hours / 1000;
+  const hotelMwh = hl.underwayGuestTransit * cal.hotelUtilisation * hours / 1000;
+  const derived = propMwh + hotelMwh;
+  check(`${D.dieselRangeNm} nm at ${st.vEff.toFixed(2)} kt derives ${derived.toFixed(1)} MWh, matching the stored ${D.dieselReserveMwh}`,
+    Math.abs(derived - D.dieselReserveMwh) < 0.5,
+    `derived ${derived.toFixed(2)} vs stored ${D.dieselReserveMwh}`);
+  check('the reserve is far larger than any single week can burn',
+    D.dieselReserveMwh > 200);
+
+  // The curve: flat off the line, monotonic, steepening, saturating high.
+  const p = (mwh) => E.dieselPenaltyFor(mwh);
+  check('zero diesel costs nothing at all', p(0) === 0);
+  check(`a megawatt-hour past the battery is negligible (${p(1).toFixed(2)} of 100)`, p(1) < 1);
+  const steps = [1, 2, 5, 10, 20, 40, 80, 160, D.dieselReserveMwh];
+  check('the penalty is monotonic in depth',
+    steps.every((m, i) => i === 0 || p(m) > p(steps[i - 1])));
+  // Steepening: each doubling early on must cost more than the last did.
+  check('the curve steepens rather than running flat',
+    (p(10) - p(5)) > (p(5) - p(2.5)) && (p(20) - p(10)) > (p(10) - p(5)));
+  check('an emptied reserve drives the base below zero, not merely to zero',
+    p(D.dieselReserveMwh) > D.scoring.base.disciplineWeight,
+    `${p(D.dieselReserveMwh).toFixed(1)} vs discipline weight ${D.scoring.base.disciplineWeight}`);
+
+  // Sequential depletion: battery first, reserve only after.
+  const clean = E.simulate({ route: ['Nice', 'Monaco'], speed: 'slow', nights: 4, activities: {} });
+  check('a battery week never touches the reserve',
+    clean.dieselMwh === 0 && clean.dieselReserveUsedPct === 0 &&
+    clean.dieselReserveLeftMwh === D.dieselReserveMwh && clean.score.baseParts.dieselPenalty === 0);
+  const dirty = E.simulate({ route: ['Palma', 'Bonifacio', 'Naples', 'Monaco'], speed: 'fast', nights: 4, activities: {} });
+  check(`a diesel week draws the battery to the cap first, then the reserve (${dirty.dieselMwh.toFixed(1)} MWh)`,
+    dirty.batteryMwh === D.battery.gameThresholdMwh &&
+    Math.abs(dirty.dieselMwh - (dirty.totalMwh - D.battery.gameThresholdMwh)) < 1e-9 &&
+    dirty.dieselReserveUsedPct > 0);
+  check('the reserve is drawn by actual generator energy, so the fast week costs more',
+    E.simulate({ route: ['Palma', 'Bonifacio', 'Naples', 'Monaco'], speed: 'fast', nights: 4, activities: {} }).dieselMwh >
+    E.simulate({ route: ['Palma', 'Bonifacio', 'Naples', 'Monaco'], speed: 'slow', nights: 4, activities: {} }).dieselMwh);
+
+  // No hard fail: a catastrophic week still completes and still scores.
+  const worst = E.simulate({ route: ['Palma', 'Venice', 'Gocek'], speed: 'fast', nights: 0, activities: {} });
+  check(`the deepest reachable week still returns a valid score (${worst.score.final}, ${worst.dieselMwh.toFixed(0)} MWh diesel)`,
+    Number.isFinite(worst.score.final) && worst.score.base >= D.scoring.base.min &&
+    worst.dieselReserveUsedPct > 0);
+  check('no route is stopped or failed by the reserve — the week always runs',
+    worst.timeline.length > 0 && worst.reached.length >= 1);
+}
+
 // ---------------------------------------------------------------- §11.4 balance scenarios
 section('§11.4 Balance scenarios land in their intended bands');
 for (const s of D.balanceScenarios) {

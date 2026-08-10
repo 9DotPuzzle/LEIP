@@ -135,6 +135,14 @@ main { position: relative; flex: 1; min-height: 0; }
 #tb-progwrap { position: relative; height: 5px; border: var(--hairline) solid var(--ink-fixed);
   margin-top: 3px; }
 #tb-progbar { position: absolute; inset: 0 auto 0 0; width: 0%; background: var(--ink-fixed); }
+/* The diesel gauge. It does not exist until the diesels wake, so it is
+   built like the battery bar but drains in the smoke colour — the reveal
+   reads as the week having changed character, not as a new widget. */
+#tb-dieselwrap { position: relative; height: 7px; border: var(--hairline) solid var(--ink-fixed);
+  margin-top: 3px; }
+#tb-dieselbar { position: absolute; inset: 0 auto 0 0; width: 100%; background: var(--diesel-smoke); }
+#tb-dieselmwh { display: block; font-family: var(--font-data);
+  font-size: calc(var(--tb-value-px) * 0.62); margin-top: 3px; opacity: 0.8; }
 
 #speed-toggle { display: flex; gap: 8px; }
 #speed-toggle button { flex: 1; padding: 9px 6px; display: flex; align-items: center;
@@ -201,11 +209,11 @@ input[type=range] { width: 100%; accent-color: var(--ink-fixed); }
    the clock are the long ones, DAY the short one. Equal quarters clipped
    both, so each cell gets the share its content needs, and the two data
    values set one step down to buy the margin back. */
-#tb-mode-cell { flex: 1.25; }
-#tb-speed-cell { flex: 1.05; }
-#tb-day-cell { flex: 0.62; }
-#tb-clock-cell { flex: 1.18; }
-#tb-mode, #tb-clock { font-size: calc(var(--tb-value-px) * 0.82); letter-spacing: 0; }
+#tb-mode-cell { flex: 1.18; }
+#tb-speed-cell { flex: 1.22; }   /* "11.2 KTS" is the widest reading here */
+#tb-day-cell { flex: 0.58; }
+#tb-clock-cell { flex: 1.12; }
+#tb-mode, #tb-speed, #tb-clock { font-size: calc(var(--tb-value-px) * 0.8); letter-spacing: 0; }
 #tb-dots { display: flex; gap: 9px; padding: 7px 9px; justify-content: center; }
 .tb-dot { width: calc(var(--dot-r) * 2px); height: calc(var(--dot-r) * 2px); border-radius: 50%; border: var(--hairline) solid var(--ink-fixed); }
 .tb-dot.earned { background: var(--volt); }
@@ -347,6 +355,13 @@ table.board td.num { font-family: var(--font-data); }
           <div class="tb-cell"><label>Battery</label><output id="tb-batt">100%</output>
             <div id="tb-battwrap"><span id="tb-battbar"></span></div></div>
           <div class="tb-cell" id="tb-leg-cell"><label>Leg</label><output id="tb-leg">—</output></div>
+        </div>
+        <div class="tb-row hidden" id="tb-dieselrow">
+          <div class="tb-cell tb-progcell">
+            <label>Diesel reserve <b id="tb-dieselpct" class="data">100%</b></label>
+            <div id="tb-dieselwrap"><span id="tb-dieselbar"></span></div>
+            <output id="tb-dieselmwh">—</output>
+          </div>
         </div>
         <div class="tb-row" id="tb-progrow">
           <div class="tb-cell tb-progcell">
@@ -6167,6 +6182,26 @@ globalThis.LEIP_DATA = {
     { kts: 11,  pbKw: 771.8,    hotelKw: 113.4,  gameMode: 'HYBRID' },
     { kts: 14,  pbKw: 1845.8,   hotelKw: 113.4,  gameMode: 'BOOST' }
   ],
+  // ---- Diesel reserve -----------------------------------------------
+  // LEIP's diesel range fully loaded is 4,500 nm. The game needs that as
+  // an ENERGY reserve, not a distance, because what drains it is generator
+  // MWh and a hard-driven week burns more of it per mile than a delivery
+  // passage does.
+  //
+  // Derivation, using the same energy model as everything else: 4,500 nm
+  // run at the Typical profile's effective cruise of 10.42 kt is 431.8 h
+  // entirely under way. Propulsion 694 bkW x propFactor 0.69 = 479 kW, and
+  // hotel 162.8 ekW x hotelUtilisation 0.635 = 103 kW under way.
+  //   propulsion  479 kW x 431.8 h = 206.8 MWh
+  //   hotel       103 kW x 431.8 h =  44.6 MWh
+  //                                  ---------
+  //                                   251.4 MWh
+  // Held as a figure rather than computed at boot so it is auditable in
+  // one place; test/headless.mjs recomputes it from the prop curve and
+  // fails if the two ever drift.
+  dieselRangeNm: 4500,
+  dieselReserveMwh: 251.4,
+
   // Guest-mode hotel loads: at anchor vs under way (operating_conditions).
   hotelLoadsEkw: {
     stationaryGuestAnchor: 188.6,
@@ -6506,7 +6541,16 @@ globalThis.LEIP_DATA = {
       disciplineWeight: 65,     // full when the diesels never wake
       efficiencyWeight: 35,     // scaled by nm-per-MWh vs the reference
       effRefNmPerMwh: 9.0,      // efficiency earning the full efficiency weight
-      dieselPenaltyPerMwh: 2.5, // diesel is the dominant penalty
+      // Diesel is the dominant penalty, and it scales with DEPTH into the
+      // reserve rather than per MWh. f is the share of the reserve burnt:
+      //   penalty = maxPenalty x (1 - exp(-(f / depthScale) ^ exponent))
+      // The exponent keeps the curve flat off the line — a megawatt-hour
+      // past the battery costs 0.4 of a hundred-point frame, which is the
+      // "you just clipped it" case — then steepens hard. maxPenalty is
+      // twice the discipline weight on purpose: an emptied reserve should
+      // drive the base below zero, not merely to zero. No hard fail and no
+      // route-stop; a doomed week still runs and still scores.
+      diesel: { maxPenalty: 130, depthScale: 0.1272, exponent: 1.7 },
       incompletePenalty: 35,    // route not finished inside the week
       outputScale: 0.5,         // 0-100 energy frame -> the 0-50 board scale
       min: -50, max: 50
@@ -6750,6 +6794,23 @@ globalThis.LEIP_ENGINE = (function () {
   // Poster-assumption basis (spec §6 calibration): published nm over
   // published days with the Typical profile — "same assumptions as the
   // sheets". Returns simulated MWh for the parity table.
+  // How far into the diesel reserve a week reached, 0..1+. Above 1 the
+  // week would have burnt more than the tanks hold; the curve stays defined
+  // there rather than clamping, so the score degrades smoothly instead of
+  // hitting a wall.
+  function dieselReserveFrac(dieselMwh) {
+    var r = D().dieselReserveMwh;
+    return r > 0 ? dieselMwh / r : 0;
+  }
+  // The penalty for that depth. Flat off the line, steepening as the
+  // reserve drains — see DATA.scoring.base.diesel.
+  function dieselPenaltyFor(dieselMwh) {
+    if (!(dieselMwh > 0)) return 0;
+    var dc = D().scoring.base.diesel;
+    var f = dieselReserveFrac(dieselMwh) / dc.depthScale;
+    return dc.maxPenalty * (1 - Math.exp(-Math.pow(f, dc.exponent)));
+  }
+
   function posterAssumptionMwh(poster) {
     var e = energyFor(poster.nm, poster.days * 24, 'Typical');
     return e.hotelMwh + e.travelMwh;
@@ -7042,7 +7103,8 @@ globalThis.LEIP_ENGINE = (function () {
     var bc = d.scoring.base;
     var nmPerMwh = totalMwh > 0 ? coveredNm / totalMwh : 0;
     var effPart = bc.efficiencyWeight * clamp(nmPerMwh / bc.effRefNmPerMwh, 0, 1);
-    var discPart = bc.disciplineWeight - bc.dieselPenaltyPerMwh * dieselMwh;
+    var dieselPenalty = dieselPenaltyFor(dieselMwh);
+    var discPart = bc.disciplineWeight - dieselPenalty;
     var incPart = completed ? 0 : bc.incompletePenalty;
     var energyBase = discPart + effPart - incPart;      // the 0-100 energy frame
     var rawBase = energyBase * bc.outputScale;          // mapped to the board scale
@@ -7084,6 +7146,10 @@ globalThis.LEIP_ENGINE = (function () {
       underwayH: underwayH, anchorH: anchorH, transitBudgetH: transitBudgetH,
       hotelMwh: e.hotelMwh, travelMwh: e.travelMwh, activitiesMwh: activitiesMwh,
       totalMwh: totalMwh, batteryMwh: batteryMwh, dieselMwh: dieselMwh,
+      dieselReserveMwh: d.dieselReserveMwh,
+      dieselReserveUsedPct: dieselReserveFrac(dieselMwh) * 100,
+      dieselReserveLeftMwh: Math.max(0, d.dieselReserveMwh - dieselMwh),
+      dieselPenalty: dieselPenalty,
       dieselStartH: dieselStartH, bandStartH: bandStartH,
       reached: reached, distinctPorts: distinctPorts, countries: countries,
       rechargePort: rechargePortName,
@@ -7092,6 +7158,7 @@ globalThis.LEIP_ENGINE = (function () {
       funMetric: funMetric(inputs.activities, mc.activities),
       score: { base: base, rawBase: rawBase, energyBase: energyBase,
                baseParts: { discipline: discPart, efficiency: effPart, incomplete: -incPart,
+                            dieselPenalty: -dieselPenalty,
                             nmPerMwh: nmPerMwh, outputScale: bc.outputScale },
                factors: factors, factorSum: factorSum,
                multiplier: multiplier, final: final }
@@ -7212,6 +7279,8 @@ globalThis.LEIP_ENGINE = (function () {
     legNm: legNm,
     pathNm: pathNm,
     getLegCorrection: getLegCorrection,
+    dieselReserveFrac: dieselReserveFrac,
+    dieselPenaltyFor: dieselPenaltyFor,
     posterByRoute: posterByRoute,
     routeLegs: routeLegs,
     activityById: activityById,
@@ -7314,6 +7383,7 @@ globalThis.LEIP_APP = (function () {
     st.setProperty('--font-data', T.type.data);
     st.setProperty('--volt', T.volt);
     st.setProperty('--signal', T.signalRed);
+    st.setProperty('--diesel-smoke', T.dieselSmoke);
     st.setProperty('--paper', T.ui.paper);
     var gl = T.ui.glass, gc = hexToRgb(gl.tint).join(',');
     st.setProperty('--glass', 'rgba(' + gc + ',' + gl.alpha + ')');
@@ -8455,8 +8525,9 @@ globalThis.LEIP_APP = (function () {
     f *= (seg.frac === undefined ? 1 : seg.frac);
     return { lat: lerp(a.lat, b.lat, f), lon: lerp(a.lon, b.lon, f), moving: true, seg: seg };
   }
-  function batteryPctAt(t) {
-    if (!S.sim) return 100;
+  // Cumulative energy drawn by simulated hour t.
+  function drawnMwhAt(t) {
+    if (!S.sim) return 0;
     var tl = S.sim.timeline, mwh = 0;
     for (var i = 0; i < tl.length; i++) {
       var seg = tl[i];
@@ -8464,7 +8535,17 @@ globalThis.LEIP_APP = (function () {
       mwh = seg.startMwh + seg.powerKw * Math.max(0, t - seg.startH) / 1000;
       break;
     }
-    return Math.max(0, (D.battery.gameThresholdMwh - mwh) / D.battery.gameThresholdMwh * 100);
+    return mwh;
+  }
+  function batteryPctAt(t) {
+    if (!S.sim) return 100;
+    var cap = D.battery.gameThresholdMwh;
+    return Math.max(0, (cap - drawnMwhAt(t)) / cap * 100);
+  }
+  // Reserve burnt by hour t. Zero until the battery line is crossed — the
+  // resources deplete in order, and this is the second one.
+  function dieselUsedAt(t) {
+    return Math.max(0, drawnMwhAt(t) - D.battery.gameThresholdMwh);
   }
   function sailedNmAt(t) {
     if (!S.sim) return 0;
@@ -8745,6 +8826,19 @@ globalThis.LEIP_APP = (function () {
       setText('tb-speed', ys.moving ? fmt(S.sim.vEffKts, 1) + ' KTS' : '0 KTS');
       setText('tb-day', Math.min(7, Math.floor(t / 24) + 1) + '/7');
       setText('tb-clock', clockAt(t));
+      // The reveal: the gauge does not exist until the diesels wake, which
+      // is the same moment the smoke starts. Before that the player has no
+      // reason to know the reserve is there.
+      var woken = S.sim.dieselStartH !== null && t >= S.sim.dieselStartH;
+      show('tb-dieselrow', woken);
+      if (woken) {
+        var used = dieselUsedAt(t), res = S.sim.dieselReserveMwh;
+        var leftPct = Math.max(0, Math.min(100, (res - used) / res * 100));
+        setText('tb-dieselpct', fmt(leftPct) + '%');
+        setText('tb-dieselmwh', fmt(used, 1) + ' / ' + fmt(res, 0) + ' MWH USED');
+        var dbar = $('tb-dieselbar');
+        if (dbar && dbar.style) dbar.style.width = leftPct + '%';
+      }
       var prog = Math.max(0, Math.min(100, t / D.time.charterHours * 100));
       setText('tb-progpct', fmt(prog) + '%');
       var pbar = $('tb-progbar');
@@ -8760,6 +8854,15 @@ globalThis.LEIP_APP = (function () {
     } else {
       setText('tb-mode', '—'); setText('tb-speed', '—'); setText('tb-day', '—');
       setText('tb-clock', S.phase === 'results' ? clockAt(D.time.charterHours) : '—');
+      // Hidden in planning and on a battery-only week, at every phase.
+      show('tb-dieselrow', S.phase === 'results' && !!S.sim && S.sim.dieselMwh > 0);
+      if (S.phase === 'results' && S.sim && S.sim.dieselMwh > 0) {
+        var lp = Math.max(0, Math.min(100, S.sim.dieselReserveLeftMwh / S.sim.dieselReserveMwh * 100));
+        setText('tb-dieselpct', fmt(lp) + '%');
+        setText('tb-dieselmwh', fmt(S.sim.dieselMwh, 1) + ' / ' + fmt(S.sim.dieselReserveMwh, 0) + ' MWH USED');
+        var dbar2 = $('tb-dieselbar');
+        if (dbar2 && dbar2.style) dbar2.style.width = lp + '%';
+      }
       var done = S.phase === 'results' ? 100 : 0;
       setText('tb-progpct', done + '%');
       var pbar2 = $('tb-progbar');
@@ -8853,6 +8956,14 @@ globalThis.LEIP_APP = (function () {
       var dieselRow = sim.dieselMwh > 0
         ? '<span class="reveal-diesel">' + fmt(sim.dieselMwh, 1) + ' MWH DIESEL</span>'
         : '0 — NEVER WOKE';
+      // The reserve line only exists on a week that broke into it. On a
+      // clean week there is nothing to report and the row would just be a
+      // zero begging to be read as a near miss.
+      var reserveRow = sim.dieselMwh > 0
+        ? '<tr class="srow"><td>Diesel reserve used</td><td><span class="reveal-diesel">' +
+          fmt(sim.dieselMwh, 1) + ' / ' + fmt(sim.dieselReserveMwh, 0) + ' MWH · ' +
+          fmt(sim.dieselReserveUsedPct, 1) + '%</span></td></tr>'
+        : '';
       var posterNote = '';
       if (sim.poster && sim.poster.exactReplica) {
         posterNote = '<p class="hint srow">Poster route ' + esc(sim.poster.name) + ' — published figure ' +
@@ -8869,6 +8980,7 @@ globalThis.LEIP_APP = (function () {
         '<tr class="srow"><td>Energy used</td><td>' + fmt(sim.totalMwh, 1) + ' MWH</td></tr>' +
         '<tr class="srow"><td>From battery</td><td>' + fmt(sim.batteryMwh, 1) + ' MWH</td></tr>' +
         '<tr class="srow"><td>From diesel</td><td>' + dieselRow + '</td></tr>' +
+        reserveRow +
         '<tr class="srow"><td>Anchor time</td><td>' + fmt(sim.anchorH) + ' H · ' + sim.inputs.nights + ' NIGHTS</td></tr>' +
         '<tr class="srow"><td>Countries visited (' + f.countries.value + ')</td><td>' + f.countries.score + '</td></tr>' +
         '<tr class="srow"><td>Ports visited (' + f.ports.value + ')</td><td>' + f.ports.score + '</td></tr>' +

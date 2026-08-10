@@ -209,6 +209,62 @@ section('Playback HUD — time of day and charter progress');
     el('tb-progbar').style.width);
 }
 
+// ================================================================ diesel gauge
+section('Diesel gauge — hidden until the diesels wake');
+{
+  const { sandbox: sb6 } = makeSandbox();
+  const g6 = loadGame(sb6);
+  const A6 = g6.LEIP_APP;
+  A6.init();
+  const el = (id) => sb6.document.getElementById(id);
+  // Track the row's shown/hidden state through the run.
+  const shown = [];
+  const row = el('tb-dieselrow');
+  row.classList.add = (cls) => { if (cls === 'hidden') shown.push(false); };
+  row.classList.remove = (cls) => { if (cls === 'hidden') shown.push(true); };
+
+  check('the row is hidden in the markup by default',
+    /id="tb-dieselrow"[^>]*class="tb-row hidden"|class="tb-row hidden" id="tb-dieselrow"/.test(readHtml()));
+
+  // A week that must wake the diesels.
+  ['Palma', 'Bonifacio', 'Naples', 'Monaco'].forEach(n => A6.pickPort(n));
+  A6.setSpeed('fast');
+  const sim = A6.simulate();
+  check('the fixture week does break into the reserve', sim.dieselMwh > 0,
+    `${sim.dieselMwh.toFixed(1)} MWh`);
+  check('planning and the battery phase leave it hidden', shown.every(v => v === false),
+    JSON.stringify(shown.slice(0, 6)));
+
+  // Run to just before the diesels wake, then past it.
+  const wake = sim.dieselStartH;
+  let revealedBefore = null, revealedAfter = null;
+  for (let i = 0; i < 400 && A6.getState().phase === 'playback'; i++) {
+    const t = A6.getState().playT;
+    A6.tick(1);
+    if (revealedBefore === null && t > 1 && t < wake - 2) revealedBefore = shown[shown.length - 1];
+    if (revealedAfter === null && A6.getState().playT > wake + 2) revealedAfter = shown[shown.length - 1];
+  }
+  check(`still hidden before the diesels wake (hour ${wake.toFixed(0)})`, revealedBefore === false);
+  check('revealed once they wake — the same moment the smoke starts', revealedAfter === true);
+  check('the gauge reads the reserve remaining, not the amount burnt',
+    /%$/.test(el('tb-dieselpct').textContent) &&
+    /MWH USED$/.test(el('tb-dieselmwh').textContent),
+    `${el('tb-dieselpct').textContent} · ${el('tb-dieselmwh').textContent}`);
+
+  // Results carry the reserve line; a clean week does not.
+  const card = el('results-card').innerHTML;
+  check('results report the reserve used', /Diesel reserve used/.test(card));
+  const { sandbox: sb7 } = makeSandbox();
+  const g7 = loadGame(sb7);
+  g7.LEIP_APP.init();
+  ['Nice', 'Monaco'].forEach(n => g7.LEIP_APP.pickPort(n));
+  const clean = g7.LEIP_APP.simulate();
+  for (let i = 0; i < 400 && g7.LEIP_APP.getState().phase === 'playback'; i++) g7.LEIP_APP.tick(4);
+  check('a clean week never shows the reserve at all',
+    clean.dieselMwh === 0 &&
+    !/Diesel reserve used/.test(sb7.document.getElementById('results-card').innerHTML));
+}
+
 // ================================================================ map legibility
 section('Map legibility — no port rings, callouts in the collision pass');
 {

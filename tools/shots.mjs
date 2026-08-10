@@ -104,6 +104,26 @@ const shots = {
     await settle(page);
     return { clip: stageClip };
   },
+  // --- the diesel reveal: a week that must break into the reserve
+  'diesel-reveal': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      // A week hard enough to break into the reserve early — the diesels
+      // wake at hour 71 of 168.
+      A.setSpeed('fast');
+      A.setNights(0);
+      ['Athens', 'Olbia', 'Bodrum'].forEach((n) => A.pickPort(n));
+      A.simulate();
+      // Advance the simulation clock directly rather than waiting out the
+      // playback in real time: SwiftShader renders far slower than the
+      // 58-second week. Same tick() the render loop calls.
+      const wake = A.getState().sim.dieselStartH;
+      for (let i = 0; i < 4000 && A.getState().phase === 'playback' &&
+                      A.getState().playT < wake + 8; i++) A.tick(0.25);
+    });
+    await settle(page, 10);
+    return { clip: stageClip };
+  },
   // --- 11 & 12: playback pace, clock and progress
   'mid-simulation': async (page) => {
     await page.evaluate(() => {
