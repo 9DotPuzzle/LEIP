@@ -470,8 +470,6 @@ globalThis.LEIP_THEME = {
     graticuleAlpha: 0.28,
     graticuleLabelEvery: 3,       // label every Nth meridian/parallel
     roseLatLon: [40.6, 5.2],      // open water south of the Riviera
-    soundingsPerPort: 2,          // sparse: chart texture, not a halo
-    soundingsAlpha: 0.45,
     routeDash: [6, 5],         // thin dashed rhumb lines, px at chart scale
     waypointTickPx: 7,
     annotationGapPx: 4
@@ -606,7 +604,7 @@ globalThis.LEIP_THEME = {
     }
   },
 
-  chartCanvas: { w: 3600, h: 2400, marginDeg: 1.2 },   // ink layer texture (graticule, soundings); 3:2, the frame's aspect
+  chartCanvas: { w: 3600, h: 2400, marginDeg: 1.2 },   // ink layer texture (graticule, rose); 3:2, the frame's aspect
   // Passage-plot plane, fitted to the route. Element sizes are in WORLD
   // units so the plot reads the same at any route span.
   routeCanvas: { px: 2048, marginWorld: 26, annotWorld: 4.4, dashWorld: [2.6, 2.0], tickWorld: 1.7, lineWorld: 0.3 },
@@ -7479,27 +7477,13 @@ globalThis.LEIP_APP = (function () {
       ctx.fillText('N', rose.x, rose.y - 86);
       ctx.restore();
 
-      // Sparse soundings near each landmark. The radiating hatch that used
-      // to ring every port is gone: the visual direction asks for a hatched
-      // edge WHERE LAND MEETS SEA, and ringing the charted position was a
-      // stand-in from before the real coastline existed. Across Corsica,
-      // Sardinia and the Riviera those rings overlapped into noise, and an
-      // unselected port should read as its monument and its name, nothing
-      // more. The foam line along the coast carries that job now.
-      ctx.globalAlpha = T.chart.soundingsAlpha;
-      ctx.font = '22px OCR-A-LEIP, monospace'; ctx.fillStyle = ink; ctx.textAlign = 'center';
-      D.ports.forEach(function (port) {
-        var w = PROJ.pos(port.lat, port.lon);
-        var c = Chart.w2c(w.x, w.z);
-        var R = T.world.isletRadius / (PROJ.rect.maxX - PROJ.rect.minX) * W;
-        var h = hashStr(port.name);
-        for (var k = 0; k < T.chart.soundingsPerPort; k++) {
-          var sa = (h >> (k * 5)) % 628 / 100;
-          var sr = R * (2.6 + ((h >> (k * 3)) % 10) / 5);
-          ctx.fillText(String(8 + ((h >> (k * 4)) % 40)), c.x + Math.cos(sa) * sr, c.y + Math.sin(sa) * sr);
-        }
-      });
-      ctx.globalAlpha = 1;
+      // Nothing else is drawn per port. The radiating hatch went in an
+      // earlier pass; the depth soundings follow it here. Both were chart
+      // texture in principle, but as loose numerals lying flat on the water
+      // at every zoom they read as noise across the basin rather than as
+      // depths. What stays on the sea is the graticule; what annotates a
+      // port is its monument and its name; what annotates a leg is its
+      // bearing-and-distance callout.
       // Port names are NOT drawn here — they live on their own plates
       // above the relief, so land never swallows a label while the
       // graticule below stays sea-only.
@@ -8004,7 +7988,7 @@ globalThis.LEIP_APP = (function () {
 
     // Mediterranean terrain: flat-shaded soft-relief masses in the land
     // tint. Standing above the chart plane, they naturally keep the
-    // graticule, soundings and hatching over the sea only.
+    // graticule over the sea only.
     var geo = T.terrain;
     var TER = globalThis.LEIP_TERRAIN;
     var shore = { size: geo.bevelSize, thickness: geo.bevelThickness };
@@ -8088,11 +8072,12 @@ globalThis.LEIP_APP = (function () {
       mon.position.y = grp.children.length > 2 ? 4.2 : 3.05;
       grp.add(mon);
 
-      // Crisp geometric foam along the coastline.
-      var foam = new THREE.Mesh(new THREE.RingGeometry(R * 1.12, R * 1.22, 22), foamMat);
-      foam.rotation.x = -Math.PI / 2;
-      foam.position.y = 0.28;
-      grp.add(foam);
+      // No foam ring here. It was a white circle around each port's charted
+      // position, not foam along a coastline, and in a cluster the circles
+      // read as a second set of compass rings — the very clutter the hatch
+      // removal was meant to clear. The visual direction's "crisp white
+      // geometric foam" now lives where it belongs: the shore bevel that
+      // runs along the real coastline, and the yacht's wake.
 
       var hit = new THREE.Mesh(new THREE.CylinderGeometry(R * 2, R * 2, 10, 8),
         new THREE.MeshBasicMaterial({ visible: false }));

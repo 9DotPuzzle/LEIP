@@ -222,13 +222,25 @@ section('Map legibility — no port rings, callouts in the collision pass');
   // 1. The per-port radiating hatch is gone, token and all.
   check('the per-port hatch token is gone from the THEME',
     T5.chart.hatchSpacingPx === undefined);
-  const chartBlock = html.slice(html.indexOf('<script id="leip-app">'));
+  // Comments stripped: the code is what draws, and both removals are
+  // explained in comments that would otherwise match.
+  const chartBlock = html.slice(html.indexOf('<script id="leip-app">'))
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   check('nothing draws a radial tick ring around a port',
     !/hatchSpacing/.test(chartBlock));
-  check('soundings survive as sparse chart texture',
-    T5.chart.soundingsPerPort >= 1 && T5.chart.soundingsPerPort <= 3);
+  check('no depth soundings are drawn on the water',
+    T5.chart.soundingsPerPort === undefined && T5.chart.soundingsAlpha === undefined &&
+    !/soundings/i.test(chartBlock));
   check('the single main compass rose is still charted',
     Array.isArray(T5.chart.roseLatLon) && T5.chart.roseLatLon.length === 2);
+  // The white foam circle around each port went with them: in a cluster it
+  // read as a second set of rings. Foam survives on the coastline bevel and
+  // in the wake, which is what the visual direction actually describes.
+  check('no ring is built around a port marker',
+    !/RingGeometry/.test(chartBlock));
+  check('foam still exists for the coastline bevel and the wake',
+    typeof T5.world.foam === 'string' &&
+    typeof T5.terrain.bevelSize === 'number' && T5.terrain.bevelSize > 0);
 
   // 2. Callouts are plates in the label system, not baked route ink.
   check('the callout plate is a THEME token with its own candidates',
