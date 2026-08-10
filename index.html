@@ -6397,35 +6397,61 @@ globalThis.LEIP_DATA = {
   // totalNm per charter comes from the pack's vessel_speed_distributions,
   // joined on vessel name (all 28 match exactly).
   //
-  // ---- KNOWN LIMITATION: the propulsion bias ------------------------
-  // Two Intense group cells fail this check and are left failing:
-  // SoF to Italy Intense (-20.9%) and Greece Intense (-15.8%). Both come
-  // from one cause — the model runs about -24% light on propulsion
-  // fleet-wide, while hotel load tracks at +4%. It bites hardest where
-  // propulsion is the largest share of the week, which is the
-  // harder-driven Intense charters.
+  // ---- KNOWN LIMITATION: the two failing Intense cells ---------------
+  // SoF to Italy Intense (-20.9%) and Greece Intense (-15.8%) fail this
+  // check and are left failing. Decomposed into distance, speed-mix and
+  // power terms, the cause is two things, and NEITHER is the one the
+  // headline number suggests.
   //
-  // The cause is a disagreement inside the source data. The shipped speed
-  // profiles are derived from the pack's distance-share distributions and
-  // imply 694 bkW Typical / 868 Intense. The fleet reference's own
-  // per-knot underway HOURS, for the same 28 charters, imply 852 / 1152.
-  // Same vessels, same charters, two irreconcilable propulsion figures.
+  // CORRECTION TO AN EARLIER READING: this is NOT the propulsion curve and
+  // NOT the speed profiles. Both are cleared by the decomposition. Against
+  // the members' OWN speed mixes the shipped Intense profile is accurate
+  // to -1.0% and -0.1% on effective speed, and if anything runs HEAVIER
+  // than these charters did on power (818 bkW actual vs 868 applied on
+  // SoF to Italy; 882 vs 868 on Greece). Substituting each charter's own
+  // mix moves the cells by +0.2 and +0.0 MWh/7d — nothing. Hotel load is
+  // accurate to +0.8% and +2.0%.
   //
-  // Re-deriving the profiles from the hours was evaluated in full and
-  // deliberately NOT applied. It would take poster parity from 4/7
-  // reconciled to 0/7 (every published figure on the SS6 override), move
-  // the fleet error rather than remove it (Sardinia & Corsica Typical,
-  // the largest group at n=5, goes from +7.8% to +21.0%), and collapse
-  // the diesel-dash balance scenario from 159.6 to 8.4, forcing the whole
-  // scoring band structure to be re-cut. Trading a contractual,
-  // demo-critical parity target and the balance design for one secondary
-  // check is the wrong trade.
+  // (1) PRIMARILY A FLEET-REFERENCE DATA DEFECT — the largest single term.
+  // Each routeGroup stores ONE distNm but SEPARATE durations and MWh per
+  // profile, and the Typical and Intense charters in a group did not sail
+  // the same distance. SoF to Italy stores 387.6 nm, which is exactly its
+  // TYPICAL members' mean; its Intense members ran 528.1 (-26.6%). Greece
+  // stores 399.2 against Intense members who ran 459.9 (-13.2%). Feeding
+  // the members' real distance closes 12.0 of the 20.9 points on the first
+  // and 6.2 of the 15.8 on the second.
   //
-  // So this is a documented model limitation, not an open bug. The
-  // underlying data inconsistency is referred back to the source; if the
-  // hours basis is confirmed authoritative, the correction is a change to
-  // speedProfiles.distShare plus a re-cut of the balance bands, and the
-  // parity table must be re-reported honestly rather than tuned back.
+  // Worse, distNm does not reconcile with the filed charters on ANY basis.
+  // Across the ten groups it matches the Typical mean on two, the Intense
+  // mean on none, and the all-charter mean on none — Sicily/Italy stores
+  // 537.1 against members who ran 286.5. So this cannot be repaired here:
+  // simply substituting per-profile member means fixes both failing cells
+  // and breaks two that currently pass (SoF to Sardinia Intense -13.6% ->
+  // -18.2%, Baleriacs Typical +0.2% -> -18.9%), for a net of nothing.
+  //
+  // (2) A RESIDUAL -9 TO -11% FROM propFactor. With the members' own
+  // distance, speed and power, both cells still sit at -11.1% and -8.7%.
+  // That residual is the conversion constant: propFactor is fitted at 0.69
+  // to hit poster parity, while the observed median across all 28 charters
+  // -- observed propulsion MWh / (own bkW x own underway hours) -- is 0.93.
+  // The collision is between propFactor and SS6 parity, not between the
+  // prop curve and reality.
+  //
+  // TWO CAVEATS on that 0.93, which is why it is NOT a recalibration
+  // target as it stands:
+  //   - the spread is 0.53 to 1.20 across the 28 charters, far too wide to
+  //     read a single constant off;
+  //   - values above 1.0 are physically impossible for brake power to
+  //     electrical output, so some observed propulsion_mwh must include
+  //     load this model books separately — manoeuvring, DP, station
+  //     keeping. The two quantities are not measuring the same thing.
+  //
+  // Left uncorrected deliberately. No model constant changes on the
+  // strength of this: the calibration stands. What goes back to the source
+  // is three questions — per-profile group distances, what distNm actually
+  // measures, and what propulsion_mwh includes.
+  //
+  // Reproduce with: node tools/decompose_fleet.mjs
   fleetReference: {
     populated: true,
     tolerancePct: 15,          // the band a group cell must land in

@@ -32,6 +32,7 @@ results — the math never depends on either.
 | `test/smoke.mjs` | §11.1 + §11.7 + §11.8: stubbed Three.js/DOM boot → plan → simulate → playback → results → save → share (22 checks) |
 | `tools/calibrate.mjs` | Prints the calibration table and canonical breakdown |
 | `tools/shots.mjs` | Playtest screenshots driven through the real page in Chromium (`shots/`, gitignored) |
+| `tools/decompose_fleet.mjs` | Attributes the fleet-check error to distance, speed-mix or power terms |
 
 ```
 npm test              # headless + smoke + geometry
@@ -122,10 +123,92 @@ primary suite: it is a real-world anchor with real-world scatter, held to the
 source's own ±15% band, and folding it into the primary suite would put
 pressure on the contractual §6 calibration.
 
-Current state: **6 of 8** multi-charter group cells pass. The two misses
-(SoF→Italy Intense −20.9%, Greece Intense −15.8%) share one cause — the model
-runs **−23.7% light on propulsion** fleet-wide while hotel load tracks at
-+4.0%.
+Current state: **6 of 8** multi-charter group cells pass. The two misses are
+SoF→Italy Intense (−20.9%) and Greece Intense (−15.8%). The fleet-wide
+propulsion mean also reads −23.7% against a hotel mean of +4.0% — but that
+headline is misleading about the cause, as the decomposition below shows.
+
+### Known limitation: the two failing Intense cells
+
+Documented and deliberate, not an open bug — and **not the propulsion curve or
+the speed profiles**, both of which the decomposition clears. Reproduce with
+`node tools/decompose_fleet.mjs`.
+
+Against these charters' own speed mixes the shipped Intense profile is accurate
+to −1.0% / −0.1% on effective speed, and runs at or *above* their actual power
+(818 bkW actual vs 868 applied on SoF→Italy; 882 vs 868 on Greece).
+Substituting each charter's own mix moves the cells by +0.2 and +0.0 MWh/7d.
+Hotel load is accurate to +0.8% / +2.0%. Two things are actually wrong:
+
+**1. A fleet-reference data defect — the larger term.** Each route group stores
+one `distNm` but separate durations and MWh per profile, and the Typical and
+Intense charters did not sail the same distance. SoF→Italy stores 387.6 nm,
+exactly its Typical members' mean, while its Intense members ran 528.1
+(−26.6%); Greece stores 399.2 against Intense members who ran 459.9 (−13.2%).
+
+| | observed | as shipped | + real distance | + own mix | + own power |
+|---|---|---|---|---|---|
+| SoF→Italy Intense | 43.7 | −20.9% | −8.9% | −8.4% | −11.1% |
+| Greece Intense | 46.7 | −15.8% | −9.6% | −9.5% | −8.7% |
+
+Distance closes 12.0 of the 20.9 points on the first and 6.2 of the 15.8 on the
+second. But `distNm` reconciles with the filed charters on **no basis** — across
+ten groups it matches the Typical mean on two, the Intense mean on none, the
+all-charter mean on none (Sicily/Italy stores 537.1 against members who ran
+286.5). So it cannot be repaired here: substituting per-profile means fixes both
+failures and breaks two cells that currently pass, for a net of nothing.
+
+**2. A residual −9 to −11% from `propFactor`.** With the members' own distance,
+speed and power the cells still sit at −11.1% and −8.7%. That is the conversion
+constant: `propFactor` is fitted at **0.69** to hit poster parity, against an
+observed median of **0.93** (observed propulsion MWh ÷ own bkW × own underway
+hours). The collision is between `propFactor` and §6 parity — not between the
+prop curve and reality.
+
+Two caveats mean 0.93 is **not** a recalibration target: the spread across the
+28 charters is **0.53 to 1.20**, and 7 charters imply a factor **above 1.0**,
+which is physically impossible for brake power to electrical output. Some
+observed `propulsion_mwh` therefore includes load this model books separately —
+manoeuvring, DP, station keeping — so the two quantities are not measuring the
+same thing.
+
+No model constant changes on this evidence; the calibration stands. Three
+questions go back to the source: per-profile group distances, what `distNm`
+measures, and what `propulsion_mwh` includes.
+
+## Distance model
+
+Two quantities, deliberately separated, from `leip_distance_model.json`:
+
+- **Poster routes** are curated real charters. If the player's route is an
+  exact ordered match for one of the seven sequences, the game outputs that
+  route's published nm whole — no speed or activity qualifier. The sequences
+  are the charters **as sailed**: repeated ports and returns to the start
+  included (SOF Blue is eight stops and visits Antibes twice). The published
+  figures are charter distances, and the implied factors over the passage sum
+  run ×0.92 to ×2.37, so they cannot be decomposed into legs.
+- **Everything else** is a planned passage, scored leg by leg as
+  `matrix[a][b] × getLegCorrection(a, b)`.
+
+`ENGINE.posterByRoute` is the single exact-ordered-match detector, shared by
+the distance rule and the §6 MWh override. `ENGINE.getLegCorrection` is the
+single boundary to the correction table — a test asserts the ENGINE block
+references `LEIP_LEG_CORRECTION` exactly once, so replacing the table with
+lanes the game computes itself is a one-function change.
+
+## Fleet reference (secondary validation)
+
+`DATA.fleetReference` carries the 28 observed charters from
+`leip_fleet_reference.json` (Report 835-52 AIS analysis) and their route
+groups. It runs on its own — `npm run test:fleet` — deliberately outside the
+primary suite: it is a real-world anchor with real-world scatter, held to the
+source's own ±15% band, and folding it into the primary suite would put
+pressure on the contractual §6 calibration.
+
+Current state: **6 of 8** multi-charter group cells pass. The two misses are
+SoF→Italy Intense (−20.9%) and Greece Intense (−15.8%). The fleet-wide
+propulsion mean also reads −23.7% against a hotel mean of +4.0% — but that
+headline is misleading about the cause, as the decomposition below shows.
 
 ### Known limitation: the propulsion bias
 

@@ -117,13 +117,25 @@ section('Per-charter spread and where the error sits');
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) {
   console.log(
-    'KNOWN LIMITATION, not a regression. The two Intense cells and the propulsion\n' +
-    'mean share one cause: the shipped speed profiles imply 694/868 bkW, while this\n' +
-    "file's own per-knot underway hours imply 852/1152 for the same 28 charters.\n" +
-    'Re-deriving from the hours was evaluated and rejected: poster parity would go\n' +
-    'from 4/7 reconciled to 0/7, the fleet error would move to Sardinia & Corsica\n' +
-    'Typical (n=5) at +21%, and the diesel-dash balance scenario would collapse from\n' +
-    '159.6 to 8.4. The data inconsistency is referred back to the source. See the\n' +
-    'KNOWN LIMITATION note on DATA.fleetReference in index.html.');
+    'KNOWN LIMITATION, not a regression — and NOT the propulsion curve or the speed\n' +
+    'profiles, both of which the decomposition clears. Against these charters\' own\n' +
+    'speed mixes the shipped Intense profile is accurate to -1.0% / -0.1% on speed and\n' +
+    'runs at or above their actual power; hotel load is accurate to +0.8% / +2.0%.\n' +
+    '\n' +
+    'Two real causes:\n' +
+    '  1. A fleet-reference data defect, the larger term. Each group stores ONE distNm\n' +
+    '     but separate durations and MWh per profile, and the Typical and Intense\n' +
+    '     charters did not sail the same distance. SoF to Italy stores 387.6 nm — its\n' +
+    '     Typical mean exactly — while its Intense members ran 528.1. Real distances\n' +
+    '     close 12.0 of the 20.9 points there and 6.2 of the 15.8 on Greece. distNm\n' +
+    '     reconciles with the filed charters on no basis at all, so it cannot be\n' +
+    '     repaired here: per-profile means fix these two and break two that pass.\n' +
+    '  2. A residual -9 to -11% from propFactor, fitted at 0.69 for poster parity\n' +
+    '     against an observed median of 0.93. Not a clean target: the spread is\n' +
+    '     0.53-1.20 and values above 1.0 are physically impossible, so some observed\n' +
+    '     propulsion_mwh includes manoeuvring/DP/station-keeping booked elsewhere here.\n' +
+    '\n' +
+    'No constant changes on this evidence. Referred back to the source. Reproduce with\n' +
+    'node tools/decompose_fleet.mjs; see the KNOWN LIMITATION note in index.html.');
 }
 process.exit(failed === 0 ? 0 : 1);
