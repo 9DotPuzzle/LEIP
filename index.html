@@ -6361,6 +6361,36 @@ globalThis.LEIP_DATA = {
   //
   // totalNm per charter comes from the pack's vessel_speed_distributions,
   // joined on vessel name (all 28 match exactly).
+  //
+  // ---- KNOWN LIMITATION: the propulsion bias ------------------------
+  // Two Intense group cells fail this check and are left failing:
+  // SoF to Italy Intense (-20.9%) and Greece Intense (-15.8%). Both come
+  // from one cause — the model runs about -24% light on propulsion
+  // fleet-wide, while hotel load tracks at +4%. It bites hardest where
+  // propulsion is the largest share of the week, which is the
+  // harder-driven Intense charters.
+  //
+  // The cause is a disagreement inside the source data. The shipped speed
+  // profiles are derived from the pack's distance-share distributions and
+  // imply 694 bkW Typical / 868 Intense. The fleet reference's own
+  // per-knot underway HOURS, for the same 28 charters, imply 852 / 1152.
+  // Same vessels, same charters, two irreconcilable propulsion figures.
+  //
+  // Re-deriving the profiles from the hours was evaluated in full and
+  // deliberately NOT applied. It would take poster parity from 4/7
+  // reconciled to 0/7 (every published figure on the SS6 override), move
+  // the fleet error rather than remove it (Sardinia & Corsica Typical,
+  // the largest group at n=5, goes from +7.8% to +21.0%), and collapse
+  // the diesel-dash balance scenario from 159.6 to 8.4, forcing the whole
+  // scoring band structure to be re-cut. Trading a contractual,
+  // demo-critical parity target and the balance design for one secondary
+  // check is the wrong trade.
+  //
+  // So this is a documented model limitation, not an open bug. The
+  // underlying data inconsistency is referred back to the source; if the
+  // hours basis is confirmed authoritative, the correction is a change to
+  // speedProfiles.distShare plus a re-cut of the balance bands, and the
+  // parity table must be re-reported honestly rather than tuned back.
   fleetReference: {
     populated: true,
     tolerancePct: 15,          // the band a group cell must land in

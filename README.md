@@ -94,7 +94,30 @@ pressure on the contractual §6 calibration.
 Current state: **6 of 8** multi-charter group cells pass. The two misses
 (SoF→Italy Intense −20.9%, Greece Intense −15.8%) share one cause — the model
 runs **−23.7% light on propulsion** fleet-wide while hotel load tracks at
-+4.0%. The source's own per-knot hour profiles imply 852/1152 bkW against the
-shipped 694/868, which accounts for the gap. Closing it means re-deriving the
-speed profiles, which would move poster parity, so it is reported rather than
-tuned away.
++4.0%.
+
+### Known limitation: the propulsion bias
+
+This is documented and deliberate, not an open bug. The disagreement is inside
+the source data: the shipped speed profiles come from the pack's
+distance-share distributions and imply **694 / 868 bkW** (Typical / Intense),
+while the fleet reference's own per-knot underway **hours**, for the same 28
+charters, imply **852 / 1152**. Two irreconcilable propulsion figures for the
+same vessels.
+
+Re-deriving the profiles from the hours was evaluated in full and rejected:
+
+| | current | re-derived |
+|---|---|---|
+| §6 poster parity reconciled | **4/7** | 0/7 (all on override) |
+| fleet cells passing (n≥2) | 6/8 | 7/8 |
+| fleet propulsion mean | −23.7% | −2.0% |
+| Sardinia & Corsica Typical (n=5) | +7.8% | **+21.0%** |
+| diesel-dash balance scenario | 159.6 | **8.4** (band floor 75) |
+
+It trades a contractual, demo-critical parity target and the balance design
+for one secondary check, and moves the fleet error rather than removing it.
+The inconsistency is referred back to the source. If the hours basis is
+confirmed authoritative, the correction is a change to `speedProfiles.distShare`
+plus a re-cut of the balance bands — and the parity table gets re-reported
+honestly, not tuned back.

@@ -116,8 +116,14 @@ section('Per-charter spread and where the error sits');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) {
-  console.log('NOTE: these are real-world misses, not regressions. Closing them means ' +
-    'moving the speed profiles or propulsion factor, which would move the §6 poster ' +
-    'parity calibration — reported here rather than tuned away.');
+  console.log(
+    'KNOWN LIMITATION, not a regression. The two Intense cells and the propulsion\n' +
+    'mean share one cause: the shipped speed profiles imply 694/868 bkW, while this\n' +
+    "file's own per-knot underway hours imply 852/1152 for the same 28 charters.\n" +
+    'Re-deriving from the hours was evaluated and rejected: poster parity would go\n' +
+    'from 4/7 reconciled to 0/7, the fleet error would move to Sardinia & Corsica\n' +
+    'Typical (n=5) at +21%, and the diesel-dash balance scenario would collapse from\n' +
+    '159.6 to 8.4. The data inconsistency is referred back to the source. See the\n' +
+    'KNOWN LIMITATION note on DATA.fleetReference in index.html.');
 }
 process.exit(failed === 0 ? 0 : 1);
