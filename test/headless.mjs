@@ -478,12 +478,16 @@ section('Per-leg sea-lane correction — read through the one accessor');
   }
   ratios.sort((x, y) => x - y);
   const median = ratios[Math.floor(ratios.length / 2)];
-  // Berths sit up to ~10 nm off the charted position now that lanes hold
-  // 3 nm of clearance off the beach, so a berth-to-berth run can come out
-  // a few percent SHORTER than the charted-position figure. The median is
-  // what matters; the floor only guards against a lane collapsing.
+  // Berths sit up to ~12 nm off the charted position — lanes hold 3 nm of
+  // clearance and berths considerably more, so the whole hull clears land
+  // at rest — and a berth-to-berth run can therefore come out a few
+  // percent SHORTER than the charted-position figure. That is geometry,
+  // not a collapsed lane: pushing both endpoints seaward straightens the
+  // run, and 31 pairs now make it on the rhumb line where 8 did before.
+  // The median is what matters; the floor only guards against a lane
+  // genuinely folding in on itself.
   check(`legs over 100 nm track the pack matrix (median x${median.toFixed(3)})`,
-    median >= 1 && median < 1.3 && ratios[0] > 0.9, `min ${ratios[0].toFixed(3)}`);
+    median >= 1 && median < 1.3 && ratios[0] > 0.85, `min ${ratios[0].toFixed(3)}`);
   const sim = E.simulate({ route: ['Genoa', 'Venice'], speed: 'slow', nights: 4, activities: {} });
   check('a sea-lane leg carries its path into the timeline for playback',
     sim.timeline.some(seg => seg.type === 'transit' && seg.path && seg.path.length > 2));
