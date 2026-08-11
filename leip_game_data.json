@@ -303,21 +303,6 @@
   }
  ],
  "_prop_curve_note": "PB GEN+Sea = ELECTRICAL power directly. NO propFactor conversion \u2014 deleted. Hotel 128 at rest / 113.4 underway.",
- "speed_profiles": {
-  "FAST_hare": {
-   "14": 0.12424445510417,
-   "11": 0.76449745141455,
-   "8": 0.11125809348126
-  },
-  "SLOW_tortoise": {
-   "14": 0.02424445510417,
-   "11": 0.76449745141455,
-   "8": 0.21125809348126
-  },
-  "_speed_correction_factor": 0.05,
-  "_speed_correction_note": "Tunable (engineer: 'we can play with it'). ASSUMPTION: applied as ~5% speed uplift on the FAST profile. Editable constant \u2014 confirm exact application with engineer.",
-  "_assignment": "FAST toggle = Hare (top distribution, more time at 14kn). SLOW toggle = Tortoise (bottom, more time at 8kn)."
- },
  "poster_routes": {
   "SOF_BLUE": {
    "name": "South of France \u2014 Blue",
@@ -2760,5 +2745,6 @@
   },
   "time_conversion": "shares are of DISTANCE; convert to time per speed, remainder of 168h total at anchor (0 kn). Energy = sum(time_at_speed * (electrical_kw + hotel_kw)).",
   "_worked_check": "At 71.3nm: Hare = 12.4/76.5/11.1%, Tortoise = 2.4/76.5/21.1% (reproduces the sheet)."
- }
+ },
+ "_speed_note": "Speed is defined ONLY by speed_model (distance-based regression + Hare/Tortoise \u00b15%). The old fixed speed_profiles block has been removed to avoid ambiguity."
 }
