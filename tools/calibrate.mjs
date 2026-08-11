@@ -97,17 +97,41 @@ console.log('\n=== Canonical worked example (§5) ===');
 const c = E.simulate(D.canonicalTest.inputs);
 console.log(`sailed ${c.distanceNm.toFixed(1)} nm, total ${c.totalMwh.toFixed(2)} MWh, ` +
   `${(c.coveredNm / c.totalMwh).toFixed(2)} nm/MWh`);
-console.log(`rawBase ${c.score.rawBase.toFixed(3)} -> base ${c.score.base} | factors ` +
-  JSON.stringify(Object.fromEntries(Object.entries(c.score.factors).map(([k, v]) => [k, v.score]))) +
-  ` -> ×${c.score.multiplier}`);
+console.log(`base ${c.score.base.toFixed(3)} = ${c.score.baseParts.distance.toFixed(3)} distance + ` +
+  `${c.score.baseParts.energy.toFixed(3)} energy ${c.score.baseParts.dieselPenalty.toFixed(3)} diesel`);
+console.log(`factors ` +
+  Object.entries(c.score.factors).map(([k, v]) =>
+    `${k} ${v.value !== undefined ? v.value : v.energy}->${v.score}x${v.weight}`).join(' · ') +
+  ` = ${c.score.weightedSum} / 5 = x${c.score.multiplier}`);
 console.log(`final ${c.score.final} (expect ${D.canonicalTest.expected.final})`);
 
 console.log('\n=== Balance scenarios ===');
 for (const s of D.balanceScenarios) {
   const sim = E.simulate(s.inputs);
-  console.log(`  ${s.id.padEnd(15)} base ${String(sim.score.base).padStart(4)}  ` +
-    `mult ${sim.score.multiplier.toFixed(1).padStart(5)}  final ${sim.score.final.toFixed(1).padStart(7)}  ` +
-    `diesel ${sim.dieselMwh.toFixed(1)} MWh  dist ${sim.distanceNm.toFixed(0)} nm`);
+  const b = s.band;
+  const inBand = (b.baseMin === undefined || sim.score.base >= b.baseMin) &&
+                 (b.baseMax === undefined || sim.score.base <= b.baseMax) &&
+                 (b.multiplierMin === undefined || sim.score.multiplier >= b.multiplierMin) &&
+                 (b.multiplierMax === undefined || sim.score.multiplier <= b.multiplierMax) &&
+                 (b.finalMin === undefined || sim.score.final >= b.finalMin) &&
+                 (b.finalMax === undefined || sim.score.final <= b.finalMax) &&
+                 (!b.dieselRequired || sim.dieselMwh > 0);
+  console.log(`  ${s.id.padEnd(15)} base ${sim.score.base.toFixed(1).padStart(6)}  ` +
+    `mult ${sim.score.multiplier.toFixed(2).padStart(5)}  final ${String(sim.score.final).padStart(5)}  ` +
+    `diesel ${sim.dieselMwh.toFixed(1).padStart(5)} MWh  dist ${sim.coveredNm.toFixed(0).padStart(5)} nm  ` +
+    `${inBand ? 'in band' : 'OUT OF BAND'}`);
+}
+
+console.log('\n=== The four worked examples (spec §5) ===');
+console.log('example           base    mult   final   expected');
+for (const ex of D.scoringExamples) {
+  const s = E.computeScore(ex.q);
+  const ok = Math.abs(s.base - ex.expected.base) < 1e-9 &&
+             Math.abs(s.multiplier - ex.expected.multiplier) < 1e-9 &&
+             s.final === ex.expected.final;
+  console.log(`  ${ex.id.padEnd(15)} ${s.base.toFixed(1).padStart(5)} ${s.multiplier.toFixed(2).padStart(7)} ` +
+    `${String(s.final).padStart(6)}   ${ex.expected.base} x ${ex.expected.multiplier.toFixed(2)} = ` +
+    `${ex.expected.final}  ${ok ? 'OK' : 'MISMATCH'}`);
 }
 
 console.log('\n=== SECONDARY — Fleet reference (28 observed charters) ===');

@@ -42,9 +42,9 @@ check('33 ports, names unique',
   D.ports.length === 33 && new Set(D.ports.map(p => p.name)).size === 33);
 check('energy types are the four carbon classes, or null where the source has no figure',
   D.ports.every(p => p.energy === null || ['green', 'blue', 'grey', 'brown'].includes(p.energy)));
-check('Genoa is the only unrated port, and it scores neutral rather than guessing',
+check('Genoa is the only unrated port, and an unknown grid is never a reward',
   D.ports.filter(p => p.energy === null).map(p => p.name).join() === 'Genoa' &&
-  D.scoring.multiplier.rechargeUnrated === 0);
+  D.scoring.multiplier.rechargeUnrated === D.scoring.multiplier.recharge.grey);
 check('energy classes follow the published carbon quartiles',
   D.ports.filter(p => p.carbon !== null).every(p => {
     const q = D.energyQuartilesGco2kwh;
@@ -71,14 +71,70 @@ check('THEME carries the four scene tints and the volt accent',
   T.volt === '#F5D90A' && T.ink.onLight === '#22344A' && T.ink.onDark === '#E8EEF2');
 
 // ---------------------------------------------------------------- §11.2 canonical
-section('§11.2 Canonical — base 39 x multiplier 6.2 = 241.8, exactly (0-50 base scale)');
+section(`§11.2 Canonical — base ${D.canonicalTest.expected.base} x multiplier ${D.canonicalTest.expected.multiplier} = ${D.canonicalTest.expected.final}`);
 {
   const sim = E.simulate(D.canonicalTest.inputs);
   const exp = D.canonicalTest.expected;
-  check(`base === ${exp.base}`, sim.score.base === exp.base, `got ${sim.score.base} (raw ${sim.score.rawBase})`);
+  // The base is a continuous ladder sum now, so it is asserted to the 2 dp
+  // the fixture states; the multiplier and the final are exact.
+  check(`base === ${exp.base}`, Math.abs(sim.score.base - exp.base) < 0.005,
+    `got ${sim.score.base}`);
   check(`multiplier === ${exp.multiplier}`, sim.score.multiplier === exp.multiplier, `got ${sim.score.multiplier}`);
   check(`final === ${exp.final}`, sim.score.final === exp.final, `got ${sim.score.final}`);
   check('canonical completes on battery alone', sim.completed && sim.dieselMwh === 0);
+  // The base must arise from the ladders, not from a stored number.
+  const bp = sim.score.baseParts;
+  check(`base is the ladders: ${bp.distance.toFixed(3)} distance + ${bp.energy.toFixed(3)} energy - 0 diesel`,
+    Math.abs(bp.distance + bp.energy + bp.dieselPenalty - sim.score.base) < 1e-9);
+}
+
+// ---------------------------------------------------------------- §5 scoring formula
+section('§5 Scoring formula — the four worked examples, against computeScore itself');
+{
+  for (const ex of D.scoringExamples) {
+    const s = E.computeScore(ex.q);
+    check(`${ex.name}: base ${ex.expected.base}`, Math.abs(s.base - ex.expected.base) < 1e-9,
+      `got ${s.base}`);
+    check(`${ex.name}: multiplier ${ex.expected.multiplier.toFixed(2)}`,
+      Math.abs(s.multiplier - ex.expected.multiplier) < 1e-9, `got ${s.multiplier}`);
+    check(`${ex.name}: final ${ex.expected.final}`, s.final === ex.expected.final, `got ${s.final}`);
+  }
+
+  // The ladders are linear inside their range and cap outside it.
+  const bc = D.scoring.base;
+  const q = (o) => Object.assign({ coveredNm: 0, batteryMwh: 0, dieselMwh: 0, countries: 1,
+    ports: 1, anchorNights: 0, activityUses: 0, rechargeEnergy: 'brown' }, o);
+  check('distance is continuous, not stepped (250 nm = 12.5 pts)',
+    Math.abs(E.computeScore(q({ coveredNm: 250 })).baseParts.distance - 12.5) < 1e-9);
+  check('energy is continuous, not stepped (25 MWh = 12.5 pts)',
+    Math.abs(E.computeScore(q({ batteryMwh: 25 })).baseParts.energy - 12.5) < 1e-9);
+  check(`distance caps at ${bc.distance.max} above ${bc.distance.perNm / bc.distance.pointsPer * bc.distance.max} nm`,
+    E.computeScore(q({ coveredNm: 9999 })).baseParts.distance === bc.distance.max);
+  check(`energy caps at ${bc.energy.max} above ${bc.energy.perMwh / bc.energy.pointsPer * bc.energy.max} MWh`,
+    E.computeScore(q({ batteryMwh: 9999 })).baseParts.energy === bc.energy.max);
+  check('the base is not floored — heavy diesel takes it negative',
+    E.computeScore(q({ coveredNm: 500, batteryMwh: 50, dieselMwh: 80 })).base === -30);
+  check('diesel costs exactly 1 point per MWh',
+    E.computeScore(q({ dieselMwh: 7 })).base === -7);
+
+  // The multiplier stays on its 1-10 scale because the weights sum to 5.
+  const mc = D.scoring.multiplier;
+  const wsum = Object.keys(mc.weights).reduce((a, k) => a + mc.weights[k], 0);
+  check(`weights sum to ${mc.weightSum}, keeping the multiplier on 1-10`,
+    Math.abs(wsum - mc.weightSum) < 1e-9, `got ${wsum}`);
+  const worstMult = E.computeScore(q({})).multiplier;
+  const bestMult = E.computeScore(q({ countries: 9, ports: 9, anchorNights: 4,
+    activityUses: 99, rechargeEnergy: 'green' })).multiplier;
+  check(`multiplier spans ${worstMult} to ${bestMult}`, worstMult === mc.min && bestMult === mc.max);
+  check('anchor nights are non-monotonic: 6+ scores below 4-5',
+    E.bandLookup(mc.bands.anchor, 6) < E.bandLookup(mc.bands.anchor, 4));
+  check('an unreached recharge port scores the floor, an unrated one scores grey',
+    E.computeScore(q({ rechargeReached: false, rechargeEnergy: 'green' })).factors.recharge.score === mc.rechargeNotReached &&
+    E.computeScore(q({ rechargeEnergy: null })).factors.recharge.score === mc.rechargeUnrated);
+  check('the retired base and multiplier constants are gone',
+    bc.disciplineWeight === undefined && bc.efficiencyWeight === undefined &&
+    bc.outputScale === undefined && bc.incompletePenalty === undefined &&
+    mc.varietyTable === undefined && D.calibration.propFactor !== undefined);
 }
 
 // ---------------------------------------------------------------- §11.3 / §6 poster parity
@@ -318,25 +374,20 @@ section('Diesel reserve — finite, depletable, and second in line');
   check('the reserve is far larger than any single week can burn',
     D.dieselReserveMwh > 200);
 
-  // The curve: flat off the line, monotonic, steepening, saturating high.
-  const p = (mwh) => E.dieselPenaltyFor(mwh);
-  check('zero diesel costs nothing at all', p(0) === 0);
-  check(`a megawatt-hour past the battery is negligible (${p(1).toFixed(2)} of 100)`, p(1) < 1);
-  const steps = [1, 2, 5, 10, 20, 40, 80, 160, D.dieselReserveMwh];
-  check('the penalty is monotonic in depth',
-    steps.every((m, i) => i === 0 || p(m) > p(steps[i - 1])));
-  // Steepening: each doubling early on must cost more than the last did.
-  check('the curve steepens rather than running flat',
-    (p(10) - p(5)) > (p(5) - p(2.5)) && (p(20) - p(10)) > (p(10) - p(5)));
-  check('an emptied reserve drives the base below zero, not merely to zero',
-    p(D.dieselReserveMwh) > D.scoring.base.disciplineWeight,
-    `${p(D.dieselReserveMwh).toFixed(1)} vs discipline weight ${D.scoring.base.disciplineWeight}`);
+  // The penalty is linear per MWh under the redesigned base — no curve,
+  // no cap, no floor. Depth into the reserve is reported, not scored.
+  const bc = D.scoring.base;
+  check(`diesel costs ${bc.dieselPenaltyPerMwh} point per MWh, flat`,
+    bc.dieselPenaltyPerMwh === 1 && bc.diesel === undefined);
 
   // Sequential depletion: battery first, reserve only after.
   const clean = E.simulate({ route: ['Nice', 'Monaco'], speed: 'slow', nights: 4, activities: {} });
   check('a battery week never touches the reserve',
     clean.dieselMwh === 0 && clean.dieselReserveUsedPct === 0 &&
     clean.dieselReserveLeftMwh === D.dieselReserveMwh && clean.score.baseParts.dieselPenalty === 0);
+  check('a diesel week is charged exactly its MWh against the base',
+    (() => { const s2 = E.simulate({ route: ['Palma', 'Bonifacio', 'Naples', 'Monaco'], speed: 'fast', nights: 4, activities: {} });
+             return Math.abs(s2.score.baseParts.dieselPenalty + s2.dieselMwh) < 1e-9; })());
   const dirty = E.simulate({ route: ['Palma', 'Bonifacio', 'Naples', 'Monaco'], speed: 'fast', nights: 4, activities: {} });
   check(`a diesel week draws the battery to the cap first, then the reserve (${dirty.dieselMwh.toFixed(1)} MWh)`,
     dirty.batteryMwh === D.battery.gameThresholdMwh &&
@@ -349,7 +400,7 @@ section('Diesel reserve — finite, depletable, and second in line');
   // No hard fail: a catastrophic week still completes and still scores.
   const worst = E.simulate({ route: ['Palma', 'Venice', 'Gocek'], speed: 'fast', nights: 0, activities: {} });
   check(`the deepest reachable week still returns a valid score (${worst.score.final}, ${worst.dieselMwh.toFixed(0)} MWh diesel)`,
-    Number.isFinite(worst.score.final) && worst.score.base >= D.scoring.base.min &&
+    Number.isFinite(worst.score.final) &&
     worst.dieselReserveUsedPct > 0);
   check('no route is stopped or failed by the reserve — the week always runs',
     worst.timeline.length > 0 && worst.reached.length >= 1);
@@ -370,8 +421,18 @@ for (const s of D.balanceScenarios) {
   check(`${s.id}: base ${sim.score.base}, mult ${sim.score.multiplier}, final ${sim.score.final}`,
     ok, `band ${JSON.stringify(b)}, diesel ${sim.dieselMwh.toFixed(1)}`);
 }
-check('negative scores are possible and intended',
-  E.simulate(D.balanceScenarios.find(s => s.id === 'go-nowhere').inputs).score.final < 0);
+// Under the redesigned model a CLEAN week can no longer score negative:
+// both ladders are positive and the multiplier floors at 1. Diesel is the
+// only route to a negative final, which is the intended shape.
+{
+  const nowhere = E.simulate(D.balanceScenarios.find(s => s.id === 'go-nowhere').inputs);
+  check(`a clean week floors at a low positive score, never negative (${nowhere.score.final})`,
+    nowhere.dieselMwh === 0 && nowhere.score.final > 0 && nowhere.score.final < 50);
+  const burnt = E.computeScore({ coveredNm: 60, batteryMwh: 50, dieselMwh: 60, countries: 1,
+    ports: 1, anchorNights: 0, activityUses: 0, rechargeEnergy: 'brown' });
+  check(`negative scores are possible and intended, via diesel (${burnt.final})`,
+    burnt.base < 0 && burnt.final < 0);
+}
 
 // ---------------------------------------------------------------- §11.5 determinism
 section('§11.5 Determinism');
@@ -431,10 +492,13 @@ section('Model behaviours (spec §2, §3)');
   check('infeasible route allowed; runs; suffers',
     !doomed.completed && doomed.score.factors.recharge.score === D.scoring.multiplier.rechargeNotReached);
 
+  // The redesign counts activity USES and never penalises repetition: the
+  // old spam decay is gone, so doing more can only help or hold level.
   const party3 = E.simulate({ route: ['Monaco', 'Nice', 'Monaco'], speed: 'slow', nights: 4, activities: { R08: 3, A07: 1, R06: 1 } });
   const party6 = E.simulate({ route: ['Monaco', 'Nice', 'Monaco'], speed: 'slow', nights: 4, activities: { R08: 6, A07: 1, R06: 1 } });
-  check('party too many times decays the activities factor',
-    party6.score.factors.activities.score < party3.score.factors.activities.score);
+  check('activities count uses, and more uses never scores worse',
+    party6.score.factors.activities.value === 8 && party3.score.factors.activities.value === 5 &&
+    party6.score.factors.activities.score >= party3.score.factors.activities.score);
 
   const over = E.simulate({ route: ['Palma', 'Bonifacio', 'Naples', 'Monaco'], speed: 'fast', nights: 4, activities: {} });
   check('the diesel moment is located in time',
@@ -487,12 +551,7 @@ section('Achievements — trophies only (spec §7)');
     modest.score.final <= th.scoreOver &&
     !E.evaluateAchievements(modest, null).newly.some(a => a.id === 'score-400'));
   // Ceiling = best base x best multiplier, both read from the data.
-  const mc = D.scoring.multiplier;
-  const best = (t) => Math.max(...Object.values(t));
-  const maxMultiplier = (best(mc.countries) + best(mc.ports) + best(mc.nights) +
-    Math.min(best(mc.activities.varietyTable) + mc.activities.bothCategoriesBonus, mc.activities.clampMax) +
-    best(mc.recharge)) / 5;
-  const ceiling = D.scoring.base.max * maxMultiplier;
+  const ceiling = D.scoring.base.max * D.scoring.multiplier.max;
   check(`the bar sits inside the reachable range, under the ${ceiling} ceiling`,
     th.scoreOver < ceiling, `bar ${th.scoreOver}, ceiling ${ceiling}`);
 

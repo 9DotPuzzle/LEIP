@@ -6557,49 +6557,53 @@ globalThis.LEIP_DATA = {
   scoring: {
     weeklyEnergyRefMwh: 50,     // activity energyPct is a share of this budget
 
-    // Base: pure energy performance, computed on the natural 0-100 frame
-    // from real consumption, then mapped to the 0-50 board scale by
-    // outputScale. The energy model, the MWh figures and the poster-parity
-    // calibration are untouched by that mapping — only the number printed
-    // on the board changes. Final = base x multiplier, so the ceiling is
-    // 50 x 10 = 500.
+    // ---- BASE (0-50): two linear ladders that sum, minus diesel -------
+    // Distance rewards the week you actually sailed; energy rewards how
+    // much of the battery you committed. Both are continuous inside their
+    // range — 250 nm is 12.5 points, not a step — and both cap, so there
+    // is no reward for sailing past 500 nm or for a battery bigger than
+    // the boat has. Diesel is subtracted per MWh with NO cap and NO floor
+    // under the base: a week deep into the reserve scores negative, and
+    // that is the intended shape.
     base: {
-      disciplineWeight: 65,     // full when the diesels never wake
-      efficiencyWeight: 35,     // scaled by nm-per-MWh vs the reference
-      effRefNmPerMwh: 9.0,      // efficiency earning the full efficiency weight
-      // Diesel is the dominant penalty, and it scales with DEPTH into the
-      // reserve rather than per MWh. f is the share of the reserve burnt:
-      //   penalty = maxPenalty x (1 - exp(-(f / depthScale) ^ exponent))
-      // The exponent keeps the curve flat off the line — a megawatt-hour
-      // past the battery costs 0.4 of a hundred-point frame, which is the
-      // "you just clipped it" case — then steepens hard. maxPenalty is
-      // twice the discipline weight on purpose: an emptied reserve should
-      // drive the base below zero, not merely to zero. No hard fail and no
-      // route-stop; a doomed week still runs and still scores.
-      diesel: { maxPenalty: 130, depthScale: 0.1272, exponent: 1.7 },
-      incompletePenalty: 35,    // route not finished inside the week
-      outputScale: 0.5,         // 0-100 energy frame -> the 0-50 board scale
-      min: -50, max: 50
+      distance: { pointsPer: 5, perNm: 100, max: 25 },   // 5 pts / 100 nm
+      energy:   { pointsPer: 5, perMwh: 10, max: 25 },   // 5 pts / 10 MWh battery
+      dieselPenaltyPerMwh: 1,
+      max: 50                                            // ladders only; no min
     },
 
-    // Multiplier -10..+10: five factors, averaged. Integer tables so the
-    // canonical worked example is exact (sum 31 -> x6.2).
+    // ---- MULTIPLIER (1-10): five factors, weighted --------------------
+    // Each factor scores 1-10 by band; the weighted sum over weights that
+    // total 5 keeps the result on the same 1-10 scale. Weight order is the
+    // design's statement of what a good charter is: where you plug in
+    // matters most, then breadth of ports, then countries, then how the
+    // week is paced, then what you did.
+    //
+    // Bands are [threshold, score] in ascending threshold order; the last
+    // entry whose threshold is met wins. That form allows a NON-monotonic
+    // factor, which anchor nights needs — six nights at anchor is a week
+    // barely sailed, and scores below four or five.
     multiplier: {
-      countries: { 1: 0, 2: 6, 3: 10, 4: 10 },
-      ports:     { 1: -8, 2: 0, 3: 3, 4: 5, 5: 7, 6: 9, 7: 10 },
-      nights:    { 0: -10, 1: -4, 2: 0, 3: 5, 4: 10, 5: 10, 6: 4 },
-      recharge:  { green: 10, blue: 5, grey: -4, brown: -10 },
-      rechargeNotReached: -10,
-      rechargeUnrated: 0,        // port with no carbon figure in the source
-      activities: {
-        varietyTable: { 0: -10, 1: -5, 2: -2, 3: 0, 4: 1, 5: 3, 6: 5, 7: 6, 8: 7, 9: 8, 10: 8 },
-        bothCategoriesBonus: 2,
-        spamThreshold: 3,        // uses of one activity beyond this each cost...
-        spamPenaltyPerExcess: 1, // ...this many points ("party too many times")
-        funSoftCap: 3, funDecay: 0.6,   // results-screen fun metric decay
-        clampMin: -10, clampMax: 10
-      }
-    }
+      weights: { recharge: 1.5, ports: 1.25, countries: 1.0, anchor: 0.75, activities: 0.5 },
+      weightSum: 5,
+      bands: {
+        countries:  [[0, 1], [1, 1], [2, 3], [3, 6], [4, 10]],
+        ports:      [[0, 1], [1, 1], [4, 3], [5, 6], [6, 10]],
+        anchor:     [[0, 1], [2, 6], [4, 10], [6, 3]],
+        activities: [[0, 1], [4, 3], [8, 6], [12, 10]]
+      },
+      recharge: { brown: 1, grey: 3, blue: 6, green: 10 },
+      // Two cases the bands do not cover, stated rather than defaulted:
+      rechargeUnrated: 3,      // Genoa has no carbon figure — scored as grey
+                               // so an unknown grid is never a reward
+      rechargeNotReached: 1,   // the week ended before the recharge port
+      min: 1, max: 10
+    },
+
+    // Activities count = total USES across the week, not distinct types.
+    activitiesCountsRepeats: true,
+
+    funMetric: { softCap: 3, decay: 0.6 }   // results-screen flavour only
   },
 
   // ---- Achievements — the nine dots (spec §7). Trophies only. ------
@@ -6643,38 +6647,66 @@ globalThis.LEIP_DATA = {
     activityChance: 0.35
   },
 
-  // ---- Canonical worked example (spec §5): base 39 x 6.2 = 241.8 ------
-  // Factors: countries 2->6, ports 5->7, activities (4 distinct, both
-  // categories)->3, nights 3->5, recharge Nice green->10. Sum 31 -> x6.2.
-  // NOTE: the refreshed carbon data reclassified Nice from blue to green
-  // (31 gCO2/kWh), worth +5 on the recharge factor. The input set moved
-  // from four anchor nights to three — the one change with provably zero
-  // energy effect, since nights alter only the transit budget and this
-  // route completes either way — so the base stays put and the worked
-  // example still lands on the nose. On the 0-50 board scale that is
-  // base 39 x 6.2 = 241.8 (the same 78.1 on the 0-100 energy frame).
+  // ---- The four worked examples (spec §5) ---------------------------
+  // Stated as raw quantities, not routes, because they define the SCORING
+  // FORMULA rather than any particular week. ENGINE.computeScore takes
+  // exactly these fields, so the examples are asserted against the formula
+  // itself with nothing simulated in between.
+  scoringExamples: [
+    { id: 'hero', name: 'Hero week',
+      q: { coveredNm: 400, batteryMwh: 45, dieselMwh: 0, countries: 3, ports: 6,
+           anchorNights: 4, activityUses: 6, rechargeEnergy: 'green' },
+      expected: { base: 42.5, multiplier: 8.50, final: 361 } },
+    { id: 'purist', name: 'Purist week',
+      q: { coveredNm: 500, batteryMwh: 49, dieselMwh: 0, countries: 3, ports: 6,
+           anchorNights: 3, activityUses: 2, rechargeEnergy: 'green' },
+      expected: { base: 49.5, multiplier: 7.70, final: 381 } },
+    { id: 'ambitious-dash', name: 'Ambitious dash',
+      q: { coveredNm: 480, batteryMwh: 50, dieselMwh: 18, countries: 4, ports: 7,
+           anchorNights: 1, activityUses: 4, rechargeEnergy: 'grey' },
+      expected: { base: 31.0, multiplier: 5.85, final: 181 } },
+    { id: 'go-nowhere', name: 'Go-nowhere week',
+      q: { coveredNm: 40, batteryMwh: 8, dieselMwh: 0, countries: 1, ports: 1,
+           anchorNights: 6, activityUses: 10, rechargeEnergy: 'brown' },
+      expected: { base: 6.0, multiplier: 1.80, final: 11 } }
+  ],
+
+  // ---- Canonical worked example (spec §5) ---------------------------
+  // Re-pointed for the redesigned model; the old 241.8 belonged to the
+  // retired base/multiplier and is obsolete. The route and inputs are
+  // unchanged, so the energy behind it is identical — only the scoring of
+  // that energy moved.
+  //   sailed 82.1 nm  -> distance ladder 4.105
+  //   battery 23.96 MWh -> energy ladder 11.979
+  //   diesel 0          -> no penalty
+  //   base 16.08
+  //   countries 2 -> 3 x1.0 · ports 5 -> 6 x1.25 · activities 6 uses -> 3 x0.5
+  //   nights 3 -> 6 x0.75 · recharge Nice green -> 10 x1.5
+  //   weighted 31.5 / 5 = x6.3
+  //   final round(16.084 x 6.3) = 101
   canonicalTest: {
     inputs: {
       route: ['Monaco', 'Saint-Jean-Cap-Ferrat', 'Antibes', 'Saint Tropez', 'Nice'],
       speed: 'slow', nights: 3,
       activities: { A02: 2, A07: 1, R01: 1, R06: 2 }
     },
-    expected: { base: 39, multiplier: 6.2, final: 241.8 }
+    expected: { base: 16.08, multiplier: 6.3, final: 101 }
   },
 
   // Regression fixture for the 50 MWh Hit rule: a week that draws the
   // battery down into the band with the diesels asleep (49.84 MWh).
   achievementFixtures: {
-    // Clears the Score Over 400 bar: clean week, three countries, five
-    // distinct ports, finishing on Monaco's green grid.
+    // Clears the Score Over 400 bar under the redesigned model. Reaching
+    // it means maxing the multiplier's expensive factors at once — six
+    // distinct ports, four countries, twelve activity uses, four or five
+    // anchor nights, finishing on a green grid — while still filling both
+    // base ladders on the battery. 905 of 3,170 sampled clean six/seven
+    // port completions clear it; the best sampled was 454 of a 500 ceiling.
     scoreOver400: {
-      route: ['Ajaccio', 'Antibes', 'Porto Cervo', 'Monaco'], speed: 'slow', nights: 4,
-      activities: { A02: 1, A07: 2, A10: 1, R03: 1, R06: 1, R08: 1, R04: 1 }
+      route: ['Monaco', 'Olbia', 'Calvi', 'Porto Cervo', 'Saint-Jean-Cap-Ferrat', 'Nice'],
+      speed: 'slow', nights: 5,
+      activities: { A01: 3, A02: 3, A03: 3, A04: 3 }
     },
-    // Re-picked when scoring moved to corrected distances: the old route
-    // (Cagliari-Palma-Cannes) grew past the cap and woke the diesels, which
-    // is the one thing this fixture must not do. 49.84 MWh, band crossed at
-    // hour 165 of 168.
     // Long Haul: over 400 nm with the diesels asleep. The paired negative
     // is a week that goes further still but burns diesel to do it.
     longHaulClean: {
@@ -6690,27 +6722,33 @@ globalThis.LEIP_DATA = {
   },
 
   // ---- Balance scenarios (spec §11.4) with intended score bands ----
-  // Bands restate the same design intent on the 0-50 base / 0-500 final
-  // scale; the inputs and the energy behind them are unchanged.
+  // Bands RE-CUT for the redesigned base and multiplier. The inputs and
+  // the energy behind them are unchanged; what moved is how that energy
+  // scores, so the bands restate the same design intent against the new
+  // scales rather than carrying the old numbers forward.
   balanceScenarios: [
     { id: 'modest-local', name: 'Modest local charter',
       inputs: { route: ['Nice', 'Antibes', 'Saint-Jean-Cap-Ferrat', 'Nice'], speed: 'slow', nights: 3,
                 activities: { A07: 1, R03: 1, R06: 1 } },
-      band: { baseMin: 30, multiplierMax: 4.5, finalMin: 50, finalMax: 200 } },
+      band: { baseMax: 20, multiplierMax: 5.5, finalMin: 20, finalMax: 120 } },
     { id: 'balanced-multi', name: 'Balanced multi-country',
       inputs: { route: ['Monaco', 'Calvi', 'Porto Cervo', 'Olbia', 'Monaco'], speed: 'slow', nights: 4,
                 activities: { A02: 1, A07: 2, A10: 1, R03: 1, R06: 1, R08: 1 } },
-      band: { baseMin: 38, multiplierMin: 7, finalMin: 275, finalMax: 450 } },
+      band: { baseMin: 35, multiplierMin: 6, finalMin: 200, finalMax: 400 } },
     // A superb itinerary wrecked by energy profligacy: 1,014 nm at the
     // Intense profile wakes the diesels for 23 MWh.
     { id: 'diesel-dash', name: 'Diesel-soaked dash',
       inputs: { route: ['Antibes', 'Palma', 'Cagliari', 'Monaco'], speed: 'fast', nights: 4,
                 activities: { A02: 1, A07: 2, A10: 1, R03: 1, R06: 1, R08: 1 } },
-      band: { baseMax: 23, multiplierMin: 7, finalMin: 75, finalMax: 225, dieselRequired: true } },
+      band: { baseMax: 32, multiplierMin: 7, finalMin: 100, finalMax: 260, dieselRequired: true } },
     // Never left the Costa Smeralda: clean, and pointless.
     { id: 'go-nowhere', name: 'Go-nowhere anchor week',
       inputs: { route: ['Porto Cervo'], speed: 'slow', nights: 6, activities: {} },
-      band: { baseMin: 28, multiplierMax: 0, finalMax: -50 } }
+      // Under the redesigned model a clean week cannot score negative: the
+      // multiplier floors at 1 and both ladders are positive. Only diesel
+      // takes a final below zero now. So this scenario's job is to land
+      // near the bottom of the positive range, not below it.
+      band: { baseMax: 15, multiplierMax: 2, finalMax: 40 } }
   ],
 
   playback: {}   // playback pacing lives in THEME.motion (visual value)
@@ -6828,15 +6866,6 @@ globalThis.LEIP_ENGINE = (function () {
     var r = D().dieselReserveMwh;
     return r > 0 ? dieselMwh / r : 0;
   }
-  // The penalty for that depth. Flat off the line, steepening as the
-  // reserve drains — see DATA.scoring.base.diesel.
-  function dieselPenaltyFor(dieselMwh) {
-    if (!(dieselMwh > 0)) return 0;
-    var dc = D().scoring.base.diesel;
-    var f = dieselReserveFrac(dieselMwh) / dc.depthScale;
-    return dc.maxPenalty * (1 - Math.exp(-Math.pow(f, dc.exponent)));
-  }
-
   function posterAssumptionMwh(poster) {
     var e = energyFor(poster.nm, poster.days * 24, 'Typical');
     return e.hotelMwh + e.travelMwh;
@@ -6946,25 +6975,60 @@ globalThis.LEIP_ENGINE = (function () {
     return { route: route, speed: speed, nights: nights, activities: activities };
   }
 
-  function tableLookup(table, n) {
-    var keys = Object.keys(table).map(Number).sort(function (a, b) { return a - b; });
-    var k = clamp(n, keys[0], keys[keys.length - 1]);
-    if (table[k] !== undefined) return table[k];
-    for (var i = keys.length - 1; i >= 0; i--) if (keys[i] <= k) return table[keys[i]];
-    return table[keys[0]];
+  // A multiplier band table is [threshold, score] pairs in ascending
+  // threshold order; the last entry whose threshold is met wins. Scores
+  // need NOT ascend — anchor nights peaks at 4-5 and falls again at 6,
+  // because six nights at anchor is a week that barely sailed.
+  function bandLookup(bands, n) {
+    var score = bands[0][1];
+    for (var i = 0; i < bands.length; i++) if (n >= bands[i][0]) score = bands[i][1];
+    return score;
   }
 
-  function activitiesFactor(activities, cfg) {
-    var ids = Object.keys(activities);
-    if (ids.length === 0) return tableLookup(cfg.varietyTable, 0);
-    var cats = {}, spam = 0;
-    ids.forEach(function (id) {
-      cats[activityById(id).category] = true;
-      spam += Math.max(0, activities[id] - cfg.spamThreshold) * cfg.spamPenaltyPerExcess;
-    });
-    var score = tableLookup(cfg.varietyTable, ids.length) +
-                (Object.keys(cats).length >= 2 ? cfg.bothCategoriesBonus : 0) - spam;
-    return clamp(score, cfg.clampMin, cfg.clampMax);
+  // ---- The scoring formula (spec §5) --------------------------------
+  // Pure: quantities in, score out. No route, no timeline, no simulation —
+  // so the worked examples can be asserted directly against it.
+  //
+  //   BASE (0-50)  = distance ladder + battery ladder - diesel MWh
+  //   MULT (1-10)  = SUM(factor score x weight) / 5
+  //   FINAL        = round(BASE x MULT)
+  //
+  // The base has no floor: heavy diesel takes it negative, and a negative
+  // base times a positive multiplier is a negative final. That is intended.
+  function computeScore(q) {
+    var d = D(), bc = d.scoring.base, mc = d.scoring.multiplier;
+    var distPts = Math.min(q.coveredNm / bc.distance.perNm * bc.distance.pointsPer, bc.distance.max);
+    var energyPts = Math.min(q.batteryMwh / bc.energy.perMwh * bc.energy.pointsPer, bc.energy.max);
+    var dieselPenalty = q.dieselMwh * bc.dieselPenaltyPerMwh;
+    var base = distPts + energyPts - dieselPenalty;
+
+    var rechargeScore = q.rechargeReached === false ? mc.rechargeNotReached
+      : (q.rechargeEnergy === null || q.rechargeEnergy === undefined
+          ? mc.rechargeUnrated : mc.recharge[q.rechargeEnergy]);
+    var factors = {
+      countries:  { value: q.countries,    weight: mc.weights.countries,
+                    score: bandLookup(mc.bands.countries, q.countries) },
+      ports:      { value: q.ports,        weight: mc.weights.ports,
+                    score: bandLookup(mc.bands.ports, q.ports) },
+      activities: { value: q.activityUses, weight: mc.weights.activities,
+                    score: bandLookup(mc.bands.activities, q.activityUses) },
+      nights:     { value: q.anchorNights, weight: mc.weights.anchor,
+                    score: bandLookup(mc.bands.anchor, q.anchorNights) },
+      recharge:   { port: q.rechargePortName, energy: q.rechargeEnergy,
+                    reached: q.rechargeReached !== false,
+                    weight: mc.weights.recharge, score: rechargeScore }
+    };
+    var weighted = 0;
+    Object.keys(factors).forEach(function (k) { weighted += factors[k].score * factors[k].weight; });
+    var multiplier = clamp(weighted / mc.weightSum, mc.min, mc.max);
+    return {
+      base: base,
+      baseParts: { distance: distPts, energy: energyPts, dieselPenalty: -dieselPenalty,
+                   coveredNm: q.coveredNm, batteryMwh: q.batteryMwh },
+      factors: factors, weightedSum: weighted,
+      multiplier: multiplier,
+      final: Math.round(base * multiplier)
+    };
   }
 
   // Results-screen fun metric (display flavour; never touches the score).
@@ -6973,7 +7037,7 @@ globalThis.LEIP_ENGINE = (function () {
     Object.keys(activities).forEach(function (id) {
       var act = activityById(id);
       for (var k = 1; k <= activities[id]; k++) {
-        fun += act.fun * (k <= cfg.funSoftCap ? 1 : Math.pow(cfg.funDecay, k - cfg.funSoftCap));
+        fun += act.fun * (k <= cfg.softCap ? 1 : Math.pow(cfg.decay, k - cfg.softCap));
       }
     });
     return Math.round(fun * 10) / 10;
@@ -7125,19 +7189,8 @@ globalThis.LEIP_ENGINE = (function () {
     });
     if (dieselMwh > 0 && dieselStartH === null) dieselStartH = T.charterHours;
 
-    // ---- Base (0-100): pure energy performance (spec §5).
-    var bc = d.scoring.base;
-    var nmPerMwh = totalMwh > 0 ? coveredNm / totalMwh : 0;
-    var effPart = bc.efficiencyWeight * clamp(nmPerMwh / bc.effRefNmPerMwh, 0, 1);
-    var dieselPenalty = dieselPenaltyFor(dieselMwh);
-    var discPart = bc.disciplineWeight - dieselPenalty;
-    var incPart = completed ? 0 : bc.incompletePenalty;
-    var energyBase = discPart + effPart - incPart;      // the 0-100 energy frame
-    var rawBase = energyBase * bc.outputScale;          // mapped to the board scale
-    var base = clamp(Math.round(rawBase), bc.min, bc.max);
-
-    // ---- Multiplier (-10..+10): five factors, averaged (spec §5).
-    var mc = d.scoring.multiplier;
+    // ---- Score (spec §5). The formula itself lives in computeScore so it
+    // can be exercised on raw quantities, independently of any route.
     var distinctPorts = reached.filter(function (n, idx) { return reached.indexOf(n) === idx; });
     var countries = [];
     distinctPorts.forEach(function (n) {
@@ -7146,23 +7199,18 @@ globalThis.LEIP_ENGINE = (function () {
     });
     var rechargePortName = inputs.route[inputs.route.length - 1];
     var rechargePort = portByName(rechargePortName);
-    var factors = {
-      countries:  { value: countries.length,     score: tableLookup(mc.countries, countries.length) },
-      ports:      { value: distinctPorts.length, score: tableLookup(mc.ports, distinctPorts.length) },
-      activities: { value: Object.keys(inputs.activities).length,
-                    score: activitiesFactor(inputs.activities, mc.activities) },
-      nights:     { value: inputs.nights,        score: tableLookup(mc.nights, inputs.nights) },
-      // A port with no carbon figure in the source (Genoa) is unrated: it
-      // scores neutral rather than guessing a colour.
-      recharge:   { port: rechargePortName, energy: rechargePort.energy, reached: completed,
-                    score: !completed ? mc.rechargeNotReached
-                      : (rechargePort.energy === null || rechargePort.energy === undefined
-                          ? mc.rechargeUnrated : mc.recharge[rechargePort.energy]) }
-    };
-    var factorSum = factors.countries.score + factors.ports.score + factors.activities.score +
-                    factors.nights.score + factors.recharge.score;
-    var multiplier = factorSum / 5;
-    var final = Math.round(base * multiplier * 10) / 10;
+    var activityUses = 0;
+    Object.keys(inputs.activities).forEach(function (id) { activityUses += inputs.activities[id]; });
+    var sc = computeScore({
+      coveredNm: coveredNm, batteryMwh: batteryMwh, dieselMwh: dieselMwh,
+      countries: countries.length, ports: distinctPorts.length,
+      anchorNights: inputs.nights, activityUses: activityUses,
+      rechargeEnergy: rechargePort.energy, rechargeReached: completed,
+      rechargePortName: rechargePortName
+    });
+    var base = sc.base, multiplier = sc.multiplier, final = sc.final;
+    var factors = sc.factors;
+    var dieselPenalty = -sc.baseParts.dieselPenalty;
 
     return {
       inputs: inputs,
@@ -7181,12 +7229,9 @@ globalThis.LEIP_ENGINE = (function () {
       rechargePort: rechargePortName,
       poster: posterInfo,
       timeline: timeline,
-      funMetric: funMetric(inputs.activities, mc.activities),
-      score: { base: base, rawBase: rawBase, energyBase: energyBase,
-               baseParts: { discipline: discPart, efficiency: effPart, incomplete: -incPart,
-                            dieselPenalty: -dieselPenalty,
-                            nmPerMwh: nmPerMwh, outputScale: bc.outputScale },
-               factors: factors, factorSum: factorSum,
+      funMetric: funMetric(inputs.activities, d.scoring.funMetric),
+      score: { base: base, baseParts: sc.baseParts,
+               factors: factors, weightedSum: sc.weightedSum,
                multiplier: multiplier, final: final }
     };
   }
@@ -7305,8 +7350,9 @@ globalThis.LEIP_ENGINE = (function () {
     legNm: legNm,
     pathNm: pathNm,
     getLegCorrection: getLegCorrection,
+    bandLookup: bandLookup,
+    computeScore: computeScore,
     dieselReserveFrac: dieselReserveFrac,
-    dieselPenaltyFor: dieselPenaltyFor,
     posterByRoute: posterByRoute,
     routeLegs: routeLegs,
     activityById: activityById,
@@ -7316,7 +7362,6 @@ globalThis.LEIP_ENGINE = (function () {
     energyFor: energyFor,
     posterAssumptionMwh: posterAssumptionMwh,
     normalizeInputs: normalizeInputs,
-    tableLookup: tableLookup,
     simulate: simulate,
     arrivalHour: arrivalHour,
     evaluateAchievements: evaluateAchievements,
