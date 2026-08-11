@@ -26,7 +26,7 @@ results — the math never depends on either.
 | `fonts/LICENSE-SAIRA-OFL.txt` | Saira SemiCondensed license (embedded in the HTML as base64 by `tools/embed_fonts.mjs`) |
 | `leip_distance_model.json` | Poster charter distances + per-leg sea-lane corrections (see Distance model) |
 | `leip_fleet_reference.json` | 28 observed charters + route groups, the secondary external check |
-| `test/headless.mjs` | §11.2–11.6 + poster parity + distance rule + leaderboard logic (166 checks, 1 open item — see below) |
+| `test/headless.mjs` | §11.2–11.6 + poster parity + distance rule + leaderboard logic (174 checks, 1 open item — see below) |
 | `test/geometry.mjs` | Ports on real coastline, no sailed leg crossing land (8 checks) |
 | `test/fleet.mjs` | Secondary validation against the observed fleet, ±15% (`npm run test:fleet`) |
 | `test/smoke.mjs` | §11.1 + §11.7 + §11.8: stubbed Three.js/DOM boot → plan → simulate → playback → results → save → share (62 checks) |
@@ -75,11 +75,13 @@ went +0.65 → +1.48 MWh, just outside the window). Every route simulates **high
 by +1.5 to +15.7 MWh — a spread no single scalar closes, over published figures
 that are mutually inconsistent to begin with.
 
-The §5 canonical worked example lands on **base 17.55 × multiplier 6.3 = 111**.
-The multiplier reads the itinerary, not the energy, so every energy change lands
-entirely in the base: 23.96 → 27.05 MWh on the electrical curve (base 16.08 →
-17.63, final 101 → 111), then 27.05 → 26.89 MWh on the regression (base → 17.55,
-final unchanged at 111).
+The §5 canonical worked example lands on **base 17.55 × multiplier 6.55 = 115**.
+The multiplier reads the itinerary, not the energy, so every *energy* change
+landed entirely in the base: 23.96 → 27.05 MWh on the electrical curve (base
+16.08 → 17.63, final 101 → 111), then 27.05 → 26.89 MWh on the speed regression
+(base → 17.55, final held at 111). The activities eco blend is the first change
+to move the multiplier itself: this week's six uses average eco 8.0, lifting the
+factor from a flat 3 to 5.5 and the multiplier 6.3 → 6.55, for a final of 115.
 
 ## Speed model
 
@@ -132,31 +134,69 @@ strategy, and a heavy one is ruinous.
 **Multiplier, 1.0–10.0**, a weighted average of five factors each scored 1/3/6/10
 by band, with weights summing to 5:
 
-| factor | weight | 1× | 3× | 6× | 10× |
+| factor | weight | 1 | 3 | 6 | 10 |
 |---|---|---|---|---|---|
 | recharge energy | 1.50 | brown | grey | blue | green |
 | ports visited | 1.25 | 1–3 | 4 | 5 | 6+ |
 | countries | 1.00 | 1 | 2 | 3 | 4+ |
 | anchor nights | 0.75 | 0–1 | 6+ | 2–3 | 4–5 |
-| activity uses | 0.50 | 0–3 | 4–7 | 8–11 | 12+ |
+| activity **count band** | 0.50 | 0–3 | 4–7 | 8–11 | 12+ |
 
 Anchor nights is deliberately non-monotonic — six or more nights at anchor
-drops back to 3× — which is why `bandLookup` takes ordered `[threshold, score]`
-pairs and lets the last match win rather than assuming a rising ladder. Genoa
-carries no carbon figure, so it scores as grey (3×): unrated is never a reward.
+drops back to 3 — which is why `bandLookup` takes ordered `[threshold, score]`
+pairs and lets the last match win rather than assuming a rising ladder.
+
+**Activities is the one factor that is not a plain band.** It blends how much
+the guests did with how cleanly they did it:
+
+```
+0 selected → 1
+otherwise  → (count band + average eco rating) / 2
+```
+
+`eco` is the 1–10 rating each activity carries in Dataset 5. Twelve jet-ski
+runs and twelve paddleboard sessions are the same *count* and must not score
+alike — the blend is what makes the **choice** of activity matter, not just the
+number. The average is **use-weighted**, since the count itself counts repeats:
+three jet-ski runs are three low-eco uses, not one, so a dirty habit cannot be
+diluted by booking a clean one alongside it.
+
+The consequence is that the 10.0 ceiling now needs clean activities as well as
+many — twelve eco-2 uses score 6, twelve eco-10 uses score 10 — and two eco-10
+activities beat six eco-4 ones outright.
+
+The multiplier is **truncated to 2 dp**, and that is the actual multiplier
+rather than a display rounding: the scoreboard shows base and multiplier, so
+`base × multiplier` must be reproducible by hand from what is on screen. The
+eco blend is the first thing to produce a third decimal, and the published
+examples fix the direction — 8.725 → 8.72, 5.975 → 5.97, 1.855 → 1.85, all down.
 
 **Final = base × multiplier**, rounded, ceiling 500, and negative where the base
 is. `ENGINE.computeScore` is pure — quantities in, score out, no route and no
 timeline — and the four worked examples in `DATA.scoringExamples` are asserted
 against it directly.
 
+The four worked examples, all reproducing exactly:
+
+| example | base | multiplier | final | activities factor |
+|---|---|---|---|---|
+| Hero | 42.5 | 8.72 | **371** | band 3 + eco 7.5 → 5.25 |
+| Purist | 49.5 | 8.15 | **403** | band 1 + eco 10.0 → 5.50 |
+| Ambitious dash | 31.0 | 5.97 | **185** | band 3 + eco 5.5 → 4.25 |
+| Go-nowhere | 6.0 | 1.85 | **11** | band 6 + eco 7.1 → 6.55 |
+
+Purist is the clearest read on the blend: two activities, but the cleanest
+there are, and its 5.5 beats the hero's six-activity 5.25.
+
 **Score Over 400 is clean-reachable.** Verified by optimised search — seeded
 from the poster routes, hill-climbed by single-port insert/swap/delete over
-55,480 route/nights combinations — not by random sampling, which misses the
+56,275 route/nights combinations — not by random sampling, which misses the
 optimum because uniformly-drawn routes almost never land near the battery cap.
-Of 9,275 clean completions, **1,370 clear 400**; the best clean week scores
-**423** (base 45.93 × 9.20, 418.6 nm, 49.995 MWh, zero diesel: Savona → Monaco
-→ Nice → Saint Tropez → Antibes → Ajaccio → Monaco).
+Of 9,227 clean completions, **1,688 clear 400**; the best clean week scores
+**426** (base 46.25 × 9.20, 425 nm, 49.995 MWh, zero diesel: Olbia → Monaco →
+Nice → Antibes → Genoa → Antibes → Saint-Jean-Cap-Ferrat → Monaco). Eco-10
+activities both max the factor and draw less power, so the ceiling rose when
+the blend came in.
 
 ## Diesel reserve
 
