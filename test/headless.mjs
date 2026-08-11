@@ -110,10 +110,33 @@ check('33x33 distance matrix, symmetric, zero on the diagonal',
 check('seven poster routes over valid ports',
   D.posterRoutes.length === 7 &&
   D.posterRoutes.every(r => r.ports.every(n => D.ports.some(p => p.name === n))));
-check('24 activities (12 Active / 12 Relaxing), one once-only',
-  D.activities.length === 24 &&
-  D.activities.filter(a => a.category === 'Active').length === 12 &&
-  D.activities.filter(a => !a.repeatable).length === 1);
+// The SIMPLIFIED set: one flat list, each selectable once, all the same
+// trivial energy, each carrying a hidden eco rating.
+check('14 activities, one flat list, ids A01-A14',
+  D.activities.length === 14 &&
+  D.activities.map(a => a.id).join() ===
+    Array.from({ length: 14 }, (_, i) => 'A' + String(i + 1).padStart(2, '0')).join());
+check('no category, no repeat counts, no per-week maxima, no fun ratings',
+  D.activities.every(a => a.category === undefined && a.repeatable === undefined &&
+    a.maxPerWeek === undefined && a.fun === undefined) &&
+  D.scoring.activitiesCountsRepeats === undefined && D.scoring.funMetric === undefined);
+check('every activity costs the same trivial energy — 0.1% of the weekly budget',
+  D.activities.every(a => a.energyPct === 0.001) &&
+  D.activities[0].energyPct * D.scoring.weeklyEnergyRefMwh === 0.05);
+check('every activity carries a hidden eco rating in 1-10',
+  D.activities.every(a => Number.isFinite(a.eco) && a.eco >= 1 && a.eco <= 10));
+check('the eco rating is never rendered — it reaches the player only as score',
+  !/act-eco|a\.eco|\.eco\b/.test(readHtml().split('<script id="leip-app">')[1] || ''));
+check('the fourteen are the published set with the published eco ratings',
+  D.activities.map(a => a.name + ' ' + a.eco).join(' · ') ===
+    ['Scuba diving 4', 'Snorkelling 10', 'Jet skis 1', 'Seabobs 8', 'E-foiling 8',
+     'Wakeboarding & waterskiing 2', 'Paddleboards & kayaks 10', 'Beach club afternoon 7',
+     'Jacuzzi under the stars 4', 'Spa & massage 7', 'Sauna & hammam 3', 'Cinema night 8',
+     'Formal dinner & wine tasting 6', 'Deck party 5'].join(' · '),
+  D.activities.map(a => a.name + ' ' + a.eco).join(' · '));
+check('every activity has an icon, and no icon is orphaned',
+  D.activities.every(a => T.icons.defs[a.id]) &&
+  Object.keys(T.icons.defs).filter(k => /^A\d\d$/.test(k)).length === 14);
 check('nine achievements', D.achievements.list.length === 9);
 check('Santorini tagged for Volcano Chief', D.ports.some(p => p.tags.includes(D.achievements.santoriniTag)));
 check('THEME carries the four scene tints and the volt accent',
@@ -182,9 +205,36 @@ section('§5 Scoring formula — the four worked examples, against computeScore 
   const dirtyMax = E.computeScore(Object.assign({}, best, { activityEcoAvg: 2 })).multiplier;
   check(`a perfect week on dirty activities cannot reach the ceiling (${dirtyMax} vs ${mc.max})`,
     dirtyMax < mc.max, `${dirtyMax}`);
-  check('and the ceiling is genuinely reachable — the pack has eco-10 activities',
-    D.activities.filter(a => a.eco === 10).reduce((n, a) => n + a.maxPerWeek, 0) >= 12,
-    `${D.activities.filter(a => a.eco === 10).length} activities at eco 10`);
+  // ATTAINABILITY, which is now a different question from the formula's
+  // range. With fourteen one-off activities and only two rated eco 10,
+  // reaching the top COUNT band (12+) forces dirty picks in, so the
+  // activities factor cannot reach 10 in play — and neither, therefore,
+  // can the multiplier. Computed from the data, not asserted as a
+  // constant, so it tracks any future re-rating of the sheet.
+  {
+    const eco = D.activities.map(a => a.eco).sort((x, y) => y - x);
+    let bestFactor = mc.activitiesFactor.emptyScore;
+    let bestN = 0;
+    for (let n = 1; n <= eco.length; n++) {
+      const avg = eco.slice(0, n).reduce((a, b) => a + b, 0) / n;
+      const f = (E.bandLookup(mc.bands.activities, n) + avg) / 2;
+      if (f > bestFactor) { bestFactor = f; bestN = n; }
+    }
+    const attainable = E.computeScore(q({ countries: 9, ports: 9, anchorNights: 4,
+      activityUses: bestN, activityEcoAvg: eco.slice(0, bestN).reduce((a, b) => a + b, 0) / bestN,
+      rechargeEnergy: 'green' })).multiplier;
+    check(`the activities factor tops out at ${bestFactor.toFixed(3)} on ${bestN} picks, not ${mc.max}`,
+      bestFactor > 8 && bestFactor < mc.max, `${bestFactor}`);
+    check(`so the attainable multiplier is ${attainable}, below the formula's ${mc.max}`,
+      attainable < mc.max && attainable > 9.5, `${attainable}`);
+    // The other four factors must still be individually maxable, or the
+    // shortfall is somewhere it should not be.
+    check('every other factor still reaches 10 in play',
+      E.bandLookup(mc.bands.countries, 4) === mc.max &&
+      E.bandLookup(mc.bands.ports, 6) === mc.max &&
+      E.bandLookup(mc.bands.anchor, 4) === mc.max &&
+      mc.recharge.green === mc.max);
+  }
   // ---- The activities factor: count blended with eco quality ----
   check('no activities scores the floor, whatever the eco figure says',
     E.computeScore(q({ activityUses: 0, activityEcoAvg: 10 })).factors.activities.score ===
@@ -203,19 +253,36 @@ section('§5 Scoring formula — the four worked examples, against computeScore 
   check('two eco-10 activities beat six eco-4 ones',
     E.computeScore(q({ activityUses: 2, activityEcoAvg: 10 })).factors.activities.score >
     E.computeScore(q({ activityUses: 6, activityEcoAvg: 4 })).factors.activities.score);
-  // Simulated end-to-end, the average must be USE-WEIGHTED: booking a dirty
-  // activity three times cannot be diluted by one clean booking.
+  // Simulated end-to-end: with one-off picks the average is a plain mean
+  // over the selection, and a dirty pick genuinely drags it down.
   {
-    // Both must be bookable three times, or maxPerWeek clamps the mix and
-    // the test measures the clamp instead of the weighting.
-    const A = D.activities.filter(a => a.maxPerWeek >= 3);
-    const dirtiest = A.slice().sort((x, y) => x.eco - y.eco)[0];
-    const cleanest = A.slice().sort((x, y) => y.eco - x.eco)[0];
-    const acts = {}; acts[dirtiest.id] = 3; acts[cleanest.id] = 1;
-    const sim = E.simulate({ route: ['Nice', 'Monaco'], speed: 'slow', nights: 4, activities: acts });
-    const want = (dirtiest.eco * 3 + cleanest.eco) / 4;
-    check(`eco average is use-weighted (${sim.score.factors.activities.avgEco.toFixed(2)} = ${want.toFixed(2)}, not the ${((dirtiest.eco + cleanest.eco) / 2).toFixed(2)} of a per-activity mean)`,
-      Math.abs(sim.score.factors.activities.avgEco - want) < 1e-9);
+    const byEco = D.activities.slice().sort((x, y) => y.eco - x.eco);
+    const clean3 = byEco.slice(0, 3);
+    const dirtiest = byEco[byEco.length - 1];
+    const route = ['Nice', 'Monaco'];
+    const mk = (list) => {
+      const a = {}; list.forEach((x) => { a[x.id] = 1; });
+      return E.simulate({ route, speed: 'slow', nights: 4, activities: a });
+    };
+    const cleanSim = mk(clean3);
+    const mixedSim = mk(clean3.concat([dirtiest]));
+    const wantClean = clean3.reduce((n, x) => n + x.eco, 0) / 3;
+    const wantMixed = (clean3.reduce((n, x) => n + x.eco, 0) + dirtiest.eco) / 4;
+    check(`eco average is the mean of the picks (${cleanSim.score.factors.activities.avgEco.toFixed(2)})`,
+      Math.abs(cleanSim.score.factors.activities.avgEco - wantClean) < 1e-9);
+    check(`adding ${dirtiest.name} (eco ${dirtiest.eco}) drags the average to ${wantMixed.toFixed(2)}`,
+      Math.abs(mixedSim.score.factors.activities.avgEco - wantMixed) < 1e-9 &&
+      mixedSim.score.factors.activities.avgEco < cleanSim.score.factors.activities.avgEco);
+    // A fourth pick raises nothing here: same count band, worse average.
+    check('a dirty fourth pick can LOWER the factor despite raising the count',
+      mixedSim.score.factors.activities.score < cleanSim.score.factors.activities.score);
+  }
+  // Selecting the same activity twice is not a thing any more.
+  {
+    const twice = E.simulate({ route: ['Nice', 'Monaco'], speed: 'slow', nights: 4,
+      activities: { A03: 4 } });
+    check('a count above 1 normalises to a single selection',
+      twice.inputs.activities.A03 === 1 && twice.score.factors.activities.value === 1);
   }
   check('the multiplier truncates to 2 dp, so base x multiplier is hand-checkable',
     E.computeScore(q({ countries: 3, ports: 6, anchorNights: 4, activityUses: 6,
@@ -594,13 +661,17 @@ section('Model behaviours (spec §2, §3)');
   check('infeasible route allowed; runs; suffers',
     !doomed.completed && doomed.score.factors.recharge.score === D.scoring.multiplier.rechargeNotReached);
 
-  // The redesign counts activity USES and never penalises repetition: the
-  // old spam decay is gone, so doing more can only help or hold level.
-  const party3 = E.simulate({ route: ['Monaco', 'Nice', 'Monaco'], speed: 'slow', nights: 4, activities: { R08: 3, A07: 1, R06: 1 } });
-  const party6 = E.simulate({ route: ['Monaco', 'Nice', 'Monaco'], speed: 'slow', nights: 4, activities: { R08: 6, A07: 1, R06: 1 } });
-  check('activities count uses, and more uses never scores worse',
-    party6.score.factors.activities.value === 8 && party3.score.factors.activities.value === 5 &&
-    party6.score.factors.activities.score >= party3.score.factors.activities.score);
+  // Repetition is gone entirely — the count is how many of the fourteen
+  // were picked, so the same activity twice is the same single pick.
+  const three = E.simulate({ route: ['Monaco', 'Nice', 'Monaco'], speed: 'slow', nights: 4,
+    activities: { A14: 1, A02: 1, A12: 1 } });
+  const spam = E.simulate({ route: ['Monaco', 'Nice', 'Monaco'], speed: 'slow', nights: 4,
+    activities: { A14: 4, A02: 2, A12: 3 } });
+  check('the count is distinct picks, so repeating one changes nothing',
+    three.score.factors.activities.value === 3 && spam.score.factors.activities.value === 3 &&
+    spam.score.final === three.score.final);
+  check('every activity draws the same energy, so the picks never trade off',
+    Math.abs(three.activitiesMwh - 3 * D.activities[0].energyPct * D.scoring.weeklyEnergyRefMwh) < 1e-12);
 
   const over = E.simulate({ route: ['Palma', 'Bonifacio', 'Naples', 'Monaco'], speed: 'fast', nights: 4, activities: {} });
   check('the diesel moment is located in time',
@@ -619,7 +690,8 @@ section('Model behaviours (spec §2, §3)');
 section('Achievements — trophies only (spec §7)');
 {
   const th = D.achievements.thresholds;
-  const sim = E.simulate({ route: ['Athens', 'Santorini', 'Kalathos', 'Athens'], speed: 'fast', nights: 4, activities: { A08: 1 } });
+  const sim = E.simulate({ route: ['Athens', 'Santorini', 'Kalathos', 'Athens'], speed: 'fast', nights: 4,
+    activities: { A01: 1 } });   // A01 is Scuba diving in the simplified set
   const r1 = E.evaluateAchievements(sim, null);
   const ids = r1.newly.map(a => a.id);
   check('Volcano Chief fires mid-sim with an hour',

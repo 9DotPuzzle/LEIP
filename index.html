@@ -153,33 +153,20 @@ main { position: relative; flex: 1; min-height: 0; }
 #speed-toggle small { display: block; text-transform: none; letter-spacing: 0; font-size: 10.5px; opacity: 0.7; margin-top: 3px; }
 input[type=range] { width: 100%; accent-color: var(--ink-fixed); }
 
-.act-group h4 { font-size: 10px; letter-spacing: var(--label-tracking); text-transform: uppercase; opacity: 0.75; margin: 10px 0 5px; }
 .act-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 .act-tile {
   position: relative; display: flex; align-items: center; gap: 8px;
-  padding: 6px 22px 6px 7px; min-height: 46px; cursor: pointer; user-select: none;
+  padding: 6px 7px; min-height: 42px; cursor: pointer; user-select: none;
   border: var(--hairline) solid var(--glass-edge); background: var(--glass-fill);
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) / 2));
   backdrop-filter: blur(calc(var(--glass-blur) / 2));
   box-shadow: inset 0 1px 0 var(--glass-hi);
 }
 .act-tile:hover { background: var(--glass-on); }
-.act-tile.on { border-color: var(--ink-fixed); border-width: var(--rule); padding: 5px 21px 5px 6px; }
+.act-tile.on { border-color: var(--ink-fixed); border-width: var(--rule); padding: 5px 6px; }
 .act-icon { width: var(--icon-size); height: var(--icon-size); flex: none; display: block; }
 .act-text { min-width: 0; }
 .act-name { display: block; font-size: 11.5px; line-height: 1.18; }
-.act-eco { display: block; font-size: 9px; letter-spacing: var(--label-tracking); text-transform: uppercase; opacity: 0.55; margin-top: 2px; }
-.act-eco b { font-family: var(--font-data); font-weight: 400; }
-.act-count {
-  position: absolute; top: 3px; right: 5px;
-  font-family: var(--font-data); font-size: 13px; line-height: 1;
-}
-.act-minus {
-  position: absolute; bottom: 2px; right: 2px; width: 19px; height: 19px;
-  padding: 0; line-height: 1; font-size: 13px; border-width: var(--hairline);
-  display: none; align-items: center; justify-content: center;
-}
-.act-tile.on .act-minus { display: flex; }
 
 #actions { display: flex; gap: 8px; }
 #actions button { flex: 1; padding: 12px 6px; }
@@ -568,39 +555,31 @@ globalThis.LEIP_THEME = {
     tones: { lit: '#D6C29E', mid: '#B9A177', shade: '#8E7852',
              white: '#F7F4ED', teak: '#C9A876', ink: '#22344A', sea: '#5FA39E' },
     defs: {
-      A01: [['r', 'sea', 2,18.6,20,1.8], ['p', 'mid', [3,17.6, 16,17.6, 21,13.6, 13,12, 5,13]],
+      // One flat set of fourteen, ids A01-A14 in list order. The shapes
+      // are carried over from the activities they depict; the ten icons
+      // whose activities the simplified sheet dropped are gone with them.
+      A01: [['r', 'mid', 6,8,4.6,11], ['r', 'mid', 13.4,8,4.6,11], ['r', 'lit', 6,8,4.6,2.2], ['r', 'lit', 13.4,8,4.6,2.2], ['r', 'ink', 10.4,4.8,3.2,3.2]],   // Scuba diving
+      A02: [['p', 'lit', [4,11, 5,8.6, 17,8.6, 18,11, 16,14.4, 6,14.4]], ['p', 'sea', [6.4,10.4, 15.6,10.4, 14.8,12.8, 7.2,12.8]], ['p', 'mid', [17.4,9, 19.6,9, 19.6,3.6, 17.4,3.6]]],   // Snorkelling
+      A03: [['r', 'sea', 2,18.6,20,1.8], ['p', 'mid', [3,17.6, 16,17.6, 21,13.6, 13,12, 5,13]],
             ['p', 'shade', [6,12.6, 12.4,12, 12.4,9.8, 7,10.2]], ['r', 'ink', 12.4,8.4,1.5,4],
-            ['r', 'ink', 10.4,7.2,5.6,1.5]],
-      A02: [['r', 'sea', 2,18.8,20,1.6], ['p', 'mid', [5,15.6, 8,12.2, 16,10.8, 20,12.4, 20,14.6, 16,16.4, 8,16.8]],
+            ['r', 'ink', 10.4,7.2,5.6,1.5]],   // Jet skis
+      A04: [['r', 'sea', 2,18.8,20,1.6], ['p', 'mid', [5,15.6, 8,12.2, 16,10.8, 20,12.4, 20,14.6, 16,16.4, 8,16.8]],
             ['p', 'lit', [8,12.6, 16,11.2, 16,12.8, 8,14.2]], ['r', 'ink', 2.4,11.8,3.6,1.5],
-            ['r', 'ink', 2.4,16.2,3.6,1.5]],
-      A03: [['p', 'lit', [3,8.4, 20,6.6, 20.6,8.8, 3.6,10.6]], ['r', 'sea', 2,12.6,20,1.3],
-            ['r', 'shade', 11,10.4,1.5,6], ['p', 'mid', [6.4,16.4, 17.2,16.4, 15.4,18.8, 8.2,18.8]]],
-      A04: [['p', 'white', [2,16.8, 12,14.4, 12.4,16.4, 2.6,18.8]],
+            ['r', 'ink', 2.4,16.2,3.6,1.5]],   // Seabobs
+      A05: [['p', 'lit', [3,8.4, 20,6.6, 20.6,8.8, 3.6,10.6]], ['r', 'sea', 2,12.6,20,1.3],
+            ['r', 'shade', 11,10.4,1.5,6], ['p', 'mid', [6.4,16.4, 17.2,16.4, 15.4,18.8, 8.2,18.8]]],   // E-foiling
+      A06: [['p', 'white', [2,16.8, 12,14.4, 12.4,16.4, 2.6,18.8]],
             ['p', 'mid', [4,13.6, 18,10.4, 19,12.8, 5,16]],
-            ['r', 'shade', 9,11.9,1.6,2.2], ['p', 'ink', [17.6,9.6, 21.6,4.6, 22.6,5.4, 18.6,10.4]]],
-      A05: [['c', 'mid', 12,14,6.6], ['c', 'lit', 12,14,3.2], ['p', 'ink', [12,7.2, 21,3.8, 21.6,5.1, 12.6,8.6]]],
-      A06: [['r', 'sea', 2,19,20,1.8], ['p', 'mid', [5,18.6, 18,18.6, 18,5.6]],
-            ['p', 'shade', [18,5.6, 19.6,6.8, 6.8,18.6, 5,18.6]], ['r', 'lit', 15.4,3.8,5.2,2]],
-      A07: [['p', 'lit', [4,11, 5,8.6, 17,8.6, 18,11, 16,14.4, 6,14.4]], ['p', 'sea', [6.4,10.4, 15.6,10.4, 14.8,12.8, 7.2,12.8]], ['p', 'mid', [17.4,9, 19.6,9, 19.6,3.6, 17.4,3.6]]],
-      A08: [['r', 'mid', 6,8,4.6,11], ['r', 'mid', 13.4,8,4.6,11], ['r', 'lit', 6,8,4.6,2.2], ['r', 'lit', 13.4,8,4.6,2.2], ['r', 'ink', 10.4,4.8,3.2,3.2]],
-      A09: [['c', 'mid', 12,13,6.5], ['c', 'sea', 10.4,11.4,2.7], ['r', 'shade', 2.4,11.2,3.6,3.6], ['r', 'shade', 18,11.2,3.6,3.6]],
-      A10: [['p', 'lit', [2.6,17, 20,13.8, 20.6,16, 3.2,19.2]], ['p', 'ink', [15.2,3.6, 16.6,4, 11.2,13, 9.8,12.6]],
-            ['p', 'mid', [8.4,11.4, 12.2,12.6, 10.8,16.2, 7.2,15]]],
-      A11: [['r', 'mid', 9,11,6,2.4], ['r', 'shade', 4,8,4,8.4], ['r', 'shade', 16,8,4,8.4], ['r', 'lit', 5,9,1.8,6.4], ['r', 'lit', 17,9,1.8,6.4]],
-      A12: [['p', 'ink', [3.6,4.6, 5,4.2, 13.6,15, 12.4,15.6]], ['p', 'mid', [11,17, 17,14.8, 20,17.4, 17,20, 11,18.8]], ['p', 'shade', [19.6,16.4, 22,15, 22,20, 19.6,18.6]]],
-      R01: [['p', 'mid', [3,12, 21,12, 19,19.4, 5,19.4]], ['r', 'sea', 5,13,14,3], ['c', 'white', 8,10.4,1.5], ['c', 'white', 12,8.8,1.9], ['c', 'white', 16,10.6,1.3]],
-      R02: [['r', 'lit', 3,6,18,13], ['r', 'sea', 5,8,14,9], ['p', 'white', [5,12.4, 9,11.2, 13,13.2, 17,11.2, 19,12.2, 19,14, 5,14]]],
-      R03: [['p', 'mid', [3.6,11, 20.4,11, 12,4.4]], ['r', 'ink', 11.4,11,1.2,7.6], ['r', 'shade', 3,18.6,18,2.2]],
-      R04: [['p', 'mid', [5.6,15.8, 18.4,15.8, 19.4,18.4, 4.6,18.4]], ['p', 'lit', [7,12.2, 17,12.2, 18,14.8, 6,14.8]], ['p', 'shade', [8.4,8.6, 15.6,8.6, 16.6,11.2, 7.4,11.2]]],
-      R05: [['p', 'shade', [2.6,10.4, 12,4, 21.4,10.4]], ['p', 'mid', [4.6,10.4, 19.4,10.4, 19.4,19.6, 4.6,19.6]], ['p', 'lit', [9.8,13.4, 14.2,13.4, 14.2,19.6, 9.8,19.6]]],
-      R06: [['r', 'ink', 3,4.6,18,11], ['r', 'lit', 4.4,6,15.2,8.2], ['p', 'white', [8,16, 16,16, 19,20.4, 5,20.4]]],
-      R07: [['p', 'lit', [7.6,4, 16.4,4, 14.2,11, 9.8,11]], ['r', 'mid', 11.4,11,1.2,6], ['r', 'shade', 7.8,17,8.4,2.2]],
-      R08: [['p', 'mid', [6,3.6, 18,3.6, 18,20.4, 6,20.4]], ['c', 'shade', 12,9,3.3], ['c', 'lit', 12,9,1.4], ['c', 'shade', 12,16.2,2]],
-      R09: [['c', 'mid', 12,5,2.6], ['p', 'lit', [12,8.2, 17.4,15.4, 6.6,15.4]], ['r', 'shade', 4,16.4,16,2.2]],
-      R10: [['p', 'shade', [2,17, 22,17, 22,20.4, 2,20.4]], ['p', 'lit', [7,4.4, 8,7.4, 11,8.6, 8,9.8, 7,12.8, 6,9.8, 3,8.6, 6,7.4]], ['p', 'white', [16.4,8.4, 17.2,10.4, 19.2,11.2, 17.2,12, 16.4,14, 15.6,12, 13.6,11.2, 15.6,10.4]]],
-      R11: [['p', 'white', [3.6,12.6, 20.4,12.6, 17.4,17.2, 6.6,17.2]], ['r', 'ink', 11.4,7,1.2,5.6], ['r', 'teak', 5,17.2,14,1.2], ['r', 'shade', 2,18.8,20,2]],
-      R12: [['p', 'mid', [3,10, 21,10, 22,16, 17,17.4, 12,14, 7,17.4, 2,16]], ['r', 'ink', 5.4,11.6,1.6,4.4], ['r', 'ink', 4,13,4.4,1.6], ['c', 'lit', 16.4,12.4,1.3], ['c', 'lit', 18.6,14,1.3]],
+            ['r', 'shade', 9,11.9,1.6,2.2], ['p', 'ink', [17.6,9.6, 21.6,4.6, 22.6,5.4, 18.6,10.4]]],   // Wakeboarding & waterskiing
+      A07: [['p', 'lit', [2.6,17, 20,13.8, 20.6,16, 3.2,19.2]], ['p', 'ink', [15.2,3.6, 16.6,4, 11.2,13, 9.8,12.6]],
+            ['p', 'mid', [8.4,11.4, 12.2,12.6, 10.8,16.2, 7.2,15]]],   // Paddleboards & kayaks
+      A08: [['p', 'mid', [3.6,11, 20.4,11, 12,4.4]], ['r', 'ink', 11.4,11,1.2,7.6], ['r', 'shade', 3,18.6,18,2.2]],   // Beach club afternoon
+      A09: [['p', 'mid', [3,12, 21,12, 19,19.4, 5,19.4]], ['r', 'sea', 5,13,14,3], ['c', 'white', 8,10.4,1.5], ['c', 'white', 12,8.8,1.9], ['c', 'white', 16,10.6,1.3]],   // Jacuzzi under the stars
+      A10: [['p', 'mid', [5.6,15.8, 18.4,15.8, 19.4,18.4, 4.6,18.4]], ['p', 'lit', [7,12.2, 17,12.2, 18,14.8, 6,14.8]], ['p', 'shade', [8.4,8.6, 15.6,8.6, 16.6,11.2, 7.4,11.2]]],   // Spa & massage
+      A11: [['p', 'shade', [2.6,10.4, 12,4, 21.4,10.4]], ['p', 'mid', [4.6,10.4, 19.4,10.4, 19.4,19.6, 4.6,19.6]], ['p', 'lit', [9.8,13.4, 14.2,13.4, 14.2,19.6, 9.8,19.6]]],   // Sauna & hammam
+      A12: [['r', 'ink', 3,4.6,18,11], ['r', 'lit', 4.4,6,15.2,8.2], ['p', 'white', [8,16, 16,16, 19,20.4, 5,20.4]]],   // Cinema night
+      A13: [['p', 'lit', [7.6,4, 16.4,4, 14.2,11, 9.8,11]], ['r', 'mid', 11.4,11,1.2,6], ['r', 'shade', 7.8,17,8.4,2.2]],   // Formal dinner & wine tasting
+      A14: [['p', 'mid', [6,3.6, 18,3.6, 18,20.4, 6,20.4]], ['c', 'shade', 12,9,3.3], ['c', 'lit', 12,9,1.4], ['c', 'shade', 12,16.2,2]],   // Deck party
       // Speed toggle: a turtle for the gentler profile, a hare for the
       // harder-driven one. Same flat-shaded plates as the activity set.
       SPD_TURTLE: [['p', 'shade', [4.4,16.4, 7,16.4, 7,19.4, 4.4,19.4]],
@@ -6613,35 +6592,39 @@ globalThis.LEIP_DATA = {
     ]
   },
 
-  // ---- DATASET 5 — Activities (structure REAL from
-  // LEIP_activities_data.xlsx; fun/eco/energy values are that sheet's
-  // marked placeholders, adjusted by the team in the sheet) -----------
-  // energyPct = share of the weekly energy budget consumed per use.
+  // ---- DATASET 5 — Activities (REAL, 14) --------------------------
+  // The SIMPLIFIED set. Replaces the previous 24 and everything that hung
+  // off them: no Active/Relaxing split, no repeat counts, no per-week
+  // maxima, no fun ratings. One flat list, each activity selectable ONCE.
+  //
+  // Every activity costs the same trivial energy — 0.1% of the weekly
+  // budget — so the choice is never an energy decision. It is pure
+  // flavour on the board and pure eco signal in the score.
+  //
+  // eco is HIDDEN from the player: 1 is emission-heavy, 10 is clean. It
+  // is never rendered, never hinted at in the tile, and never explained.
+  // It reaches the score only through the activities multiplier factor,
+  // which blends the count band with the average eco of what was picked,
+  // so a cleaner selection outscores a dirtier one of the same size and
+  // the player finds that out by playing rather than by reading a number.
+  //
+  // With a maximum of fourteen picks the count band's top step (12+) is
+  // now literally the 12-14 of the spec.
   activities: [
-    { id: 'A01', name: 'Jet ski session',                         category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 8, eco: 5,  energyPct: 0.001  },
-    { id: 'A02', name: 'Seabob session',                          category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 8, eco: 8,  energyPct: 0.0006 },
-    { id: 'A03', name: 'E-foil session',                          category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 8, eco: 8,  energyPct: 0.0006 },
-    { id: 'A04', name: 'Wakeboarding / waterskiing',              category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 8, eco: 4,  energyPct: 0.0012 },
-    { id: 'A05', name: 'Towable inflatables (banana / doughnut)', category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 7, eco: 4,  energyPct: 0.0012 },
-    { id: 'A06', name: 'Inflatable water park & slide',           category: 'Active',   repeatable: true,  maxPerWeek: 3, fun: 8, eco: 6,  energyPct: 0.0015 },
-    { id: 'A07', name: 'Snorkelling',                             category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 7, eco: 10, energyPct: 0.0001 },
-    { id: 'A08', name: 'Scuba diving (dive ops)',                 category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 8, eco: 3,  energyPct: 0.003  },
-    { id: 'A09', name: 'Submersible dive',                        category: 'Active',   repeatable: false, maxPerWeek: 1, fun: 9, eco: 2,  energyPct: 0.005  },
-    { id: 'A10', name: 'Paddleboards & kayaks',                   category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 7, eco: 10, energyPct: 0.0001 },
-    { id: 'A11', name: 'Gym & personal trainer session',          category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 6, eco: 9,  energyPct: 0.0003 },
-    { id: 'A12', name: 'Fishing trip (tender)',                   category: 'Active',   repeatable: true,  maxPerWeek: 7, fun: 7, eco: 5,  energyPct: 0.001  },
-    { id: 'R01', name: 'Jacuzzi evening',                         category: 'Relaxing', repeatable: true,  maxPerWeek: 6, fun: 7, eco: 4,  energyPct: 0.002  },
-    { id: 'R02', name: 'Pool day (counter-current)',              category: 'Relaxing', repeatable: true,  maxPerWeek: 7, fun: 7, eco: 5,  energyPct: 0.0015 },
-    { id: 'R03', name: 'Beach club afternoon',                    category: 'Relaxing', repeatable: true,  maxPerWeek: 7, fun: 7, eco: 8,  energyPct: 0.0005 },
-    { id: 'R04', name: 'Spa & massage treatments',                category: 'Relaxing', repeatable: true,  maxPerWeek: 7, fun: 7, eco: 8,  energyPct: 0.0004 },
-    { id: 'R05', name: 'Sauna & hammam session',                  category: 'Relaxing', repeatable: true,  maxPerWeek: 7, fun: 7, eco: 3,  energyPct: 0.0025 },
-    { id: 'R06', name: 'Cinema night (salon or under the stars)', category: 'Relaxing', repeatable: true,  maxPerWeek: 6, fun: 7, eco: 9,  energyPct: 0.0003 },
-    { id: 'R07', name: 'Formal dinner & wine tasting',            category: 'Relaxing', repeatable: true,  maxPerWeek: 6, fun: 7, eco: 8,  energyPct: 0.0005 },
-    { id: 'R08', name: 'Deck party with DJ',                      category: 'Relaxing', repeatable: true,  maxPerWeek: 6, fun: 8, eco: 5,  energyPct: 0.0015 },
-    { id: 'R09', name: 'Yoga on deck',                            category: 'Relaxing', repeatable: true,  maxPerWeek: 7, fun: 6, eco: 10, energyPct: 0.0001 },
-    { id: 'R10', name: 'Stargazing night',                        category: 'Relaxing', repeatable: true,  maxPerWeek: 6, fun: 6, eco: 10, energyPct: 0      },
-    { id: 'R11', name: 'Evening ashore by tender',                category: 'Relaxing', repeatable: true,  maxPerWeek: 6, fun: 7, eco: 6,  energyPct: 0.0008 },
-    { id: 'R12', name: 'Games & console afternoon',               category: 'Relaxing', repeatable: true,  maxPerWeek: 7, fun: 6, eco: 9,  energyPct: 0.0002 }
+    { id: 'A01', name: 'Scuba diving',                 eco: 4,  energyPct: 0.001 },
+    { id: 'A02', name: 'Snorkelling',                  eco: 10, energyPct: 0.001 },
+    { id: 'A03', name: 'Jet skis',                     eco: 1,  energyPct: 0.001 },
+    { id: 'A04', name: 'Seabobs',                      eco: 8,  energyPct: 0.001 },
+    { id: 'A05', name: 'E-foiling',                    eco: 8,  energyPct: 0.001 },
+    { id: 'A06', name: 'Wakeboarding & waterskiing',   eco: 2,  energyPct: 0.001 },
+    { id: 'A07', name: 'Paddleboards & kayaks',        eco: 10, energyPct: 0.001 },
+    { id: 'A08', name: 'Beach club afternoon',         eco: 7,  energyPct: 0.001 },
+    { id: 'A09', name: 'Jacuzzi under the stars',      eco: 4,  energyPct: 0.001 },
+    { id: 'A10', name: 'Spa & massage',                eco: 7,  energyPct: 0.001 },
+    { id: 'A11', name: 'Sauna & hammam',               eco: 3,  energyPct: 0.001 },
+    { id: 'A12', name: 'Cinema night',                 eco: 8,  energyPct: 0.001 },
+    { id: 'A13', name: 'Formal dinner & wine tasting', eco: 6,  energyPct: 0.001 },
+    { id: 'A14', name: 'Deck party',                   eco: 5,  energyPct: 0.001 }
   ],
 
   // ---- Scoring & balance (spec §5) ---------------------------------
@@ -6683,8 +6666,8 @@ globalThis.LEIP_DATA = {
         anchor:     [[0, 1], [2, 6], [4, 10], [6, 3]],
         // Count band only — the activities FACTOR is not this number. It
         // blends this with the eco quality of what was actually chosen;
-        // see activitiesFactor below. 12+ rather than 12-14: the top band
-        // stays open so a 15-use week does not fall off the ladder.
+        // see activitiesFactor below. Written 12+ rather than 12-14, but
+        // with fourteen one-off activities those are the same thing.
         activities: [[0, 1], [4, 3], [8, 6], [12, 10]]
       },
       recharge: { brown: 1, grey: 3, blue: 6, green: 10 },
@@ -6694,27 +6677,27 @@ globalThis.LEIP_DATA = {
       //   0 selected -> emptyScore
       //   otherwise  -> (count band + average eco rating) / 2
       //
-      // eco is the 1-10 rating each activity carries in Dataset 5. Twelve
-      // jet-ski runs and twelve paddleboard sessions are the same COUNT
-      // and must not score alike — the blend is what makes the CHOICE of
-      // activity matter, not just the number of them.
+      // eco is the 1-10 rating each activity carries in Dataset 5, and it
+      // is hidden from the player. Six jet-ski-ish picks and six clean
+      // ones are the same COUNT and must not score alike — the blend is
+      // what makes the CHOICE of activity matter, not just how many.
       //
-      // The average is USE-WEIGHTED, since the count itself counts
-      // repeats: three jet-ski runs are three low-eco uses, not one. A
-      // player cannot dilute a dirty habit by booking it once and a clean
-      // one three times.
+      // Each activity is selectable once, so the average is a plain mean
+      // over the selection. (It is computed as a use-weighted mean, which
+      // is the same thing at one use each and stays correct if counts
+      // ever come back.)
       activitiesFactor: { emptyScore: 1, blend: ['countBand', 'avgEco'] },
       // Two cases the bands do not cover, stated rather than defaulted:
       rechargeUnrated: 3,      // Genoa has no carbon figure — scored as grey
                                // so an unknown grid is never a reward
       rechargeNotReached: 1,   // the week ended before the recharge port
-      min: 1, max: 10
-    },
-
-    // Activities count = total USES across the week, not distinct types.
-    activitiesCountsRepeats: true,
-
-    funMetric: { softCap: 3, decay: 0.6 }   // results-screen flavour only
+      min: 1, max: 10,
+      // The activities count is simply how many of the fourteen were
+      // picked. It used to be total USES across repeats, which is why
+      // activitiesCountsRepeats and the funMetric soft-cap existed; both
+      // went with the repeat counts, since there is nothing left to cap.
+      countIsSelection: true
+    }
   },
 
   // ---- Achievements — the nine dots (spec §7). Trophies only. ------
@@ -6730,7 +6713,7 @@ globalThis.LEIP_DATA = {
       // land inside this band below the 50 MWh line with the diesels asleep.
       batteryBandMwh: 0.5
     },
-    diveActivityIds: ['A08', 'A09'],
+    diveActivityIds: ['A01'],          // Scuba diving — the only dive left
     divePortTag: 'dive',
     santoriniTag: 'achievement:santorini',
     list: [
@@ -6813,47 +6796,52 @@ globalThis.LEIP_DATA = {
   // Fourth re-point, and this one is the MULTIPLIER — untouched by every
   // energy change so far, because it reads the itinerary rather than the
   // energy. The activities factor now blends its count band with the eco
-  // quality of what was chosen. This week's six uses average eco 8.0,
-  // lifting the factor from a flat band score of 3 to 5.5, the multiplier
-  // 6.3 -> 6.55 and the final 111 -> 115. The base is unchanged.
+  // quality of what was chosen: 111 -> 115.
+  //
+  // Fifth: the simplified 14-activity set. The same four experiences are
+  // still here but each is a single pick rather than six uses across four
+  // types, so the count falls 6 -> 4 (count band 3 either way) and the
+  // average eco 8.0 -> 7.5, because the old sheet rated Cinema 9 and this
+  // one rates it 8. Factor 5.5 -> 5.25, multiplier 6.55 -> 6.52, final
+  // 115 -> 114. The base moves by 0.003 on the flat activity energy.
   canonicalTest: {
     inputs: {
       route: ['Monaco', 'Saint-Jean-Cap-Ferrat', 'Antibes', 'Saint Tropez', 'Nice'],
       speed: 'slow', nights: 3,
-      activities: { A02: 2, A07: 1, R01: 1, R06: 2 }
+      activities: { A04: 1, A02: 1, A09: 1, A12: 1 }   // Seabobs, Snorkelling, Jacuzzi, Cinema
     },
-    expected: { base: 17.55, multiplier: 6.55, final: 115 }
+    expected: { base: 17.55, multiplier: 6.52, final: 114 }
   },
 
   // Regression fixture for the 50 MWh Hit rule: a week that draws the
   // battery down into the band with the diesels asleep (49.84 MWh).
   achievementFixtures: {
-    // Clears the Score Over 400 bar CLEAN — zero diesel, 403.5 nm on the
-    // battery alone, base 44.41 x 9.20 = 409, with 1.5 MWh of headroom
-    // under the battery.
+    // Clears the Score Over 400 bar CLEAN — zero diesel, 408.6 nm on the
+    // battery alone, base 45.13 x 9.03 = 408, with 0.6 MWh of headroom.
     //
-    // The activities are all eco 10 (snorkelling, paddleboards, yoga,
-    // stargazing), which is now load-bearing rather than flavour: the
-    // activities factor blends its count band with average eco, so twelve
-    // uses only score 10 if they are twelve CLEAN uses. The same route on
-    // the old twelve-jet-ski-ish set (A01-A04, average eco 6.25) drops the
-    // factor to 8.125, the multiplier 9.20 -> 9.01, and the final to 402 —
-    // still over the bar, but only just. That gap is the mechanic working.
+    // The activities are the TWELVE CLEANEST of the fourteen, which is the
+    // activities factor's own optimum and no longer a clean sweep. With
+    // only two activities rated eco 10, reaching the top count band (12+)
+    // forces the dirtier picks in: the best possible factor is
+    // (10 + 6.667) / 2 = 8.333, down from a flat 10 under the old 24-item
+    // set. Jet skis (eco 1) and wakeboarding (eco 2) are the two left out.
     //
-    // The ceiling, by optimised search — seeded from the poster routes and
-    // hill-climbed by single-port insert/swap/delete over 56,275
-    // route/nights combinations, because random sampling misses it (drawn
-    // routes almost never land near the battery cap, which is exactly
-    // where the optimum sits): 1,688 of 9,227 clean completions clear 400,
-    // and the best clean week scores 426 (425 nm, 49.995 MWh, zero diesel,
-    // Olbia > Monaco > Nice > Antibes > Genoa > Antibes >
-    // Saint-Jean-Cap-Ferrat > Monaco). This fixture is deliberately not
-    // that optimum — 5 kWh under the battery is no margin for a regression
-    // test.
+    // The ceiling, by optimised search — poster-seeded, hill-climbed by
+    // single-port insert/swap/delete over 60,734 route/nights
+    // combinations, because random sampling misses it (drawn routes almost
+    // never land near the battery cap, which is where the optimum sits):
+    // 1,356 of 9,721 clean completions clear 400 and the best clean week
+    // scores 414 (417 nm, 49.985 MWh, zero diesel). That is down from 426
+    // under the old activity set, for two compounding reasons: the
+    // activities factor tops out at 8.333 instead of 10, and twelve picks
+    // now cost a flat 0.6 MWh where the old eco-10 four cost about 0.006.
+    // The bar stays at 400 and stays clean-reachable with room.
     scoreOver400: {
-      route: ['Savona', 'Monaco', 'Nice', 'Antibes', 'Saint Tropez', 'Ajaccio', 'Calvi', 'Monaco'],
+      route: ['Porto Cervo', 'Nice', 'Savona', 'Saint Tropez', 'Antibes',
+              'Saint-Jean-Cap-Ferrat', 'Monaco'],
       speed: 'slow', nights: 4,
-      activities: { A07: 3, A10: 3, R09: 3, R10: 3 }
+      activities: { A02: 1, A07: 1, A04: 1, A05: 1, A12: 1, A08: 1,
+                    A10: 1, A13: 1, A14: 1, A01: 1, A09: 1, A11: 1 }
     },
     // Long Haul: over 400 nm with the diesels asleep. Re-picked for the
     // electrical curve — the old Eivissa/Palma/Salerno week now costs
@@ -6872,7 +6860,7 @@ globalThis.LEIP_DATA = {
     // at 49.81 MWh with margin on both sides of the 49.5-50.0 window.
     batteryBrinkmanship: {
       route: ['Antibes', 'Palma', 'Eivissa'], speed: 'slow', nights: 4,
-      activities: { A08: 1, A07: 2, R06: 1 }
+      activities: { A01: 1, A02: 1, A12: 1 }           // Scuba, Snorkelling, Cinema
     }
   },
 
@@ -6884,11 +6872,11 @@ globalThis.LEIP_DATA = {
   balanceScenarios: [
     { id: 'modest-local', name: 'Modest local charter',
       inputs: { route: ['Nice', 'Antibes', 'Saint-Jean-Cap-Ferrat', 'Nice'], speed: 'slow', nights: 3,
-                activities: { A07: 1, R03: 1, R06: 1 } },
+                activities: { A02: 1, A08: 1, A12: 1 } },
       band: { baseMax: 20, multiplierMax: 5.5, finalMin: 20, finalMax: 120 } },
     { id: 'balanced-multi', name: 'Balanced multi-country',
       inputs: { route: ['Monaco', 'Calvi', 'Porto Cervo', 'Olbia', 'Monaco'], speed: 'slow', nights: 4,
-                activities: { A02: 1, A07: 2, A10: 1, R03: 1, R06: 1, R08: 1 } },
+                activities: { A04: 1, A02: 1, A07: 1, A08: 1, A12: 1, A14: 1 } },
       band: { baseMin: 35, multiplierMin: 6, finalMin: 200, finalMax: 400 } },
     // A superb itinerary wrecked by energy profligacy: 1,039 nm on the Hare
     // toggle burns 55 MWh of diesel on top of a full battery.
@@ -6904,7 +6892,7 @@ globalThis.LEIP_DATA = {
     // the multiplier must stay high while the base goes negative.
     { id: 'diesel-dash', name: 'Diesel-soaked dash',
       inputs: { route: ['Antibes', 'Palma', 'Cagliari', 'Monaco'], speed: 'fast', nights: 4,
-                activities: { A02: 1, A07: 2, A10: 1, R03: 1, R06: 1, R08: 1 } },
+                activities: { A04: 1, A02: 1, A07: 1, A08: 1, A12: 1, A14: 1 } },
       band: { baseMax: 0, multiplierMin: 7, finalMin: -150, finalMax: -10, dieselRequired: true } },
     // Never left the Costa Smeralda: clean, and pointless.
     { id: 'go-nowhere', name: 'Go-nowhere anchor week',
@@ -7167,10 +7155,11 @@ globalThis.LEIP_ENGINE = (function () {
     var nights = clamp(Math.round(Number(raw.nights) || 0), 0, d.time.nights);
     var activities = {};
     if (raw.activities) {
+      // Each activity is a one-off SELECTION now, not a count: anything
+       // truthy normalises to exactly 1, so a stale saved plan carrying
+       // counts still loads and simply de-duplicates.
       Object.keys(raw.activities).forEach(function (id) {
-        var act = activityById(id);
-        var n = Math.round(Number(raw.activities[id]) || 0);
-        if (act && n > 0) activities[id] = clamp(n, 1, act.maxPerWeek);
+        if (activityById(id) && Number(raw.activities[id]) > 0) activities[id] = 1;
       });
     }
     return { route: route, speed: speed, nights: nights, activities: activities };
@@ -7251,18 +7240,6 @@ globalThis.LEIP_ENGINE = (function () {
     };
   }
 
-  // Results-screen fun metric (display flavour; never touches the score).
-  function funMetric(activities, cfg) {
-    var fun = 0;
-    Object.keys(activities).forEach(function (id) {
-      var act = activityById(id);
-      for (var k = 1; k <= activities[id]; k++) {
-        fun += act.fun * (k <= cfg.softCap ? 1 : Math.pow(cfg.decay, k - cfg.softCap));
-      }
-    });
-    return Math.round(fun * 10) / 10;
-  }
-
   // ---- Route distance: two quantities, deliberately separated --------
   // A poster route is a curated real charter — a week's genuine cruising,
   // wandering between bays — so its published nm cannot be decomposed into
@@ -7319,9 +7296,10 @@ globalThis.LEIP_ENGINE = (function () {
     var e = energyFor(coveredNm, T.charterHours, profileName, distanceNm);
     var underwayH = e.underwayH;
     var anchorH = T.charterHours - underwayH;      // derived anchor time (spec §3)
+    // One use each, all at the same flat 0.1% of the weekly budget.
     var activitiesMwh = 0;
     Object.keys(inputs.activities).forEach(function (id) {
-      activitiesMwh += activityById(id).energyPct * d.scoring.weeklyEnergyRefMwh * inputs.activities[id];
+      activitiesMwh += activityById(id).energyPct * d.scoring.weeklyEnergyRefMwh;
     });
     var totalMwh = e.hotelMwh + e.travelMwh + activitiesMwh;
 
@@ -7421,13 +7399,13 @@ globalThis.LEIP_ENGINE = (function () {
     });
     var rechargePortName = inputs.route[inputs.route.length - 1];
     var rechargePort = portByName(rechargePortName);
-    // Uses and the use-weighted mean eco rating: both feed the activities
-    // factor, which blends how much was done with how cleanly.
+    // How many were picked and their mean eco rating: both feed the
+    // activities factor, which blends how much was done with how cleanly.
+    // One use each, so this is a plain mean over the selection.
     var activityUses = 0, ecoSum = 0;
     Object.keys(inputs.activities).forEach(function (id) {
-      var n = inputs.activities[id];
-      activityUses += n;
-      ecoSum += activityById(id).eco * n;
+      activityUses += 1;
+      ecoSum += activityById(id).eco;
     });
     var sc = computeScore({
       coveredNm: coveredNm, batteryMwh: batteryMwh, dieselMwh: dieselMwh,
@@ -7458,7 +7436,6 @@ globalThis.LEIP_ENGINE = (function () {
       rechargePort: rechargePortName,
       poster: posterInfo,
       timeline: timeline,
-      funMetric: funMetric(inputs.activities, d.scoring.funMetric),
       score: { base: base, baseParts: sc.baseParts,
                factors: factors, weightedSum: sc.weightedSum,
                multiplier: multiplier, final: final }
@@ -7560,7 +7537,7 @@ globalThis.LEIP_ENGINE = (function () {
     for (var i = 0; i < nPicks; i++) route.push(d.ports[Math.floor(rng() * d.ports.length)].name);
     var activities = {};
     d.activities.forEach(function (act) {
-      if (rng() < cfg.activityChance) activities[act.id] = 1 + Math.floor(rng() * act.maxPerWeek);
+      if (rng() < cfg.activityChance) activities[act.id] = 1;
     });
     var speeds = Object.keys(d.speedToggles);
     return normalizeInputs({
@@ -9016,54 +8993,35 @@ globalThis.LEIP_APP = (function () {
     return '<svg class="act-icon" viewBox="0 0 24 24" aria-hidden="true">' + parts.join('') + '</svg>';
   }
 
-  // Activities are Monument-style tiles: tap the tile to add one, the
-  // corner button to remove one. Mechanics are unchanged — repeatable vs
-  // once-only, per-week maxima and eco values all come from the sheet.
+  // Activities are Monument-style tiles in ONE flat grid — no Active /
+  // Relaxing split, no counts, no per-week maxima. Each of the fourteen is
+  // a single on/off pick: tap to select, tap again to drop.
+  //
+  // The eco rating is deliberately absent from the tile. It scores, but the
+  // player is meant to judge the activity, not read its number off the UI.
   function buildActivityList() {
     var el = $('activity-list');
     if (!el) return;
-    var html = '';
-    ['Relaxing', 'Active'].forEach(function (cat) {
-      html += '<div class="act-group"><h4>' + cat + '</h4><div class="act-grid">';
-      D.activities.filter(function (a) { return a.category === cat; }).forEach(function (a) {
-        html += '<div class="act-tile" data-act="' + a.id + '" role="button" tabindex="0" ' +
-          'aria-label="' + esc(a.name) + '" title="' + esc(a.name) +
-          (a.repeatable ? ' — up to ' + a.maxPerWeek + ' per week' : ' — once per charter') + '">' +
-          iconSvg(a.id) +
-          '<span class="act-text"><span class="act-name">' + esc(a.name) + '</span>' +
-          // The eco value scores but is never shown — the player judges the
-          // activity, not its rating.
-          '<span class="act-eco">' + (a.repeatable ? 'up to ' + a.maxPerWeek : 'once only') + '</span></span>' +
-          '<b class="act-count" id="cnt-' + a.id + '"></b>' +
-          '<button class="act-minus" data-minus="' + a.id + '" tabindex="-1" aria-label="Remove one">−</button>' +
-          '</div>';
-      });
-      html += '</div></div>';
-    });
-    el.innerHTML = html;
+    el.innerHTML = '<div class="act-grid">' + D.activities.map(function (a) {
+      return '<div class="act-tile" data-act="' + a.id + '" role="button" tabindex="0" ' +
+        'aria-pressed="false" aria-label="' + esc(a.name) + '" title="' + esc(a.name) + '">' +
+        iconSvg(a.id) +
+        '<span class="act-text"><span class="act-name">' + esc(a.name) + '</span></span>' +
+        '</div>';
+    }).join('') + '</div>';
     if (!el.querySelectorAll) return;
     var tiles = el.querySelectorAll('.act-tile');
     for (var i = 0; i < tiles.length; i++) {
       (function (tile) {
         var id = tile.getAttribute('data-act');
-        function add() { API.setActivity(id, (S.inputs.activities[id] || 0) + 1); }
-        tile.addEventListener('click', function (ev) {
-          if (ev && ev.target && ev.target.getAttribute && ev.target.getAttribute('data-minus')) return;
-          add();
-        });
+        function toggle() { API.setActivity(id, S.inputs.activities[id] ? 0 : 1); }
+        tile.addEventListener('click', toggle);
         tile.addEventListener('keydown', function (ev) {
           if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') {
             if (ev.preventDefault) ev.preventDefault();
-            add();
+            toggle();
           }
         });
-        var minus = tile.querySelector ? tile.querySelector('[data-minus]') : null;
-        if (minus) {
-          minus.addEventListener('click', function (ev) {
-            if (ev.stopPropagation) ev.stopPropagation();
-            API.setActivity(id, (S.inputs.activities[id] || 0) - 1);
-          });
-        }
       })(tiles[i]);
     }
   }
@@ -9095,15 +9053,16 @@ globalThis.LEIP_APP = (function () {
     if (nv) nv.textContent = String(S.inputs.nights);
     var nr = $('nights');
     if (nr) nr.value = String(S.inputs.nights);
-    D.activities.forEach(function (a) {
-      var n = S.inputs.activities[a.id] || 0;
-      var el = $('cnt-' + a.id);
-      if (el) {
-        el.textContent = n > 0 ? String(n) : '';
-        var tile = el.parentNode;
-        if (tile && tile.classList) tile.classList[n > 0 ? 'add' : 'remove']('on');
-      }
-    });
+    var actList = $('activity-list');
+    if (actList && actList.querySelector) {
+      D.activities.forEach(function (a) {
+        var tile = actList.querySelector('[data-act="' + a.id + '"]');
+        if (!tile) return;
+        var on = !!S.inputs.activities[a.id];
+        if (tile.classList) tile.classList[on ? 'add' : 'remove']('on');
+        if (tile.setAttribute) tile.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    }
     RoutePlot.fit(S.inputs.route);
     requestRoute();
   }
@@ -9615,11 +9574,10 @@ globalThis.LEIP_APP = (function () {
     },
     setActivity: function (id, count) {
       if (S.phase !== 'planning') return;
-      var act = E.activityById(id);
-      if (!act) return;
-      count = Math.max(0, Math.min(act.maxPerWeek, Math.round(Number(count) || 0)));
-      if (count === 0) delete S.inputs.activities[id];
-      else S.inputs.activities[id] = count;
+      if (!E.activityById(id)) return;
+      // One-off selection: anything truthy is 1, anything else clears it.
+      if (Number(count) > 0) S.inputs.activities[id] = 1;
+      else delete S.inputs.activities[id];
       refreshPlanning();
     },
     spin: function () {
