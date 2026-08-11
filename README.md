@@ -21,12 +21,12 @@ results — the math never depends on either.
 |---|---|
 | `index.html` | The game: `#leip-theme` (THEME block — every visual value), `#leip-data` (DATA block — every gameplay value), `#leip-engine` (pure scoring/simulation), `#leip-app` (world + chart + UI) |
 | `leip_game_data.json` / `LEIP_game_data.xlsx` | Real engineering data pack (reports 200-52, 835-52, 320-52, port list, Charter_Routes.pptx) mirrored 1:1 into the DATA block |
-| `LEIP_activities_data.xlsx` | Dataset 5 (activities), mirrored 1:1 |
+| `LEIP_activities_data.xlsx` | Dataset 5 (activities) — **stale**: still the old 24-item sheet, see Activities |
 | `fonts/leip-ocra.woff2` | **OCR-A LEIP** — original CC0 digitization of the ANSI X3.17 OCR-A model, built by `tools/build_ocra_font.py`. See `fonts/LICENSE-OCR-A-LEIP.txt` for the license-verification record (the common "free" OCR-A lineage carries a no-profit restriction and was rejected) |
 | `fonts/LICENSE-SAIRA-OFL.txt` | Saira SemiCondensed license (embedded in the HTML as base64 by `tools/embed_fonts.mjs`) |
 | `leip_distance_model.json` | Poster charter distances + per-leg sea-lane corrections (see Distance model) |
 | `leip_fleet_reference.json` | 28 observed charters + route groups, the secondary external check |
-| `test/headless.mjs` | §11.2–11.6 + poster parity + distance rule + leaderboard logic (174 checks, 1 open item — see below) |
+| `test/headless.mjs` | §11.2–11.6 + poster parity + distance rule + leaderboard logic (186 checks, 1 open item — see below) |
 | `test/geometry.mjs` | Ports on real coastline, no sailed leg crossing land (8 checks) |
 | `test/fleet.mjs` | Secondary validation against the observed fleet, ±15% (`npm run test:fleet`) |
 | `test/smoke.mjs` | §11.1 + §11.7 + §11.8: stubbed Three.js/DOM boot → plan → simulate → playback → results → save → share (62 checks) |
@@ -75,13 +75,14 @@ went +0.65 → +1.48 MWh, just outside the window). Every route simulates **high
 by +1.5 to +15.7 MWh — a spread no single scalar closes, over published figures
 that are mutually inconsistent to begin with.
 
-The §5 canonical worked example lands on **base 17.55 × multiplier 6.55 = 115**.
+The §5 canonical worked example lands on **base 17.55 × multiplier 6.52 = 114**.
 The multiplier reads the itinerary, not the energy, so every *energy* change
 landed entirely in the base: 23.96 → 27.05 MWh on the electrical curve (base
 16.08 → 17.63, final 101 → 111), then 27.05 → 26.89 MWh on the speed regression
 (base → 17.55, final held at 111). The activities eco blend is the first change
-to move the multiplier itself: this week's six uses average eco 8.0, lifting the
-factor from a flat 3 to 5.5 and the multiplier 6.3 → 6.55, for a final of 115.
+to move the multiplier itself (6.3 → 6.55, final 115), and the simplified
+14-activity set moved it again: the same four experiences are now single picks
+rather than six uses, and average eco 8.0 → 7.5, for 6.52 and a final of **114**.
 
 ## Speed model
 
@@ -154,16 +155,15 @@ the guests did with how cleanly they did it:
 otherwise  → (count band + average eco rating) / 2
 ```
 
-`eco` is the 1–10 rating each activity carries in Dataset 5. Twelve jet-ski
-runs and twelve paddleboard sessions are the same *count* and must not score
-alike — the blend is what makes the **choice** of activity matter, not just the
-number. The average is **use-weighted**, since the count itself counts repeats:
-three jet-ski runs are three low-eco uses, not one, so a dirty habit cannot be
-diluted by booking a clean one alongside it.
+`eco` is the 1–10 rating each activity carries in Dataset 5, and it is hidden
+from the player. Six dirty picks and six clean ones are the same *count* and
+must not score alike — the blend is what makes the **choice** of activity
+matter, not just the number. Six eco-4 picks score 5.0; two eco-10 picks score
+5.5 and beat them outright.
 
-The consequence is that the 10.0 ceiling now needs clean activities as well as
-many — twelve eco-2 uses score 6, twelve eco-10 uses score 10 — and two eco-10
-activities beat six eco-4 ones outright.
+Because only two of the fourteen are rated eco 10, the factor's own optimum is
+**8.333** — the twelve cleanest, `(10 + 6.667) / 2` — not 10. Reaching the top
+count band forces the dirty picks in. See Activities below.
 
 The multiplier is **truncated to 2 dp**, and that is the actual multiplier
 rather than a display rounding: the scoreboard shows base and multiplier, so
@@ -188,15 +188,53 @@ The four worked examples, all reproducing exactly:
 Purist is the clearest read on the blend: two activities, but the cleanest
 there are, and its 5.5 beats the hero's six-activity 5.25.
 
+The multiplier's **formula** range is 1.0–10.0, but its **attainable** range
+stops at **9.83**: the activities factor cannot reach 10 with this activity set
+(above), and the other four factors are already maxed in that figure. The
+formula ceiling of 50 × 10 = 500 is likewise a formula ceiling.
+
 **Score Over 400 is clean-reachable.** Verified by optimised search — seeded
 from the poster routes, hill-climbed by single-port insert/swap/delete over
-56,275 route/nights combinations — not by random sampling, which misses the
+60,734 route/nights combinations — not by random sampling, which misses the
 optimum because uniformly-drawn routes almost never land near the battery cap.
-Of 9,227 clean completions, **1,688 clear 400**; the best clean week scores
-**426** (base 46.25 × 9.20, 425 nm, 49.995 MWh, zero diesel: Olbia → Monaco →
-Nice → Antibes → Genoa → Antibes → Saint-Jean-Cap-Ferrat → Monaco). Eco-10
-activities both max the factor and draw less power, so the ceiling rose when
-the blend came in.
+Of 9,721 clean completions, **1,356 clear 400**; the best clean week scores
+**414** (base 45.85 × 9.03, 417 nm, 49.985 MWh, zero diesel). That is down from
+426 under the old 24-activity set, for two compounding reasons: the factor tops
+out at 8.333 instead of 10, and twelve picks now cost a flat 0.6 MWh where four
+eco-10 picks used to cost about 0.006.
+
+## Activities
+
+Fourteen, one flat list, each selectable **once**. No Active/Relaxing split, no
+repeat counts, no per-week maxima, no fun ratings. Every activity costs the same
+trivial **0.1% of the weekly budget** (0.05 MWh), so picking is never an energy
+decision — it is flavour on the board and eco signal in the score.
+
+| # | activity | eco | | # | activity | eco |
+|---|---|---|---|---|---|---|
+| A01 | Scuba diving | 4 | | A08 | Beach club afternoon | 7 |
+| A02 | Snorkelling | 10 | | A09 | Jacuzzi under the stars | 4 |
+| A03 | Jet skis | 1 | | A10 | Spa & massage | 7 |
+| A04 | Seabobs | 8 | | A11 | Sauna & hammam | 3 |
+| A05 | E-foiling | 8 | | A12 | Cinema night | 8 |
+| A06 | Wakeboarding & waterskiing | 2 | | A13 | Formal dinner & wine tasting | 6 |
+| A07 | Paddleboards & kayaks | 10 | | A14 | Deck party | 5 |
+
+**`eco` is hidden.** It is not on the tile, not in a tooltip, not in a
+sub-label; a test asserts the app block never reads it. It reaches the player
+only as score, so the influence is background and the player learns it by
+playing rather than by reading a number off the UI.
+
+The spread has a real consequence. With only **two** activities at eco 10,
+reaching the top count band (12+) forces the dirty picks in, so the activities
+factor tops out at `(10 + 6.667) / 2 = 8.333` — the twelve cleanest, leaving out
+jet skis (1) and wakeboarding (2). That caps the attainable multiplier at 9.83
+and the best clean score at 414.
+
+`LEIP_activities_data.xlsx` in this repo is **still the old 24-item sheet**. The
+fourteen and their eco ratings came with the change request and the DATA block
+is the authority for them; dropping the refreshed workbook in would restore the
+cross-check.
 
 ## Diesel reserve
 
