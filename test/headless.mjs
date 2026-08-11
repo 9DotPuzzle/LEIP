@@ -173,9 +173,53 @@ section('§5 Scoring formula — the four worked examples, against computeScore 
   check(`weights sum to ${mc.weightSum}, keeping the multiplier on 1-10`,
     Math.abs(wsum - mc.weightSum) < 1e-9, `got ${wsum}`);
   const worstMult = E.computeScore(q({})).multiplier;
-  const bestMult = E.computeScore(q({ countries: 9, ports: 9, anchorNights: 4,
-    activityUses: 99, rechargeEnergy: 'green' })).multiplier;
+  const best = q({ countries: 9, ports: 9, anchorNights: 4, activityUses: 99,
+    activityEcoAvg: 10, rechargeEnergy: 'green' });
+  const bestMult = E.computeScore(best).multiplier;
   check(`multiplier spans ${worstMult} to ${bestMult}`, worstMult === mc.min && bestMult === mc.max);
+  // The eco blend means COUNT ALONE no longer maxes the activities factor:
+  // the ceiling is only reachable by choosing clean activities as well.
+  const dirtyMax = E.computeScore(Object.assign({}, best, { activityEcoAvg: 2 })).multiplier;
+  check(`a perfect week on dirty activities cannot reach the ceiling (${dirtyMax} vs ${mc.max})`,
+    dirtyMax < mc.max, `${dirtyMax}`);
+  check('and the ceiling is genuinely reachable — the pack has eco-10 activities',
+    D.activities.filter(a => a.eco === 10).reduce((n, a) => n + a.maxPerWeek, 0) >= 12,
+    `${D.activities.filter(a => a.eco === 10).length} activities at eco 10`);
+  // ---- The activities factor: count blended with eco quality ----
+  check('no activities scores the floor, whatever the eco figure says',
+    E.computeScore(q({ activityUses: 0, activityEcoAvg: 10 })).factors.activities.score ===
+      mc.activitiesFactor.emptyScore);
+  check('the factor is (count band + average eco) / 2',
+    E.computeScore(q({ activityUses: 6, activityEcoAvg: 7.5 })).factors.activities.score === 5.25 &&
+    E.computeScore(q({ activityUses: 2, activityEcoAvg: 10 })).factors.activities.score === 5.5);
+  // The point of the blend: same count, different choices, different score.
+  {
+    const dirty = E.computeScore(q({ activityUses: 12, activityEcoAvg: 2 })).factors.activities.score;
+    const clean = E.computeScore(q({ activityUses: 12, activityEcoAvg: 10 })).factors.activities.score;
+    check(`twelve dirty uses (${dirty}) score below twelve clean ones (${clean})`, dirty < clean);
+  }
+  // And two clean activities can beat six dirty ones — quality is not a
+  // tiebreak on quantity, it is half the factor.
+  check('two eco-10 activities beat six eco-4 ones',
+    E.computeScore(q({ activityUses: 2, activityEcoAvg: 10 })).factors.activities.score >
+    E.computeScore(q({ activityUses: 6, activityEcoAvg: 4 })).factors.activities.score);
+  // Simulated end-to-end, the average must be USE-WEIGHTED: booking a dirty
+  // activity three times cannot be diluted by one clean booking.
+  {
+    // Both must be bookable three times, or maxPerWeek clamps the mix and
+    // the test measures the clamp instead of the weighting.
+    const A = D.activities.filter(a => a.maxPerWeek >= 3);
+    const dirtiest = A.slice().sort((x, y) => x.eco - y.eco)[0];
+    const cleanest = A.slice().sort((x, y) => y.eco - x.eco)[0];
+    const acts = {}; acts[dirtiest.id] = 3; acts[cleanest.id] = 1;
+    const sim = E.simulate({ route: ['Nice', 'Monaco'], speed: 'slow', nights: 4, activities: acts });
+    const want = (dirtiest.eco * 3 + cleanest.eco) / 4;
+    check(`eco average is use-weighted (${sim.score.factors.activities.avgEco.toFixed(2)} = ${want.toFixed(2)}, not the ${((dirtiest.eco + cleanest.eco) / 2).toFixed(2)} of a per-activity mean)`,
+      Math.abs(sim.score.factors.activities.avgEco - want) < 1e-9);
+  }
+  check('the multiplier truncates to 2 dp, so base x multiplier is hand-checkable',
+    E.computeScore(q({ countries: 3, ports: 6, anchorNights: 4, activityUses: 6,
+      activityEcoAvg: 7.5, rechargeEnergy: 'green' })).multiplier === 8.72);
   check('anchor nights are non-monotonic: 6+ scores below 4-5',
     E.bandLookup(mc.bands.anchor, 6) < E.bandLookup(mc.bands.anchor, 4));
   check('an unreached recharge port scores the floor, an unrated one scores grey',
