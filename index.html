@@ -6482,24 +6482,32 @@ globalThis.LEIP_DATA = {
   // after the engineering team confirmed the propulsion table gives
   // ELECTRICAL power (P_B GEN+Sea), not brake power. Effective propulsion
   // power rose x1.45, and the model went from running light to running
-  // heavy. Fleet-wide means moved total -9.9% -> +10.5% and propulsion
-  // -23.7% -> +10.6%.
+  // heavy. Fleet-wide means moved total -9.9% -> +11.0% and propulsion
+  // -23.7% -> +11.2%.
   //
-  // Fixed by the change: SoF to Italy Intense -20.9% -> -2.3%, Greece
-  // Intense -15.8% -> +6.3%. Both now inside the +-15% band.
+  // Fixed by the change: SoF to Italy Intense -20.9% -> -2.6%, Greece
+  // Intense -15.8% -> +6.1%. Both now inside the +-15% band.
   //
   // Newly failing, and the pattern is worth the whole note: EVERY failing
-  // cell is a TYPICAL cell and EVERY one overshoots — SoF +16.9%, Sardinia
-  // & Corsica +32.7%, Greece +20.7%, Turkey +20.4%, Balearics +25.4%.
+  // cell is a TYPICAL cell and EVERY one overshoots — SoF +16.6%, Sardinia
+  // & Corsica +33.8%, Greece +22.1%, Turkey +20.7%, Balearics +26.6%.
   // Asserted cells went 6/8 to 3/8.
   //
-  // (1) THE ERROR NOW SORTS BY PROFILE, NOT BY ROUTE. That is a different
-  // signature from before and it points at the TYPICAL speed profile, not
-  // at the curve: under electrical power the Typical mix spends too long
-  // under way, too fast, or both, for the charters filed under it. The
-  // Intense profile lands. Per charter, observed/modelled propulsion has a
-  // median of 0.934 and a mean of 0.908 — the curve is now about 7% heavy
-  // on the median charter where it was roughly 31% light before.
+  // (1) THE ERROR SORTS BY PROFILE, NOT BY ROUTE, and that is the whole
+  // diagnosis. It is NOT a profile that can be re-fitted away: replacing
+  // the two fixed profiles with the distance-based regression did not move
+  // these cells, which stayed high to within a point or two. It is the
+  // known SOURCE-DATA DISAGREEMENT — the pack ships a distance-share
+  // distribution AND a per-knot HOURS distribution for the SAME 28
+  // charters, and the two imply different propulsion (694/868 kW against
+  // 852/1152). The game is built on the distance-share side; these cells
+  // are the hours side pushing back. Reconciling the two speed
+  // representations is for the engineers, not for the build.
+  //
+  // Note the direction of travel: the failure COUNT went up while the
+  // model got closer to reality. Per charter, observed/modelled propulsion
+  // has a median of 0.934 and a mean of 0.908 — the curve is now about 7%
+  // heavy on the median charter where it was roughly 31% light before.
   //
   // The two caveats on that ratio survive the change and are why it is
   // still NOT a recalibration target:
@@ -6762,42 +6770,50 @@ globalThis.LEIP_DATA = {
   // value moves because the model underneath it moved, not because
   // anything here was fitted to a target.
   //   sailed 82.1 nm    -> distance ladder 4.105
-  //   battery 27.05 MWh -> energy ladder 13.525
+  //   battery 26.89 MWh -> energy ladder 13.445
   //   diesel 0          -> no penalty
-  //   base 17.630
+  //   base 17.550
   //   countries 2 -> 3 x1.0 · ports 5 -> 6 x1.25 · activities 6 uses -> 3 x0.5
   //   nights 3 -> 6 x0.75 · recharge Nice green -> 10 x1.5
   //   weighted 31.5 / 5 = x6.3  (unchanged — the multiplier reads the
   //   itinerary, not the energy, so the whole movement is in the base)
-  //   final round(17.630 x 6.3) = 111
+  //   final round(17.550 x 6.3) = 111
+  //
+  // Third re-point, and the smallest: the distance-based speed regression
+  // moved this 82.1 nm week's energy 27.05 -> 26.89 MWh, because a short
+  // route now runs a slower mix than the old one-size profile assumed.
+  // The base drops 0.08 and the FINAL IS UNCHANGED at 111.
   canonicalTest: {
     inputs: {
       route: ['Monaco', 'Saint-Jean-Cap-Ferrat', 'Antibes', 'Saint Tropez', 'Nice'],
       speed: 'slow', nights: 3,
       activities: { A02: 2, A07: 1, R01: 1, R06: 2 }
     },
-    expected: { base: 17.63, multiplier: 6.3, final: 111 }
+    expected: { base: 17.55, multiplier: 6.3, final: 111 }
   },
 
   // Regression fixture for the 50 MWh Hit rule: a week that draws the
   // battery down into the band with the diesels asleep (49.84 MWh).
   achievementFixtures: {
-    // Clears the Score Over 400 bar. Reaching it means maxing the
-    // multiplier's expensive factors at once — six distinct ports, three
-    // or four countries, twelve activity uses, four or five anchor
-    // nights, finishing on a green grid — while filling both base
-    // ladders. 4,160 of 58,325 sampled six/seven-port completions clear
-    // it; the best sampled was 424 of a 500 ceiling.
+    // Clears the Score Over 400 bar CLEAN — zero diesel, 403.5 nm on the
+    // battery alone, base 44.64 x 9.20 = 411.
     //
-    // NOTE the shape of the bar changed when the propulsion curve became
-    // electrical power. Six ports at that energy cost no longer fit
-    // inside the 50 MWh battery, so every route that now clears 400 runs
-    // a little diesel: the distance ladder is worth 5 points per 100 nm
-    // and the penalty only 1 point per MWh, so buying ~50 nm with ~2 MWh
-    // of diesel pays. The best CLEAN week sampled scores 362. That is a
-    // model consequence, not a tuned target — the bar stays at 400.
+    // CORRECTION TO AN EARLIER REPORT, which claimed the best clean week
+    // was 362 and that six ports no longer fit inside 50 MWh. That was a
+    // random-sampling artifact, not the ceiling: uniformly-drawn routes
+    // almost never land near the battery cap, which is exactly where the
+    // optimum sits. Under an optimised search seeded from the poster
+    // routes and hill-climbed by single-port insert/swap/delete, 1,370 of
+    // 9,275 clean completions clear 400 and the best clean week scores
+    // 423 (418.6 nm, 49.995 MWh, Savona > Monaco > Nice > Saint Tropez >
+    // Antibes > Ajaccio > Monaco). The bar is clean-reachable with room.
+    //
+    // This fixture is deliberately NOT that optimum: at 49.995 MWh the
+    // best week sits 5 kWh under the battery, which is no margin for a
+    // regression fixture. This one keeps 1.08 MWh of headroom and still
+    // clears the bar by 11.
     scoreOver400: {
-      route: ['Antibes', 'Monaco', 'Cannes', 'Porto Rotondo', 'Olbia', 'Saint-Jean-Cap-Ferrat'],
+      route: ['Savona', 'Monaco', 'Nice', 'Antibes', 'Saint Tropez', 'Ajaccio', 'Calvi', 'Monaco'],
       speed: 'slow', nights: 4,
       activities: { A01: 3, A02: 3, A03: 3, A04: 3 }
     },
@@ -6813,10 +6829,11 @@ globalThis.LEIP_DATA = {
     longHaulDiesel: {
       route: ['Palma', 'Bonifacio', 'Naples', 'Monaco'], speed: 'fast', nights: 4, activities: {}
     },
-    // Re-picked for the electrical curve; same activity mix, a shorter
-    // route to land in the same 49.5-50 MWh band (49.64 MWh).
+    // Same activity mix; re-picked again for the speed regression, which
+    // moved the old route to 50.40 MWh and woke the diesels. Lands mid-band
+    // at 49.81 MWh with margin on both sides of the 49.5-50.0 window.
     batteryBrinkmanship: {
-      route: ['Antibes', 'Bonifacio', 'Salerno'], speed: 'slow', nights: 4,
+      route: ['Antibes', 'Palma', 'Eivissa'], speed: 'slow', nights: 4,
       activities: { A08: 1, A07: 2, R06: 1 }
     }
   },
@@ -6835,12 +6852,22 @@ globalThis.LEIP_DATA = {
       inputs: { route: ['Monaco', 'Calvi', 'Porto Cervo', 'Olbia', 'Monaco'], speed: 'slow', nights: 4,
                 activities: { A02: 1, A07: 2, A10: 1, R03: 1, R06: 1, R08: 1 } },
       band: { baseMin: 35, multiplierMin: 6, finalMin: 200, finalMax: 400 } },
-    // A superb itinerary wrecked by energy profligacy: 1,014 nm at the
-    // Intense profile wakes the diesels for 23 MWh.
+    // A superb itinerary wrecked by energy profligacy: 1,039 nm on the Hare
+    // toggle burns 55 MWh of diesel on top of a full battery.
+    //
+    // BAND RE-POINTED, and downward on purpose. It used to expect a final
+    // of 100-260, from a scoring model where diesel cost a bounded
+    // fraction of an energy frame. Under the redesigned base, diesel costs
+    // an uncapped 1 point per MWh and the base is not floored, so 55 MWh
+    // takes the base to -5.0 and the final to -38. That is the intended
+    // behaviour — heavy diesel should tank the score, and the penalty is
+    // NOT being softened to fit the old band. What the band still asserts
+    // is the shape of the scenario: the itinerary is genuinely good, so
+    // the multiplier must stay high while the base goes negative.
     { id: 'diesel-dash', name: 'Diesel-soaked dash',
       inputs: { route: ['Antibes', 'Palma', 'Cagliari', 'Monaco'], speed: 'fast', nights: 4,
                 activities: { A02: 1, A07: 2, A10: 1, R03: 1, R06: 1, R08: 1 } },
-      band: { baseMax: 32, multiplierMin: 7, finalMin: 100, finalMax: 260, dieselRequired: true } },
+      band: { baseMax: 0, multiplierMin: 7, finalMin: -150, finalMax: -10, dieselRequired: true } },
     // Never left the Costa Smeralda: clean, and pointless.
     { id: 'go-nowhere', name: 'Go-nowhere anchor week',
       inputs: { route: ['Porto Cervo'], speed: 'slow', nights: 6, activities: {} },

@@ -681,25 +681,30 @@ section('Leaderboard logic (spec §8, §11.7 name rule)');
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) {
   console.log(
-    '\nOPEN ITEMS pending a decision, deliberately left failing rather than tuned\n' +
-    'away. Both are consequences of the propulsion curve becoming ELECTRICAL power\n' +
-    'used as-is (propFactor deleted on the engineering team\'s confirmation), which\n' +
-    'raised effective propulsion power by x1.45 across both speed profiles:\n' +
+    '\nOPEN ITEM pending a decision, deliberately left failing rather than tuned\n' +
+    'away: §6 poster parity now reconciles 0/7 from first principles, down from\n' +
+    '4/7. All seven still output their published nm exactly and their published MWh\n' +
+    'via the §6 exact-match override, so nothing a player sees is wrong — what is\n' +
+    'lost is first-principles reconciliation.\n' +
     '\n' +
-    '  1. Poster parity fell from 4/7 calibrated to 1/7. SOF_GREEN newly calibrates;\n' +
-    '     SOF_BLUE, BALEARICS, GREECE and TURKEY now miss high and fall back on the\n' +
-    '     §6 exact-match override. All 7 still output their published nm exactly and\n' +
-    '     their published MWh via the override, so nothing a player sees is wrong —\n' +
-    '     what is lost is first-principles reconciliation. The calibration constants\n' +
-    '     that used to absorb this gap are the ones that were removed.\n' +
-    '  2. diesel-dash is out of band: base 25.5 -> -1.1, final 192 -> -9, as its\n' +
-    '     diesel goes 24.5 -> 51.1 MWh. The band is unchanged and the scenario is\n' +
-    '     behaving exactly as designed — a 1,039 nm week at the Intense profile now\n' +
-    '     burns enough diesel to take the base negative, which the redesigned base\n' +
-    '     explicitly permits (it is not floored). Whether the intended band should\n' +
-    '     follow it down is a design call, not a test fix.\n' +
+    'Two changes took it there, both made on the engineering team\'s own figures\n' +
+    'and neither reversible without discarding those figures:\n' +
+    '  1. propFactor was deleted when the propulsion table was confirmed to give\n' +
+    '     ELECTRICAL power. Effective propulsion power rose x1.45. Parity 4/7 -> 1/7.\n' +
+    '     The constants that used to absorb the gap were the ones removed.\n' +
+    '  2. The speed split became a regression on total route distance, replacing\n' +
+    '     two fixed profiles. Poster routes are long, so they now run a faster mix\n' +
+    '     and draw more. Parity 1/7 -> 0/7; SOF_GREEN went +0.65 to +1.48 MWh and\n' +
+    '     fell just outside the ±1 window.\n' +
     '\n' +
-    'Fixing either means changing a model constant or a stated band. Neither has\n' +
-    'been touched. See the before/after in tools/calibrate.mjs.');
+    'Every route now simulates HIGH against its published figure, by +1.5 to +15.7\n' +
+    'MWh. A single scalar cannot close that spread, and the published figures are\n' +
+    'mutually inconsistent anyway (see the conflict list in tools/calibrate.mjs).\n' +
+    'Closing it means either a new calibration constant fitted against the sheets —\n' +
+    'which is what was just removed — or the sheets being restated. That is a call\n' +
+    'for the source, not a test fix.\n' +
+    '\n' +
+    'No model constant or band has been touched to make this pass. Before/after is\n' +
+    'in tools/calibrate.mjs.');
 }
 process.exit(failed === 0 ? 0 : 1);

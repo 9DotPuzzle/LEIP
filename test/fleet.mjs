@@ -109,7 +109,7 @@ section('Per-charter spread and where the error sits');
   check(`hotel load tracks the fleet within ±${F.tolerancePct}% on the mean`,
     Math.abs(mean('hotel')) <= F.tolerancePct, `${mean('hotel').toFixed(1)}%`);
   check(`propulsion tracks the fleet within ±${F.tolerancePct}% on the mean`,
-    Math.abs(mean('prop')) <= F.tolerancePct, `${mean('prop').toFixed(1)}% — the model runs light on propulsion`);
+    Math.abs(mean('prop')) <= F.tolerancePct, `${mean('prop').toFixed(1)}% — the model now runs HEAVY on propulsion; it ran light before`);
   check(`fleet-wide total within ±${F.tolerancePct}% on the mean`,
     Math.abs(mean('total')) <= F.tolerancePct, `${mean('total').toFixed(1)}%`);
 }
@@ -121,19 +121,27 @@ if (failed) {
     'failing cells are not the ones they were. Deleting propFactor on the engineering\n' +
     'team\'s confirmation that the propulsion table gives electrical power raised\n' +
     'effective propulsion power by x1.45. The model used to run light; it now runs\n' +
-    'heavy. Fleet-wide means went total -9.9% -> +10.5%, propulsion -23.7% -> +10.6%.\n' +
+    'heavy. Fleet-wide means went total -9.9% -> +11.0%, propulsion -23.7% -> +11.2%.\n' +
     '\n' +
     'What that bought and what it cost:\n' +
     '  - FIXED, and these were the two long-standing failures: SoF to Italy Intense\n' +
-    '    -20.9% -> -2.3%, Greece Intense -15.8% -> +6.3%. Both now inside the band.\n' +
+    '    -20.9% -> -2.6%, Greece Intense -15.8% -> +6.1%. Both now inside the band.\n' +
     '  - BROKE, and the pattern is clean: every newly-failing cell is a TYPICAL cell\n' +
-    '    and every one overshoots — SoF +16.9%, Sardinia & Corsica +32.7%, Greece\n' +
-    '    +20.7%, Turkey +20.4%, Balearics +25.4%. Asserted cells went 6/8 to 3/8.\n' +
+    '    and every one overshoots — SoF +16.6%, Sardinia & Corsica +33.8%, Greece\n' +
+    '    +22.1%, Turkey +20.7%, Balearics +26.6%. Asserted cells went 6/8 to 3/8.\n' +
     '\n' +
-    'That the error sorts by profile, not by route, points at the Typical speed\n' +
-    'profile rather than at the curve: under electrical power the Typical mix is too\n' +
-    'fast, too long under way, or both, for the charters filed under it. The Intense\n' +
-    'profile now lands. Per-charter, observed/modelled propulsion has a median of\n' +
+    'That the error sorts by PROFILE, not by route, is the whole diagnosis — and the\n' +
+    'distance-based speed regression that later replaced the two fixed profiles did\n' +
+    'NOT move it: the Typical cells stayed high to within a point or two. So this is\n' +
+    'not a profile that can be re-fitted away. It is the known SOURCE-DATA\n' +
+    'DISAGREEMENT: the pack ships a distance-share distribution AND a per-knot HOURS\n' +
+    'distribution for the SAME 28 charters, and the two imply different propulsion\n' +
+    '(694/868 kW against 852/1152). The game is built on the distance-share side;\n' +
+    'these cells are the hours side pushing back. Reconciling the two speed\n' +
+    'representations is for the engineers, not for the build.\n' +
+    '\n' +
+    'Note the direction of travel: the failure COUNT went up while the model got\n' +
+    'closer to reality. Per-charter, observed/modelled propulsion has a median of\n' +
     '0.934 and a mean of 0.908 — the curve is roughly 7% heavy on the median charter\n' +
     'where it was ~31% light before. The spread remains 0.53-1.20 and values above\n' +
     '1.0 are still physically impossible, so some observed propulsion_mwh continues\n' +
