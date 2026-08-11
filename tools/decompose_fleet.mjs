@@ -66,7 +66,7 @@ for (const r of F.routeGroups) {
     const st = mem.map((m) => ownStats(m.vessel));
     const mV = st.reduce((s, o) => s + o.vEff, 0) / st.length;
     const mP = st.reduce((s, o) => s + o.avgKw, 0) / st.length;
-    const gs = E.profileStats(prof);
+    const gs = E.profileStats(prof, r.distNm);
     const pc = (x) => (((x - obs) / obs * 100 >= 0 ? '+' : '') +
                        ((x - obs) / obs * 100).toFixed(1)).padStart(7);
     console.log(`${r.route.padEnd(24)} ${prof.slice(0, 3)} ${obs.toFixed(1).padStart(6)} ` +
@@ -101,7 +101,7 @@ for (const r of F.routeGroups) {
     if (!n || n < F.minGroupN) continue;
     const mem = F.charters.filter((c) => c.group === r.route && c.profile === prof);
     const ownNm = mem.reduce((s, c) => s + c.totalNm, 0) / mem.length;
-    const gs = E.profileStats(prof);
+    const gs = E.profileStats(prof, r.distNm);
     const p1 = (cell(r.distNm, dur, gs.vEff, gs.avgKw) - obs) / obs * 100;
     const p2 = (cell(ownNm, dur, gs.vEff, gs.avgKw) - obs) / obs * 100;
     a += Math.abs(p1) <= F.tolerancePct; b += Math.abs(p2) <= F.tolerancePct; tot++;

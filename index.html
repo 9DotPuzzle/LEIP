@@ -6199,18 +6199,32 @@ globalThis.LEIP_DATA = {
   // passage does.
   //
   // Derivation, using the same energy model as everything else: 4,500 nm
-  // run at the Typical profile's effective cruise of 10.42 kt is 431.7 h
-  // entirely under way. Propulsion is read straight off the electrical
-  // curve at 694 kW, and hotel is the curve's underway figure of 113.4 kW.
-  //   propulsion  694 kW x 431.7 h = 299.6 MWh
-  //   hotel     113.4 kW x 431.7 h =  49.0 MWh
-  //                                  ---------
-  //                                   348.6 MWh
+  // at a flat 11 kt — the cruise band the vessel actually makes passage in
+  // — is 409.1 h entirely under way. Propulsion is read straight off the
+  // electrical curve at 771.8 kW, hotel is the curve's underway figure of
+  // 113.4 kW.
+  //   propulsion  771.8 kW x 409.1 h = 315.7 MWh
+  //   hotel       113.4 kW x 409.1 h =  46.4 MWh
+  //                                     ---------
+  //                                      362.1 MWh
+  // (Was 348.6, derived at the old fixed Typical profile's 10.42 kt
+  // harmonic mean. The regression makes that mean route-dependent, so a
+  // flat 11 kt delivery passage is the stable basis.)
+  //
+  // At ~7x the 50 MWh battery this reserve essentially never depletes in
+  // one week, and that is INTENDED — it is a realistic backstop, not a
+  // second resource to manage. The scoring teeth are the -1 point/MWh
+  // diesel penalty on the base, which is uncapped and bites immediately;
+  // there is deliberately no reserve-depletion penalty on top. The gauge
+  // drains on screen once the diesels wake because that is honest and
+  // dramatic, not because running it dry is a normal-play concern.
+  //
   // Held as a figure rather than computed at boot so it is auditable in
   // one place; test/headless.mjs recomputes it from the prop curve and
   // fails if the two ever drift.
   dieselRangeNm: 4500,
-  dieselReserveMwh: 348.6,
+  dieselReserveNm11ktBasis: true,
+  dieselReserveMwh: 362.1,
 
   // Guest-mode hotel loads: at anchor vs under way (operating_conditions).
   // Guest-mode design loads from operating_conditions. RETAINED FOR
@@ -6231,17 +6245,58 @@ globalThis.LEIP_DATA = {
     gameThresholdMwh: 50
   },
 
-  // ---- DATASET 2 — Speed profiles (REAL, 28 observed charters)
-  // Derived from vessel_speed_distributions: charters split at the median
-  // effective speed — the calmer half is the Typical (slow) toggle, the
-  // busier half the Intense (fast). distShare is the distance-weighted
-  // share of DISTANCE run in each speed band, so effective speed is the
-  // harmonic mean and average draw follows the same weighting.
+  // ---- DATASET 2 — Speed model (REAL, 28 observed charters)
+  // REPLACES the two fixed distShare profiles, which were a single split
+  // computed at one route distance and applied to every route regardless
+  // of length. The speed mix is now PREDICTED FROM TOTAL ROUTE DISTANCE by
+  // linear regression over the observed charters: longer passages spend a
+  // larger share of their distance at 11 and 14 kt and less at 8 kt,
+  // which the fixed profiles could not express.
+  //
+  //   share%(v) = slopePctPerNm x routeNm + interceptPct
+  //     14 kt:  0.0073 x nm +  6.90
+  //     11 kt:  0.0108 x nm + 75.68
+  //      8 kt: -0.0182 x nm + 17.40
+  //
+  // Sheet check at 71.3 nm: Hare 12.4 / 76.5 / 11.1, Tortoise
+  // 2.4 / 76.5 / 21.1 (14/11/8). Asserted in test/headless.mjs.
+  //
+  // TWO PROPERTIES OF THE FITTED REGRESSION, handled explicitly rather
+  // than silently. Neither is a tuning choice:
+  //  - The intercepts sum to 99.98 and the slopes to -0.0001/nm, so the
+  //    three shares do not quite sum to 100 and drift with distance
+  //    (99.97% at 71 nm, 99.88% at 1,039 nm). They are renormalised to
+  //    100 AFTER clamping, or a long route would silently lose ~0.1% of
+  //    its distance. At the 71.3 nm check point this moves nothing at the
+  //    sheet's own precision.
+  //  - The 8 kt share goes NEGATIVE on long routes — past 956 nm at the
+  //    neutral fit, and past 681 nm on Hare, which real routes reach. It
+  //    is clamped at minSharePct. Beyond that point the regression is
+  //    extrapolating past its observed range and the clamp is what keeps
+  //    it physical.
+  speedModel: {
+    regression: {
+      14: { slopePctPerNm:  0.0073, interceptPct:  6.90 },
+      11: { slopePctPerNm:  0.0108, interceptPct: 75.68 },
+      8:  { slopePctPerNm: -0.0182, interceptPct: 17.40 }
+    },
+    // Hare/Tortoise correction in PERCENTAGE POINTS, applied to the 14 kt
+    // share and mirrored on the 8 kt share. 11 kt is never touched — the
+    // toggle trades slow miles for fast miles, it does not change the
+    // cruise. Editable: this is the single knob for how far apart the two
+    // toggles sit.
+    hareTortoisePct: 5,
+    correctionKts: { add: 14, subtract: 8 },
+    minSharePct: 0
+  },
+  // The two toggles are now the SIGN of that correction, not two frozen
+  // splits. nCharters/observedSpeedRangeKts are retained as provenance for
+  // the 14/14 median split the regression was fitted over.
   speedProfiles: {
     Typical: { nCharters: 14, observedSpeedRangeKts: [9.78,10.73],
-             distShare: { 8: 0.16646, 11: 0.80048, 14: 0.03306 } },
+               correction: -1, label: 'Tortoise' },
     Intense: { nCharters: 14, observedSpeedRangeKts: [10.74,11.7],
-             distShare: { 8: 0.04926, 11: 0.80028, 14: 0.15046 } }
+               correction: +1, label: 'Hare' }
   },
   speedToggles: {
     slow: { profile: 'Typical', label: 'Typical', icon: 'SPD_TURTLE',
@@ -6250,12 +6305,22 @@ globalThis.LEIP_DATA = {
             hint: 'quicker legs · more anchor time · higher draw' }
   },
 
-  // ---- DATASET 3 — Ports (REAL, 33 ports). energy_type is now an
-  // objective carbon ranking, not a placeholder: green <= 245.25,
-  // blue <= 266.5, grey <= 409.25, brown above (gCO2/kWh).
-  // Genoa carries no carbon figure in the source — energy null, scored
-  // neutral, flagged for the team.
-  energyQuartilesGco2kwh: { greenMax: 245.25, blueMax: 266.5, greyMax: 409.25 },
+  // ---- DATASET 3 — Ports (REAL, 33 ports).
+  // Energy colour is now FIXED THRESHOLDS on grid carbon intensity, not
+  // relative quartiles over whatever ports happen to be in the list. That
+  // matters for more than tidiness: under quartiles a port's colour — and
+  // therefore its recharge score, the heaviest factor in the multiplier —
+  // could change because a DIFFERENT port was edited. A port's colour is
+  // now a property of the port alone.
+  //   green <= 150 · blue <= 300 · grey <= 420 · brown above (gCO2/kWh)
+  // Result: 7 green / 11 blue / 6 grey / 9 brown.
+  //
+  // Four ports move against the old quartile cut: Savona 275 and Venice
+  // 275 grey -> blue, Taormina 219 green -> blue, and Genoa — the last
+  // blank in the pack — is now 488, brown. There are no unrated ports
+  // left, so DATA.scoring.multiplier.rechargeUnrated is now unreachable
+  // and retained only as the rule for a future port with no figure.
+  energyThresholdsGco2kwh: { greenMax: 150, blueMax: 300, greyMax: 420 },
   ports: [
     { name: "Ajaccio",                 country: "France",      lat: 41.9192,  lon: 8.7386,   carbon: 31,    energy: 'green',  monument: "citadel",    tags: [] },
     { name: "Antibes",                 country: "France",      lat: 43.5804,  lon: 7.1251,   carbon: 31,    energy: 'green',  monument: "citadel",    tags: [] },
@@ -6267,7 +6332,7 @@ globalThis.LEIP_DATA = {
     { name: "Cannes",                  country: "France",      lat: 43.5513,  lon: 7.0174,   carbon: 31,    energy: 'green',  monument: "lighthouse", tags: [] },
     { name: "Corfu",                   country: "Greece",      lat: 39.6243,  lon: 19.9217,  carbon: 254,   energy: 'blue',   monument: "citadel",    tags: [] },
     { name: "Eivissa",                 country: "Spain",       lat: 38.9089,  lon: 1.4397,   carbon: 504,   energy: 'brown',  monument: "citadel",    tags: ["dive"] },
-    { name: "Genoa",                   country: "Italy",       lat: 44.4048,  lon: 8.9294,   carbon: null,  energy: null,     monument: "towers",     tags: [] },
+    { name: "Genoa",                   country: "Italy",       lat: 44.4048,  lon: 8.9294,   carbon: 488 ,  energy: 'brown',     monument: "towers",     tags: [] },
     { name: "Gocek",                   country: "Turkey",      lat: 36.7525,  lon: 28.9435,  carbon: 440,   energy: 'brown',  monument: "lighthouse", tags: [] },
     { name: "Gulluk",                  country: "Turkey",      lat: 37.3198,  lon: 27.5767,  carbon: 440,   energy: 'brown',  monument: "lighthouse", tags: [] },
     { name: "Kalathos",                country: "Greece",      lat: 36.1206,  lon: 28.0897,  carbon: 254,   energy: 'blue',   monument: "lighthouse", tags: ["dive"] },
@@ -6286,10 +6351,10 @@ globalThis.LEIP_DATA = {
     { name: "Saint-Jean-Cap-Ferrat",   country: "France",      lat: 43.684,   lon: 7.3323,   carbon: 31,    energy: 'green',  monument: "lighthouse", tags: [] },
     { name: "Salerno",                 country: "Italy",       lat: 40.6766,  lon: 14.7681,  carbon: 258,   energy: 'blue',   monument: "lighthouse", tags: [] },
     { name: "Santorini",               country: "Greece",      lat: 36.3893,  lon: 25.4323,  carbon: 254,   energy: 'blue',   monument: "caldera",    tags: ["achievement:santorini","dive"] },
-    { name: "Savona",                  country: "Italy",       lat: 44.308,   lon: 8.4814,   carbon: 275,   energy: 'grey',   monument: "lighthouse", tags: [] },
-    { name: "Taormina",                country: "Italy",       lat: 37.8249,  lon: 15.2726,  carbon: 219,   energy: 'green',  monument: "citadel",    tags: ["dive"] },
+    { name: "Savona",                  country: "Italy",       lat: 44.308,   lon: 8.4814,   carbon: 275,   energy: 'blue',   monument: "lighthouse", tags: [] },
+    { name: "Taormina",                country: "Italy",       lat: 37.8249,  lon: 15.2726,  carbon: 219,   energy: 'blue' ,  monument: "citadel",    tags: ["dive"] },
     { name: "Tivat",                   country: "Montenegro",  lat: 42.4304,  lon: 18.6946,  carbon: 352,   energy: 'grey',   monument: "citadel",    tags: [] },
-    { name: "Venice",                  country: "Italy",       lat: 45.4371,  lon: 12.3346,  carbon: 275,   energy: 'grey',   monument: "towers",     tags: [] }
+    { name: "Venice",                  country: "Italy",       lat: 45.4371,  lon: 12.3346,  carbon: 275,   energy: 'blue',   monument: "towers",     tags: [] }
   ],
 
   // ---- Distance matrix (REAL, 33x33 nm). NOTE: these are great-circle
@@ -6855,12 +6920,35 @@ globalThis.LEIP_ENGINE = (function () {
     return best.gameMode;
   }
 
-  // Underway statistics for a toggle profile. distShare is the share of
-  // DISTANCE run in each speed band, so hours-per-mile is the share-weighted
-  // sum of 1/v: effective speed is the harmonic mean, and average draw is
-  // weighted by time spent, not by distance.
-  function profileStats(profileName) {
-    var share = D().speedProfiles[profileName].distShare;
+  // The speed split for a route, PREDICTED FROM ITS TOTAL DISTANCE by the
+  // fitted regression, then moved by the Hare/Tortoise correction. Returns
+  // fractions of DISTANCE per speed band, clamped and renormalised to 1.
+  // See DATA.speedModel for why both of those steps are needed.
+  function distShareFor(profileName, routeNm) {
+    var sm = D().speedModel, prof = D().speedProfiles[profileName];
+    var corr = sm.hareTortoisePct * (prof ? prof.correction : 0);
+    var nm = Math.max(0, routeNm || 0);
+    var pct = {}, sum = 0;
+    Object.keys(sm.regression).forEach(function (k) {
+      var r = sm.regression[k];
+      var p = r.slopePctPerNm * nm + r.interceptPct;
+      if (Number(k) === sm.correctionKts.add) p += corr;
+      if (Number(k) === sm.correctionKts.subtract) p -= corr;
+      p = Math.max(sm.minSharePct, p);
+      pct[k] = p; sum += p;
+    });
+    var share = {};
+    Object.keys(pct).forEach(function (k) { share[k] = sum > 0 ? pct[k] / sum : 0; });
+    return share;
+  }
+
+  // Underway statistics for a toggle profile over a route of routeNm.
+  // The share is a share of DISTANCE, so hours-per-mile is the
+  // share-weighted sum of 1/v: effective speed is the harmonic mean, and
+  // average draw is weighted by time spent, not by distance. Both now vary
+  // with route length, which is the whole point of the regression.
+  function profileStats(profileName, routeNm) {
+    var share = distShareFor(profileName, routeNm);
     var hrPerNm = 0, propHr = 0, bands = [];
     Object.keys(share).forEach(function (k) {
       var v = Number(k), f = share[k], h = f / v;
@@ -6871,7 +6959,7 @@ globalThis.LEIP_ENGINE = (function () {
     bands.sort(function (a, b) { return a.kts - b.kts; });
     // avgKw is ELECTRICAL propulsion power, distance-weighted across the
     // profile's speed bands — the curve's own units, unconverted.
-    return { vEff: 1 / hrPerNm, avgKw: propHr / hrPerNm, bands: bands };
+    return { vEff: 1 / hrPerNm, avgKw: propHr / hrPerNm, bands: bands, share: share };
   }
 
   function toggleProfile(speed) {
@@ -6882,9 +6970,19 @@ globalThis.LEIP_ENGINE = (function () {
   // Shared energy model — the single place route energy is computed, used
   // by both the in-game week and the poster-assumption basis.
   //  distNm over hours with a profile -> { underwayH, hotelMwh, travelMwh }
-  function energyFor(distNm, hours, profileName) {
+  // basisNm is the TOTAL ROUTE distance the speed split is predicted from,
+  // which is not always the distance sailed: a week that runs out of hours
+  // still set out on the whole passage and picked its speed mix for it.
+  // Defaults to distNm, so every caller with one distance is unaffected.
+  //
+  // travelMwh is Sum(t_v x propKw(v)) over the speed bands — avgKw is the
+  // TIME-weighted mean draw and underwayH the total underway time, so the
+  // product is that sum exactly, not an approximation of it. Hotel splits
+  // at rest vs under way; every underway band carries the same hotel load,
+  // which is why it needs no per-band term.
+  function energyFor(distNm, hours, profileName, basisNm) {
     var d = D(), hk = d.hotelKw;
-    var ps = profileStats(profileName);
+    var ps = profileStats(profileName, basisNm === undefined ? distNm : basisNm);
     var underwayH = ps.vEff > 0 ? Math.min(distNm / ps.vEff, hours) : 0;
     var hotelMwh = (hk.atRest * (hours - underwayH) + hk.underway * underwayH) / 1000;
     // The prop curve is electrical power, so it is used as-is. There is no
@@ -7125,14 +7223,16 @@ globalThis.LEIP_ENGINE = (function () {
     var distanceNm = legs.reduce(function (s, l) { return s + l.nm; }, 0);
 
     // Time budget: anchor nights are nights not spent transiting.
-    var stats = profileStats(profileName);
+    // The speed mix is predicted from the PLANNED total, not the covered
+    // distance — the week was set up for the whole passage.
+    var stats = profileStats(profileName, distanceNm);
     var requiredH = stats.vEff > 0 ? distanceNm / stats.vEff : 0;
     var transitBudgetH = T.charterHours - inputs.nights * T.nightAnchorHours;
     var completed = requiredH <= transitBudgetH + EPS;
     var coveredNm = completed ? distanceNm : transitBudgetH * stats.vEff;
 
     // Energy over the fixed 168 h week (the covered distance).
-    var e = energyFor(coveredNm, T.charterHours, profileName);
+    var e = energyFor(coveredNm, T.charterHours, profileName, distanceNm);
     var underwayH = e.underwayH;
     var anchorH = T.charterHours - underwayH;      // derived anchor time (spec §3)
     var activitiesMwh = 0;

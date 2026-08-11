@@ -10,11 +10,16 @@ const cal = D.calibration;
 console.log(`Prop curve is ELECTRICAL power, used with no conversion (propFactor deleted).`);
 console.log(`hotel ${D.hotelKw.atRest} kW at rest / ${D.hotelKw.underway} kW under way · ` +
   `distanceBasis='${D.distanceBasis}'`);
-for (const p of ['Typical', 'Intense']) {
-  const s = E.profileStats(p);
-  const sp = D.speedProfiles[p];
-  console.log(`  ${p}: vEff=${s.vEff.toFixed(2)} kts, avg prop=${s.avgKw.toFixed(0)} kW ` +
-    `(${sp.nCharters} charters, observed ${sp.observedSpeedRangeKts[0]}-${sp.observedSpeedRangeKts[1]} kt)`);
+console.log('Speed split is PREDICTED FROM TOTAL ROUTE DISTANCE (DATA.speedModel), so');
+console.log('effective speed and average draw both move with route length:');
+console.log('  route nm   profile   14kt/11kt/8kt share      vEff    avg prop');
+for (const nm of [71.3, 200, 440, 700, 1039]) {
+  for (const p of ['Typical', 'Intense']) {
+    const s = E.profileStats(p, nm);
+    const sh = [14, 11, 8].map((v) => (s.share[v] * 100).toFixed(1).padStart(5)).join(' /');
+    console.log(`  ${nm.toFixed(1).padStart(8)}   ${(D.speedProfiles[p].label + ' (' + p + ')').padEnd(18)} ` +
+      `${sh}   ${s.vEff.toFixed(2)} kt  ${s.avgKw.toFixed(0).padStart(5)} kW`);
+  }
 }
 
 console.log('\n=== PRIMARY — Poster parity (§6): published nm & days, Typical profile ===');

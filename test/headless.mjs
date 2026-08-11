@@ -38,25 +38,70 @@ check('the prop curve is electrical power, used with no conversion',
   D.propCurve.map(c => c.pbKw).join() === '0,291.5,771.8,1845.8');
 check('battery 49,860 kWh installed, 50 MWh game threshold',
   D.battery.installedKwh === 49860 && D.battery.gameThresholdMwh === 50);
-check('speed profiles from all 28 observed charters, split 14/14',
+check('speed model fitted over all 28 observed charters, split 14/14',
   D.speedProfiles.Typical.nCharters === 14 && D.speedProfiles.Intense.nCharters === 14);
-check('Intense is genuinely the harder-driven profile',
-  E.profileStats('Intense').vEff > E.profileStats('Typical').vEff &&
-  E.profileStats('Intense').avgKw > E.profileStats('Typical').avgKw);
+check('Intense is genuinely the harder-driven profile, at every route length',
+  [50, 200, 440, 700, 1039].every(nm =>
+    E.profileStats('Intense', nm).vEff > E.profileStats('Typical', nm).vEff &&
+    E.profileStats('Intense', nm).avgKw > E.profileStats('Typical', nm).avgKw));
+// The regression is the whole point: the split must MOVE with distance,
+// which the two fixed profiles it replaced could not do.
+check('the speed split is predicted from total route distance, not fixed',
+  [50, 200, 440, 700].every((nm, i, a) => i === 0 ||
+    E.profileStats('Typical', nm).vEff > E.profileStats('Typical', a[i - 1]).vEff));
+// Sheet reproduction at 71.3 nm — the check point the regression ships with.
+{
+  const pct = (p, nm) => {
+    const s = E.profileStats(p, nm).share;
+    return [14, 11, 8].map(v => (s[v] * 100).toFixed(1)).join('/');
+  };
+  check('at 71.3 nm the Hare split reproduces the sheet: 12.4/76.5/11.1',
+    pct('Intense', 71.3) === '12.4/76.5/11.1', pct('Intense', 71.3));
+  check('at 71.3 nm the Tortoise split reproduces the sheet: 2.4/76.5/21.1',
+    pct('Typical', 71.3) === '2.4/76.5/21.1', pct('Typical', 71.3));
+}
+check('shares always sum to 1 and never go negative',
+  [0, 71.3, 400, 681, 956, 1039, 3000].every(nm =>
+    ['Typical', 'Intense'].every(p => {
+      const s = E.profileStats(p, nm).share;
+      const vals = Object.values(s);
+      return vals.every(v => v >= 0) && Math.abs(vals.reduce((a, b) => a + b, 0) - 1) < 1e-9;
+    })));
+// The 8 kt share hits the clamp on long Hare routes — asserted so the
+// clamp stays a documented behaviour rather than a silent one.
+check('the 8 kt share clamps to zero past the regression\'s observed range',
+  E.profileStats('Intense', 700).share[8] === 0 &&
+  E.profileStats('Intense', 400).share[8] > 0);
 check('33 ports, names unique',
   D.ports.length === 33 && new Set(D.ports.map(p => p.name)).size === 33);
 check('energy types are the four carbon classes, or null where the source has no figure',
   D.ports.every(p => p.energy === null || ['green', 'blue', 'grey', 'brown'].includes(p.energy)));
-check('Genoa is the only unrated port, and an unknown grid is never a reward',
-  D.ports.filter(p => p.energy === null).map(p => p.name).join() === 'Genoa' &&
+check('every port is rated — Genoa was the last blank and is now 488, brown',
+  D.ports.every(p => p.carbon !== null && p.energy !== null) &&
+  D.ports.find(p => p.name === 'Genoa').carbon === 488 &&
+  D.ports.find(p => p.name === 'Genoa').energy === 'brown');
+check('an unrated port would still never be a reward',
   D.scoring.multiplier.rechargeUnrated === D.scoring.multiplier.recharge.grey);
-check('energy classes follow the published carbon quartiles',
-  D.ports.filter(p => p.carbon !== null).every(p => {
-    const q = D.energyQuartilesGco2kwh;
+// FIXED thresholds, not relative quartiles: a port's colour must be a
+// property of that port alone, so editing one port cannot recolour another.
+check('energy classes follow the fixed carbon thresholds',
+  D.ports.every(p => {
+    const q = D.energyThresholdsGco2kwh;
     const want = p.carbon <= q.greenMax ? 'green' : p.carbon <= q.blueMax ? 'blue'
       : p.carbon <= q.greyMax ? 'grey' : 'brown';
     return p.energy === want;
   }));
+check('the thresholds are the published fixed cuts, 150/300/420',
+  D.energyThresholdsGco2kwh.greenMax === 150 &&
+  D.energyThresholdsGco2kwh.blueMax === 300 &&
+  D.energyThresholdsGco2kwh.greyMax === 420 &&
+  D.energyQuartilesGco2kwh === undefined);
+{
+  const n = (c) => D.ports.filter(p => p.energy === c).length;
+  check('the fixed cuts give 7 green / 11 blue / 6 grey / 9 brown',
+    [n('green'), n('blue'), n('grey'), n('brown')].join('/') === '7/11/6/9',
+    [n('green'), n('blue'), n('grey'), n('brown')].join('/'));
+}
 check('33x33 distance matrix, symmetric, zero on the diagonal',
   Object.keys(D.distanceMatrixNm).length === 33 &&
   D.ports.every(a => D.ports.every(b =>
@@ -366,18 +411,23 @@ section('Secondary — fleet reference is present and wired to this engine');
 section('Diesel reserve — finite, depletable, and second in line');
 {
   // Recompute the reserve from the prop curve rather than trusting the
-  // stored figure: 4,500 nm at the Typical cruise, all of it under way,
-  // on electrical power with no conversion.
-  const st = E.profileStats('Typical');
-  const hours = D.dieselRangeNm / st.vEff;
-  const propMwh = st.avgKw * hours / 1000;
+  // stored figure: 4,500 nm at a flat 11 kt, all of it under way, on
+  // electrical power with no conversion. The basis is a flat 11 kt rather
+  // than a profile's effective cruise because the regression makes that
+  // cruise route-dependent — a delivery passage is not a charter week.
+  const kts = 11;
+  const hours = D.dieselRangeNm / kts;
+  const propMwh = E.propKwAt(kts) * hours / 1000;
   const hotelMwh = D.hotelKw.underway * hours / 1000;
   const derived = propMwh + hotelMwh;
-  check(`${D.dieselRangeNm} nm at ${st.vEff.toFixed(2)} kt derives ${derived.toFixed(1)} MWh, matching the stored ${D.dieselReserveMwh}`,
+  check(`${D.dieselRangeNm} nm at a flat ${kts} kt derives ${derived.toFixed(1)} MWh, matching the stored ${D.dieselReserveMwh}`,
     Math.abs(derived - D.dieselReserveMwh) < 0.5,
     `derived ${derived.toFixed(2)} vs stored ${D.dieselReserveMwh}`);
-  check('the reserve is far larger than any single week can burn',
-    D.dieselReserveMwh > 200);
+  // ~7x the battery, deliberately: a realistic backstop, not a second
+  // resource to manage. The teeth are the -1/MWh base penalty.
+  check('the reserve is ~7x the battery and cannot deplete in one week',
+    D.dieselReserveMwh / D.battery.gameThresholdMwh > 6.5,
+    `${(D.dieselReserveMwh / D.battery.gameThresholdMwh).toFixed(1)}x`);
 
   // The penalty is linear per MWh under the redesigned base — no curve,
   // no cap, no floor. Depth into the reserve is reported, not scored.
