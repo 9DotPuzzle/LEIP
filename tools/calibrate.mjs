@@ -7,12 +7,13 @@ const g = loadEngine();
 const { LEIP_DATA: D, LEIP_ENGINE: E } = g;
 const cal = D.calibration;
 
-console.log(`Constants: hotelUtilisation=${cal.hotelUtilisation}, propFactor=${cal.propFactor}, ` +
+console.log(`Prop curve is ELECTRICAL power, used with no conversion (propFactor deleted).`);
+console.log(`hotel ${D.hotelKw.atRest} kW at rest / ${D.hotelKw.underway} kW under way · ` +
   `distanceBasis='${D.distanceBasis}'`);
 for (const p of ['Typical', 'Intense']) {
   const s = E.profileStats(p);
   const sp = D.speedProfiles[p];
-  console.log(`  ${p}: vEff=${s.vEff.toFixed(2)} kts, avg prop=${s.avgBkw.toFixed(0)} bkW ` +
+  console.log(`  ${p}: vEff=${s.vEff.toFixed(2)} kts, avg prop=${s.avgKw.toFixed(0)} kW ` +
     `(${sp.nCharters} charters, observed ${sp.observedSpeedRangeKts[0]}-${sp.observedSpeedRangeKts[1]} kt)`);
 }
 

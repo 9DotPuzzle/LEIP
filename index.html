@@ -6176,12 +6176,22 @@ globalThis.LEIP_DATA = {
   // ---- DATASET 1 — Prop curve & hotel loads (REAL, Game_Inputs.xlsx)
   // Four-point brake-power curve. The pack does not distinguish a TRANSIT
   // band, so the HUD's mode labels map onto the four points available.
+  // Speed -> ELECTRICAL propulsion power (P_B GEN+Sea), read straight off
+  // the table. Confirmed by the engineering team as generator power, not
+  // brake power, so there is no brake-to-electrical conversion: what the
+  // curve says at a speed is what the week draws at that speed.
+  // Intermediate speeds interpolate linearly between these four points.
   propCurve: [
     { kts: 0,   pbKw: 0,        hotelKw: 128,    gameMode: 'ELECTRIC' },
     { kts: 8,   pbKw: 291.5,    hotelKw: 113.4,  gameMode: 'ELECTRIC' },
     { kts: 11,  pbKw: 771.8,    hotelKw: 113.4,  gameMode: 'HYBRID' },
     { kts: 14,  pbKw: 1845.8,   hotelKw: 113.4,  gameMode: 'BOOST' }
   ],
+  // Hotel load, also electrical and also from that table: the at-rest
+  // figure applies with the boat stopped, the underway figure at any speed
+  // above zero. Stated here as well so the energy model reads one place;
+  // the test suite asserts the two agree.
+  hotelKw: { atRest: 128.0, underway: 113.4 },
   // ---- Diesel reserve -----------------------------------------------
   // LEIP's diesel range fully loaded is 4,500 nm. The game needs that as
   // an ENERGY reserve, not a distance, because what drains it is generator
@@ -6189,20 +6199,24 @@ globalThis.LEIP_DATA = {
   // passage does.
   //
   // Derivation, using the same energy model as everything else: 4,500 nm
-  // run at the Typical profile's effective cruise of 10.42 kt is 431.8 h
-  // entirely under way. Propulsion 694 bkW x propFactor 0.69 = 479 kW, and
-  // hotel 162.8 ekW x hotelUtilisation 0.635 = 103 kW under way.
-  //   propulsion  479 kW x 431.8 h = 206.8 MWh
-  //   hotel       103 kW x 431.8 h =  44.6 MWh
+  // run at the Typical profile's effective cruise of 10.42 kt is 431.7 h
+  // entirely under way. Propulsion is read straight off the electrical
+  // curve at 694 kW, and hotel is the curve's underway figure of 113.4 kW.
+  //   propulsion  694 kW x 431.7 h = 299.6 MWh
+  //   hotel     113.4 kW x 431.7 h =  49.0 MWh
   //                                  ---------
-  //                                   251.4 MWh
+  //                                   348.6 MWh
   // Held as a figure rather than computed at boot so it is auditable in
   // one place; test/headless.mjs recomputes it from the prop curve and
   // fails if the two ever drift.
   dieselRangeNm: 4500,
-  dieselReserveMwh: 251.4,
+  dieselReserveMwh: 348.6,
 
   // Guest-mode hotel loads: at anchor vs under way (operating_conditions).
+  // Guest-mode design loads from operating_conditions. RETAINED FOR
+  // REFERENCE ONLY: the energy model reads hotel power off the prop curve
+  // (DATA.hotelKw) now that the curve is confirmed electrical, so these
+  // figures and the old hotelUtilisation no longer feed any calculation.
   hotelLoadsEkw: {
     stationaryGuestAnchor: 188.6,
     underwayGuestTransit: 162.8
@@ -6330,13 +6344,12 @@ globalThis.LEIP_DATA = {
 
   // Calibration — fitted against the seven published poster routes on the
   // sheet basis (published nm over published days, Typical profile).
-  //   hotelUtilisation reconciles the guest-mode design loads with how a
-  //   real charter week actually splits between guest and crew modes.
-  //   propFactor converts brake power to average electrical draw; one
-  //   figure for both profiles, since it is a property of the drivetrain.
+  //   propFactor is GONE. The prop curve is electrical power confirmed by
+  //   the engineering team, so there is no brake-to-electrical conversion
+  //   left to fit; hotel likewise comes straight off the curve. What
+  //   remains here is the parity tolerance, and the calibration is now a
+  //   statement about the data rather than a knob.
   calibration: {
-    hotelUtilisation: 0.635,
-    propFactor: 0.69,
     posterToleranceMwh: 1.0
   },
 
@@ -6397,59 +6410,64 @@ globalThis.LEIP_DATA = {
   // totalNm per charter comes from the pack's vessel_speed_distributions,
   // joined on vessel name (all 28 match exactly).
   //
-  // ---- KNOWN LIMITATION: the two failing Intense cells ---------------
-  // SoF to Italy Intense (-20.9%) and Greece Intense (-15.8%) fail this
-  // check and are left failing. Decomposed into distance, speed-mix and
-  // power terms, the cause is two things, and NEITHER is the one the
-  // headline number suggests.
+  // ---- KNOWN LIMITATION: the five failing Typical cells --------------
+  // This note replaces an earlier one about two failing INTENSE cells.
+  // Those two are now fixed and the failure has moved wholesale to the
+  // other profile. What changed underneath it: propFactor was deleted
+  // after the engineering team confirmed the propulsion table gives
+  // ELECTRICAL power (P_B GEN+Sea), not brake power. Effective propulsion
+  // power rose x1.45, and the model went from running light to running
+  // heavy. Fleet-wide means moved total -9.9% -> +10.5% and propulsion
+  // -23.7% -> +10.6%.
   //
-  // CORRECTION TO AN EARLIER READING: this is NOT the propulsion curve and
-  // NOT the speed profiles. Both are cleared by the decomposition. Against
-  // the members' OWN speed mixes the shipped Intense profile is accurate
-  // to -1.0% and -0.1% on effective speed, and if anything runs HEAVIER
-  // than these charters did on power (818 bkW actual vs 868 applied on
-  // SoF to Italy; 882 vs 868 on Greece). Substituting each charter's own
-  // mix moves the cells by +0.2 and +0.0 MWh/7d — nothing. Hotel load is
-  // accurate to +0.8% and +2.0%.
+  // Fixed by the change: SoF to Italy Intense -20.9% -> -2.3%, Greece
+  // Intense -15.8% -> +6.3%. Both now inside the +-15% band.
   //
-  // (1) PRIMARILY A FLEET-REFERENCE DATA DEFECT — the largest single term.
-  // Each routeGroup stores ONE distNm but SEPARATE durations and MWh per
-  // profile, and the Typical and Intense charters in a group did not sail
-  // the same distance. SoF to Italy stores 387.6 nm, which is exactly its
-  // TYPICAL members' mean; its Intense members ran 528.1 (-26.6%). Greece
-  // stores 399.2 against Intense members who ran 459.9 (-13.2%). Feeding
-  // the members' real distance closes 12.0 of the 20.9 points on the first
-  // and 6.2 of the 15.8 on the second.
+  // Newly failing, and the pattern is worth the whole note: EVERY failing
+  // cell is a TYPICAL cell and EVERY one overshoots — SoF +16.9%, Sardinia
+  // & Corsica +32.7%, Greece +20.7%, Turkey +20.4%, Balearics +25.4%.
+  // Asserted cells went 6/8 to 3/8.
   //
-  // Worse, distNm does not reconcile with the filed charters on ANY basis.
-  // Across the ten groups it matches the Typical mean on two, the Intense
-  // mean on none, and the all-charter mean on none — Sicily/Italy stores
-  // 537.1 against members who ran 286.5. So this cannot be repaired here:
-  // simply substituting per-profile member means fixes both failing cells
-  // and breaks two that currently pass (SoF to Sardinia Intense -13.6% ->
-  // -18.2%, Baleriacs Typical +0.2% -> -18.9%), for a net of nothing.
+  // (1) THE ERROR NOW SORTS BY PROFILE, NOT BY ROUTE. That is a different
+  // signature from before and it points at the TYPICAL speed profile, not
+  // at the curve: under electrical power the Typical mix spends too long
+  // under way, too fast, or both, for the charters filed under it. The
+  // Intense profile lands. Per charter, observed/modelled propulsion has a
+  // median of 0.934 and a mean of 0.908 — the curve is now about 7% heavy
+  // on the median charter where it was roughly 31% light before.
   //
-  // (2) A RESIDUAL -9 TO -11% FROM propFactor. With the members' own
-  // distance, speed and power, both cells still sit at -11.1% and -8.7%.
-  // That residual is the conversion constant: propFactor is fitted at 0.69
-  // to hit poster parity, while the observed median across all 28 charters
-  // -- observed propulsion MWh / (own bkW x own underway hours) -- is 0.93.
-  // The collision is between propFactor and SS6 parity, not between the
-  // prop curve and reality.
-  //
-  // TWO CAVEATS on that 0.93, which is why it is NOT a recalibration
-  // target as it stands:
+  // The two caveats on that ratio survive the change and are why it is
+  // still NOT a recalibration target:
   //   - the spread is 0.53 to 1.20 across the 28 charters, far too wide to
   //     read a single constant off;
-  //   - values above 1.0 are physically impossible for brake power to
-  //     electrical output, so some observed propulsion_mwh must include
-  //     load this model books separately — manoeuvring, DP, station
-  //     keeping. The two quantities are not measuring the same thing.
+  //   - values above 1.0 still indicate that some observed propulsion_mwh
+  //     includes load this model books separately — manoeuvring, DP,
+  //     station keeping. The two quantities are not measuring the same
+  //     thing. (This caveat no longer rests on a brake-to-electrical
+  //     impossibility argument, since there is no conversion any more; it
+  //     rests on the spread and on what the two figures each count.)
+  //
+  // (2) THE FLEET-REFERENCE DATA DEFECT IS UNCHANGED and still a real
+  // term. Each routeGroup stores ONE distNm but SEPARATE durations and MWh
+  // per profile, and the Typical and Intense charters in a group did not
+  // sail the same distance. SoF to Italy stores 387.6 nm, exactly its
+  // TYPICAL members' mean, while its Intense members ran 528.1 (-26.6%).
+  // Greece stores 399.2 against Intense members who ran 459.9 (-13.2%).
+  //
+  // distNm does not reconcile with the filed charters on ANY basis: across
+  // the ten groups it matches the Typical mean on two, the Intense mean on
+  // none, and the all-charter mean on none — Sicily/Italy stores 537.1
+  // against members who ran 286.5. So it cannot be repaired here.
+  // Substituting per-profile member means still nets nothing: 3/8 -> 5/8,
+  // fixing two cells and breaking two that pass.
   //
   // Left uncorrected deliberately. No model constant changes on the
-  // strength of this: the calibration stands. What goes back to the source
-  // is three questions — per-profile group distances, what distNm actually
-  // measures, and what propulsion_mwh includes.
+  // strength of this, and the curve is NOT re-tuned back — it is the
+  // engineering team's stated figure, used as-is. What goes back to the
+  // source is now four questions: per-profile group distances, what distNm
+  // actually measures, what propulsion_mwh includes, and whether the
+  // Typical speed distribution is representative of the charters filed
+  // under it.
   //
   // Reproduce with: node tools/decompose_fleet.mjs
   fleetReference: {
@@ -6672,51 +6690,68 @@ globalThis.LEIP_DATA = {
   ],
 
   // ---- Canonical worked example (spec §5) ---------------------------
-  // Re-pointed for the redesigned model; the old 241.8 belonged to the
-  // retired base/multiplier and is obsolete. The route and inputs are
-  // unchanged, so the energy behind it is identical — only the scoring of
-  // that energy moved.
-  //   sailed 82.1 nm  -> distance ladder 4.105
-  //   battery 23.96 MWh -> energy ladder 11.979
+  // Re-pointed twice, and for two independent reasons. First the scoring
+  // redesign retired the old 241.8; then the propulsion curve became
+  // electrical power used as-is, which raised this week's energy from
+  // 23.96 to 27.05 MWh. The route and inputs have never changed — the
+  // value moves because the model underneath it moved, not because
+  // anything here was fitted to a target.
+  //   sailed 82.1 nm    -> distance ladder 4.105
+  //   battery 27.05 MWh -> energy ladder 13.525
   //   diesel 0          -> no penalty
-  //   base 16.08
+  //   base 17.630
   //   countries 2 -> 3 x1.0 · ports 5 -> 6 x1.25 · activities 6 uses -> 3 x0.5
   //   nights 3 -> 6 x0.75 · recharge Nice green -> 10 x1.5
-  //   weighted 31.5 / 5 = x6.3
-  //   final round(16.084 x 6.3) = 101
+  //   weighted 31.5 / 5 = x6.3  (unchanged — the multiplier reads the
+  //   itinerary, not the energy, so the whole movement is in the base)
+  //   final round(17.630 x 6.3) = 111
   canonicalTest: {
     inputs: {
       route: ['Monaco', 'Saint-Jean-Cap-Ferrat', 'Antibes', 'Saint Tropez', 'Nice'],
       speed: 'slow', nights: 3,
       activities: { A02: 2, A07: 1, R01: 1, R06: 2 }
     },
-    expected: { base: 16.08, multiplier: 6.3, final: 101 }
+    expected: { base: 17.63, multiplier: 6.3, final: 111 }
   },
 
   // Regression fixture for the 50 MWh Hit rule: a week that draws the
   // battery down into the band with the diesels asleep (49.84 MWh).
   achievementFixtures: {
-    // Clears the Score Over 400 bar under the redesigned model. Reaching
-    // it means maxing the multiplier's expensive factors at once — six
-    // distinct ports, four countries, twelve activity uses, four or five
-    // anchor nights, finishing on a green grid — while still filling both
-    // base ladders on the battery. 905 of 3,170 sampled clean six/seven
-    // port completions clear it; the best sampled was 454 of a 500 ceiling.
+    // Clears the Score Over 400 bar. Reaching it means maxing the
+    // multiplier's expensive factors at once — six distinct ports, three
+    // or four countries, twelve activity uses, four or five anchor
+    // nights, finishing on a green grid — while filling both base
+    // ladders. 4,160 of 58,325 sampled six/seven-port completions clear
+    // it; the best sampled was 424 of a 500 ceiling.
+    //
+    // NOTE the shape of the bar changed when the propulsion curve became
+    // electrical power. Six ports at that energy cost no longer fit
+    // inside the 50 MWh battery, so every route that now clears 400 runs
+    // a little diesel: the distance ladder is worth 5 points per 100 nm
+    // and the penalty only 1 point per MWh, so buying ~50 nm with ~2 MWh
+    // of diesel pays. The best CLEAN week sampled scores 362. That is a
+    // model consequence, not a tuned target — the bar stays at 400.
     scoreOver400: {
-      route: ['Monaco', 'Olbia', 'Calvi', 'Porto Cervo', 'Saint-Jean-Cap-Ferrat', 'Nice'],
-      speed: 'slow', nights: 5,
+      route: ['Antibes', 'Monaco', 'Cannes', 'Porto Rotondo', 'Olbia', 'Saint-Jean-Cap-Ferrat'],
+      speed: 'slow', nights: 4,
       activities: { A01: 3, A02: 3, A03: 3, A04: 3 }
     },
-    // Long Haul: over 400 nm with the diesels asleep. The paired negative
-    // is a week that goes further still but burns diesel to do it.
+    // Long Haul: over 400 nm with the diesels asleep. Re-picked for the
+    // electrical curve — the old Eivissa/Palma/Salerno week now costs
+    // 15.3 MWh of diesel. Clean distance is far tighter than it was: the
+    // furthest battery-only week in the pack reaches about 437 nm, so
+    // this sits at 410 nm / 48.2 MWh with the bar at 400. The paired
+    // negative goes further still but burns diesel to do it.
     longHaulClean: {
-      route: ['Eivissa', 'Palma', 'Salerno'], speed: 'slow', nights: 4, activities: {}
+      route: ['Palma', 'Monaco', 'Saint Tropez'], speed: 'slow', nights: 4, activities: {}
     },
     longHaulDiesel: {
       route: ['Palma', 'Bonifacio', 'Naples', 'Monaco'], speed: 'fast', nights: 4, activities: {}
     },
+    // Re-picked for the electrical curve; same activity mix, a shorter
+    // route to land in the same 49.5-50 MWh band (49.64 MWh).
     batteryBrinkmanship: {
-      route: ['Bonifacio', 'Salerno', 'Cannes'], speed: 'slow', nights: 4,
+      route: ['Antibes', 'Bonifacio', 'Salerno'], speed: 'slow', nights: 4,
       activities: { A08: 1, A07: 2, R06: 1 }
     }
   },
@@ -6798,7 +6833,7 @@ globalThis.LEIP_ENGINE = (function () {
   // Propulsion power (bkW) at a given speed. Below the first curve point:
   // propeller cube law anchored at that point; linear between points;
   // clamped above the last (documented calibration assumption).
-  function propBkwAt(kts) {
+  function propKwAt(kts) {
     var c = D().propCurve;
     if (kts <= c[0].kts) return c[0].pbKw;
     for (var i = 1; i < c.length; i++) {
@@ -6830,11 +6865,13 @@ globalThis.LEIP_ENGINE = (function () {
     Object.keys(share).forEach(function (k) {
       var v = Number(k), f = share[k], h = f / v;
       hrPerNm += h;
-      propHr += h * propBkwAt(v);
+      propHr += h * propKwAt(v);
       bands.push({ kts: v, frac: f });
     });
     bands.sort(function (a, b) { return a.kts - b.kts; });
-    return { vEff: 1 / hrPerNm, avgBkw: propHr / hrPerNm, bands: bands };
+    // avgKw is ELECTRICAL propulsion power, distance-weighted across the
+    // profile's speed bands — the curve's own units, unconverted.
+    return { vEff: 1 / hrPerNm, avgKw: propHr / hrPerNm, bands: bands };
   }
 
   function toggleProfile(speed) {
@@ -6846,12 +6883,13 @@ globalThis.LEIP_ENGINE = (function () {
   // by both the in-game week and the poster-assumption basis.
   //  distNm over hours with a profile -> { underwayH, hotelMwh, travelMwh }
   function energyFor(distNm, hours, profileName) {
-    var d = D(), cal = d.calibration, hl = d.hotelLoadsEkw;
+    var d = D(), hk = d.hotelKw;
     var ps = profileStats(profileName);
     var underwayH = ps.vEff > 0 ? Math.min(distNm / ps.vEff, hours) : 0;
-    var hotelMwh = (hl.stationaryGuestAnchor * (hours - underwayH) +
-                    hl.underwayGuestTransit * underwayH) * cal.hotelUtilisation / 1000;
-    var travelMwh = ps.avgBkw * cal.propFactor * underwayH / 1000;
+    var hotelMwh = (hk.atRest * (hours - underwayH) + hk.underway * underwayH) / 1000;
+    // The prop curve is electrical power, so it is used as-is. There is no
+    // conversion factor here by design — see DATA.propCurve.
+    var travelMwh = ps.avgKw * underwayH / 1000;
     return { underwayH: underwayH, hotelMwh: hotelMwh, travelMwh: travelMwh, stats: ps };
   }
 
@@ -7146,10 +7184,10 @@ globalThis.LEIP_ENGINE = (function () {
     var startAnchorH = stops > 1 ? anchorH * startDwellShare : anchorH;
     var perStopH = stops > 1 ? (anchorH - startAnchorH) / (stops - 1) : 0;
     var actKw = activitiesMwh * 1000 / T.charterHours;
-    var cal = d.calibration, hl = d.hotelLoadsEkw;
-    var hotelStatKw = hl.stationaryGuestAnchor * cal.hotelUtilisation;
-    var hotelUwKw = hl.underwayGuestTransit * cal.hotelUtilisation;
-    var propKw = stats.avgBkw * cal.propFactor;
+    var hk = d.hotelKw;
+    var hotelStatKw = hk.atRest;
+    var hotelUwKw = hk.underway;
+    var propKw = stats.avgKw;
     // If the poster snap adjusted the total, spread the delta as a flat
     // correction so the playback battery track still ends at totalMwh.
     var rawTotal = e.hotelMwh + e.travelMwh + activitiesMwh;
@@ -7356,7 +7394,7 @@ globalThis.LEIP_ENGINE = (function () {
     posterByRoute: posterByRoute,
     routeLegs: routeLegs,
     activityById: activityById,
-    propBkwAt: propBkwAt,
+    propKwAt: propKwAt,
     modeAtKts: modeAtKts,
     profileStats: profileStats,
     energyFor: energyFor,

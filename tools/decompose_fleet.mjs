@@ -17,7 +17,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PACK = JSON.parse(readFileSync(join(ROOT, 'leip_game_data.json'), 'utf8'));
 const g = loadEngine();
 const D = g.LEIP_DATA, E = g.LEIP_ENGINE, F = D.fleetReference;
-const cal = D.calibration, hl = D.hotelLoadsEkw;
+const hk = D.hotelKw;
 
 // Each vessel's OWN speed mix, from the pack's per-vessel distributions —
 // as opposed to the fleet-wide profile the game applies to everyone.
@@ -30,15 +30,14 @@ function ownStats(vessel) {
   for (const [k, f] of Object.entries(pd)) {
     if (!(+k > 1 && f > 0)) continue;
     const h = (f / tot) / +k;
-    hrPerNm += h; propHr += h * E.propBkwAt(+k);
+    hrPerNm += h; propHr += h * E.propKwAt(+k);
   }
-  return { vEff: 1 / hrPerNm, avgBkw: propHr / hrPerNm };
+  return { vEff: 1 / hrPerNm, avgKw: propHr / hrPerNm };
 }
-const cell = (nm, dur, vEff, avgBkw) => {
+const cell = (nm, dur, vEff, avgKw) => {
   const uwH = Math.min(nm / vEff, dur * 24);
-  const hotel = (hl.stationaryGuestAnchor * (dur * 24 - uwH) +
-                 hl.underwayGuestTransit * uwH) * cal.hotelUtilisation / 1000;
-  return (hotel + avgBkw * cal.propFactor * uwH / 1000) * 7 / dur;
+  const hotel = (hk.atRest * (dur * 24 - uwH) + hk.underway * uwH) / 1000;
+  return (hotel + avgKw * uwH / 1000) * 7 / dur;
 };
 
 console.log('=== distNm: does it reconcile with the charters filed under it? ===');
@@ -66,36 +65,33 @@ for (const r of F.routeGroups) {
     const ownNm = mem.reduce((s, c) => s + c.totalNm, 0) / mem.length;
     const st = mem.map((m) => ownStats(m.vessel));
     const mV = st.reduce((s, o) => s + o.vEff, 0) / st.length;
-    const mP = st.reduce((s, o) => s + o.avgBkw, 0) / st.length;
+    const mP = st.reduce((s, o) => s + o.avgKw, 0) / st.length;
     const gs = E.profileStats(prof);
     const pc = (x) => (((x - obs) / obs * 100 >= 0 ? '+' : '') +
                        ((x - obs) / obs * 100).toFixed(1)).padStart(7);
     console.log(`${r.route.padEnd(24)} ${prof.slice(0, 3)} ${obs.toFixed(1).padStart(6)} ` +
-      `${pc(cell(r.distNm, dur, gs.vEff, gs.avgBkw))}% ${pc(cell(ownNm, dur, gs.vEff, gs.avgBkw))}% ` +
-      `${pc(cell(ownNm, dur, mV, gs.avgBkw))}% ${pc(cell(ownNm, dur, mV, mP))}%`);
+      `${pc(cell(r.distNm, dur, gs.vEff, gs.avgKw))}% ${pc(cell(ownNm, dur, gs.vEff, gs.avgKw))}% ` +
+      `${pc(cell(ownNm, dur, mV, gs.avgKw))}% ${pc(cell(ownNm, dur, mV, mP))}%`);
   }
 }
 
-console.log('\n=== The residual: implied propFactor per charter ===');
-console.log('observed propulsion MWh / (own avg bkW x own underway hours).');
-console.log(`The model uses one fitted propFactor of ${cal.propFactor}, set by poster parity.\n`);
+console.log('\n=== Observed vs modelled propulsion, per charter ===');
+console.log('The brake-to-electrical conversion is gone: the prop curve is electrical power.');
+console.log('This ratio is observed propulsion MWh / (own avg kW x own underway hours) — 1.00');
+console.log('means the curve reproduces that charter exactly.\n');
 const rows = F.charters.map((c) => {
   const o = ownStats(c.vessel);
   const uwH = c.totalNm / o.vEff;
-  return { ...c, ...o, uwH, pf: c.propulsionMwh * 1000 / (o.avgBkw * uwH) };
-}).sort((a, b) => a.pf - b.pf);
+  return { ...c, ...o, uwH, ratio: c.propulsionMwh * 1000 / (o.avgKw * uwH) };
+}).sort((a, b) => a.ratio - b.ratio);
 for (const r of rows) {
   console.log(`  ${r.vessel.padEnd(20)} ${r.profile.slice(0, 3)} ${r.totalNm.toFixed(0).padStart(5)} nm ` +
-    `${r.uwH.toFixed(0).padStart(4)} uwH  implied ${r.pf.toFixed(3)}` +
-    `${r.pf > 1 ? '   <- above 1.0: physically impossible' : ''}`);
+    `${r.uwH.toFixed(0).padStart(4)} uwH  observed/modelled ${r.ratio.toFixed(3)}`);
 }
-const pf = rows.map((r) => r.pf);
-const mean = pf.reduce((a, b) => a + b, 0) / pf.length;
-console.log(`\nmin ${pf[0].toFixed(3)} · median ${pf[Math.floor(pf.length / 2)].toFixed(3)} · ` +
-  `mean ${mean.toFixed(3)} · max ${pf[pf.length - 1].toFixed(3)}`);
-console.log(`${pf.filter((x) => x > 1).length} charters imply a factor above 1.0, so some observed`);
-console.log('propulsion_mwh includes load this model books separately (manoeuvring, DP,');
-console.log('station keeping). The observed median is NOT a clean recalibration target.');
+const rr = rows.map((r) => r.ratio);
+const mean = rr.reduce((a, b) => a + b, 0) / rr.length;
+console.log(`\nmin ${rr[0].toFixed(3)} · median ${rr[Math.floor(rr.length / 2)].toFixed(3)} · ` +
+  `mean ${mean.toFixed(3)} · max ${rr[rr.length - 1].toFixed(3)}`);
 
 console.log('\n=== Would per-profile distances fix it? ===');
 let a = 0, b = 0, tot = 0;
@@ -106,8 +102,8 @@ for (const r of F.routeGroups) {
     const mem = F.charters.filter((c) => c.group === r.route && c.profile === prof);
     const ownNm = mem.reduce((s, c) => s + c.totalNm, 0) / mem.length;
     const gs = E.profileStats(prof);
-    const p1 = (cell(r.distNm, dur, gs.vEff, gs.avgBkw) - obs) / obs * 100;
-    const p2 = (cell(ownNm, dur, gs.vEff, gs.avgBkw) - obs) / obs * 100;
+    const p1 = (cell(r.distNm, dur, gs.vEff, gs.avgKw) - obs) / obs * 100;
+    const p2 = (cell(ownNm, dur, gs.vEff, gs.avgKw) - obs) / obs * 100;
     a += Math.abs(p1) <= F.tolerancePct; b += Math.abs(p2) <= F.tolerancePct; tot++;
   }
 }

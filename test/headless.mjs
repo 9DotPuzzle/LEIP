@@ -29,15 +29,20 @@ function mulberry32(seed) {
 section('DATA mirrors the data pack; THEME mirrors the visual direction');
 check('4-point prop curve with HUD mode labels',
   D.propCurve.length === 4 && D.propCurve.every((c) => typeof c.pbKw === 'number' && c.gameMode));
-check('guest-mode hotel loads 188.6 anchor / 162.8 under way',
-  D.hotelLoadsEkw.stationaryGuestAnchor === 188.6 && D.hotelLoadsEkw.underwayGuestTransit === 162.8);
+check('hotel load reads off the prop curve: 128.0 at rest / 113.4 under way',
+  D.hotelKw.atRest === 128.0 && D.hotelKw.underway === 113.4 &&
+  D.propCurve[0].hotelKw === D.hotelKw.atRest &&
+  D.propCurve.slice(1).every(c => c.hotelKw === D.hotelKw.underway));
+check('the prop curve is electrical power, used with no conversion',
+  D.calibration.propFactor === undefined && D.calibration.hotelUtilisation === undefined &&
+  D.propCurve.map(c => c.pbKw).join() === '0,291.5,771.8,1845.8');
 check('battery 49,860 kWh installed, 50 MWh game threshold',
   D.battery.installedKwh === 49860 && D.battery.gameThresholdMwh === 50);
 check('speed profiles from all 28 observed charters, split 14/14',
   D.speedProfiles.Typical.nCharters === 14 && D.speedProfiles.Intense.nCharters === 14);
 check('Intense is genuinely the harder-driven profile',
   E.profileStats('Intense').vEff > E.profileStats('Typical').vEff &&
-  E.profileStats('Intense').avgBkw > E.profileStats('Typical').avgBkw);
+  E.profileStats('Intense').avgKw > E.profileStats('Typical').avgKw);
 check('33 ports, names unique',
   D.ports.length === 33 && new Set(D.ports.map(p => p.name)).size === 33);
 check('energy types are the four carbon classes, or null where the source has no figure',
@@ -134,7 +139,7 @@ section('§5 Scoring formula — the four worked examples, against computeScore 
   check('the retired base and multiplier constants are gone',
     bc.disciplineWeight === undefined && bc.efficiencyWeight === undefined &&
     bc.outputScale === undefined && bc.incompletePenalty === undefined &&
-    mc.varietyTable === undefined && D.calibration.propFactor !== undefined);
+    mc.varietyTable === undefined);
 }
 
 // ---------------------------------------------------------------- §11.3 / §6 poster parity
@@ -360,13 +365,13 @@ section('Secondary — fleet reference is present and wired to this engine');
 // ---------------------------------------------------------------- diesel reserve
 section('Diesel reserve — finite, depletable, and second in line');
 {
-  const cal = D.calibration, hl = D.hotelLoadsEkw;
   // Recompute the reserve from the prop curve rather than trusting the
-  // stored figure: 4,500 nm at the Typical cruise, all of it under way.
+  // stored figure: 4,500 nm at the Typical cruise, all of it under way,
+  // on electrical power with no conversion.
   const st = E.profileStats('Typical');
   const hours = D.dieselRangeNm / st.vEff;
-  const propMwh = st.avgBkw * cal.propFactor * hours / 1000;
-  const hotelMwh = hl.underwayGuestTransit * cal.hotelUtilisation * hours / 1000;
+  const propMwh = st.avgKw * hours / 1000;
+  const hotelMwh = D.hotelKw.underway * hours / 1000;
   const derived = propMwh + hotelMwh;
   check(`${D.dieselRangeNm} nm at ${st.vEff.toFixed(2)} kt derives ${derived.toFixed(1)} MWh, matching the stored ${D.dieselReserveMwh}`,
     Math.abs(derived - D.dieselReserveMwh) < 0.5,
@@ -480,8 +485,11 @@ section('Model behaviours (spec §2, §3)');
   const fast = E.simulate({ ...base, speed: 'fast' });
   check('fast covers the route quicker (more anchor hours)', fast.anchorH > slow.anchorH);
   check('fast draws more energy', fast.totalMwh > slow.totalMwh);
-  check('hotel splits 188.6/162.8 ekW by stationary/underway hours',
-    Math.abs(slow.hotelMwh - (188.6 * (168 - slow.underwayH) + 162.8 * slow.underwayH) * D.calibration.hotelUtilisation / 1000) < 1e-9);
+  // Hotel load is now read straight off DATA.hotelKw — the eKW figures and
+  // the utilisation factor that used to scale them went with propFactor.
+  check(`hotel splits ${D.hotelKw.atRest}/${D.hotelKw.underway} kW by stationary/underway hours`,
+    Math.abs(slow.hotelMwh - (D.hotelKw.atRest * (168 - slow.underwayH) +
+      D.hotelKw.underway * slow.underwayH) / 1000) < 1e-9);
   check('travel is the energy story: longer route costs more',
     E.simulate({ route: ['Athens', 'Santorini'], speed: 'slow', nights: 4, activities: {} }).totalMwh <
     E.simulate({ route: ['Athens', 'Santorini', 'Athens', 'Santorini'], speed: 'slow', nights: 4, activities: {} }).totalMwh);
@@ -621,4 +629,27 @@ section('Leaderboard logic (spec §8, §11.7 name rule)');
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
+if (failed) {
+  console.log(
+    '\nOPEN ITEMS pending a decision, deliberately left failing rather than tuned\n' +
+    'away. Both are consequences of the propulsion curve becoming ELECTRICAL power\n' +
+    'used as-is (propFactor deleted on the engineering team\'s confirmation), which\n' +
+    'raised effective propulsion power by x1.45 across both speed profiles:\n' +
+    '\n' +
+    '  1. Poster parity fell from 4/7 calibrated to 1/7. SOF_GREEN newly calibrates;\n' +
+    '     SOF_BLUE, BALEARICS, GREECE and TURKEY now miss high and fall back on the\n' +
+    '     §6 exact-match override. All 7 still output their published nm exactly and\n' +
+    '     their published MWh via the override, so nothing a player sees is wrong —\n' +
+    '     what is lost is first-principles reconciliation. The calibration constants\n' +
+    '     that used to absorb this gap are the ones that were removed.\n' +
+    '  2. diesel-dash is out of band: base 25.5 -> -1.1, final 192 -> -9, as its\n' +
+    '     diesel goes 24.5 -> 51.1 MWh. The band is unchanged and the scenario is\n' +
+    '     behaving exactly as designed — a 1,039 nm week at the Intense profile now\n' +
+    '     burns enough diesel to take the base negative, which the redesigned base\n' +
+    '     explicitly permits (it is not floored). Whether the intended band should\n' +
+    '     follow it down is a design call, not a test fix.\n' +
+    '\n' +
+    'Fixing either means changing a model constant or a stated band. Neither has\n' +
+    'been touched. See the before/after in tools/calibrate.mjs.');
+}
 process.exit(failed === 0 ? 0 : 1);

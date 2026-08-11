@@ -117,25 +117,37 @@ section('Per-charter spread and where the error sits');
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) {
   console.log(
-    'KNOWN LIMITATION, not a regression — and NOT the propulsion curve or the speed\n' +
-    'profiles, both of which the decomposition clears. Against these charters\' own\n' +
-    'speed mixes the shipped Intense profile is accurate to -1.0% / -0.1% on speed and\n' +
-    'runs at or above their actual power; hotel load is accurate to +0.8% / +2.0%.\n' +
+    'KNOWN LIMITATION, not a regression — but the sign of it has FLIPPED, and the\n' +
+    'failing cells are not the ones they were. Deleting propFactor on the engineering\n' +
+    'team\'s confirmation that the propulsion table gives electrical power raised\n' +
+    'effective propulsion power by x1.45. The model used to run light; it now runs\n' +
+    'heavy. Fleet-wide means went total -9.9% -> +10.5%, propulsion -23.7% -> +10.6%.\n' +
     '\n' +
-    'Two real causes:\n' +
-    '  1. A fleet-reference data defect, the larger term. Each group stores ONE distNm\n' +
-    '     but separate durations and MWh per profile, and the Typical and Intense\n' +
-    '     charters did not sail the same distance. SoF to Italy stores 387.6 nm — its\n' +
-    '     Typical mean exactly — while its Intense members ran 528.1. Real distances\n' +
-    '     close 12.0 of the 20.9 points there and 6.2 of the 15.8 on Greece. distNm\n' +
-    '     reconciles with the filed charters on no basis at all, so it cannot be\n' +
-    '     repaired here: per-profile means fix these two and break two that pass.\n' +
-    '  2. A residual -9 to -11% from propFactor, fitted at 0.69 for poster parity\n' +
-    '     against an observed median of 0.93. Not a clean target: the spread is\n' +
-    '     0.53-1.20 and values above 1.0 are physically impossible, so some observed\n' +
-    '     propulsion_mwh includes manoeuvring/DP/station-keeping booked elsewhere here.\n' +
+    'What that bought and what it cost:\n' +
+    '  - FIXED, and these were the two long-standing failures: SoF to Italy Intense\n' +
+    '    -20.9% -> -2.3%, Greece Intense -15.8% -> +6.3%. Both now inside the band.\n' +
+    '  - BROKE, and the pattern is clean: every newly-failing cell is a TYPICAL cell\n' +
+    '    and every one overshoots — SoF +16.9%, Sardinia & Corsica +32.7%, Greece\n' +
+    '    +20.7%, Turkey +20.4%, Balearics +25.4%. Asserted cells went 6/8 to 3/8.\n' +
     '\n' +
-    'No constant changes on this evidence. Referred back to the source. Reproduce with\n' +
+    'That the error sorts by profile, not by route, points at the Typical speed\n' +
+    'profile rather than at the curve: under electrical power the Typical mix is too\n' +
+    'fast, too long under way, or both, for the charters filed under it. The Intense\n' +
+    'profile now lands. Per-charter, observed/modelled propulsion has a median of\n' +
+    '0.934 and a mean of 0.908 — the curve is roughly 7% heavy on the median charter\n' +
+    'where it was ~31% light before. The spread remains 0.53-1.20 and values above\n' +
+    '1.0 are still physically impossible, so some observed propulsion_mwh continues\n' +
+    'to include manoeuvring/DP/station-keeping that this model books under hotel.\n' +
+    '\n' +
+    'The fleet-reference data defect is unchanged and still the other term: each group\n' +
+    'stores ONE distNm but separate durations and MWh per profile, and the Typical and\n' +
+    'Intense charters did not sail the same distance. SoF to Italy stores 387.6 nm —\n' +
+    'its Typical mean exactly — while its Intense members ran 528.1. distNm reconciles\n' +
+    'with the filed charters on no basis at all; per-profile means still fix two cells\n' +
+    'and break two others (3/8 -> 5/8, net nothing).\n' +
+    '\n' +
+    'No constant changes on this evidence, and the curve is NOT being re-tuned back —\n' +
+    'it is now the engineering team\'s stated figure, used as-is. Reproduce with\n' +
     'node tools/decompose_fleet.mjs; see the KNOWN LIMITATION note in index.html.');
 }
 process.exit(failed === 0 ? 0 : 1);
