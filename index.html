@@ -431,7 +431,14 @@ globalThis.LEIP_THEME = {
     // Draw order inside the OVERLAY scene: sculpture first, then the ink
     // that annotates it. Ink ignores depth entirely — a name or a passage
     // line is never something a monument should cut into.
-    order: { marker: 0, route: 10, callout: 15, label: 20 },
+    //
+    // The YACHT sits above its own passage plot. The route canvas draws
+    // with depthTest off, so without an explicit order above it the line
+    // painted straight over the hull while sailing. Wake goes between the
+    // two: foam belongs on the water above the line, never over the hull.
+    // Callouts and labels stay above everything, since a name the hull
+    // covers is a name the player cannot read.
+    order: { marker: 0, route: 10, wake: 11, yacht: 12, callout: 15, label: 20 },
     labelPlate: {
       px: 512, worldW: 30, y: 2.6, offset: 9.5, fontPx: 44, trackPx: 6,
       // De-collision. Candidates are tried in order as (dx, dz) multiples
@@ -8472,6 +8479,10 @@ globalThis.LEIP_APP = (function () {
     // superstructure aft-of-centre, tapered stern, ~7:1 length to beam.
     var yacht = buildYacht(hullMat, teakMat, inkMat);
     yacht.visible = false;
+    // renderOrder does not inherit through a Group, so every hull part
+    // carries it: the whole yacht draws after the passage plot.
+    yacht.renderOrder = T.world.order.yacht;
+    yacht.traverse(function (o) { o.renderOrder = T.world.order.yacht; });
     overlay.add(yacht);
 
     G = {
@@ -8727,6 +8738,10 @@ globalThis.LEIP_APP = (function () {
     mesh.rotation.x = -Math.PI / 2;
     mesh.rotation.z = (heading || 0) + (isSmoke ? 0 : (Math.random() - 0.5) * 0.35);
     mesh.position.set(x, isSmoke ? 3.2 : 0.3, z);
+    // Wake foam goes above the passage plot but below the hull. Smoke
+    // shares the hull's order and wins on depth alone — it is physically
+    // above the funnel, so it should read in front of the superstructure.
+    mesh.renderOrder = isSmoke ? T.world.order.yacht : T.world.order.wake;
     G.overlay.add(mesh);
     (isSmoke ? G.smoke : G.wake).push({ mesh: mesh, age: 0, life: isSmoke ? 3.4 : 2.0, x: x, y: mesh.position.y, z: z });
   }
