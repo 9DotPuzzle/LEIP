@@ -26,7 +26,7 @@ results — the math never depends on either.
 | `fonts/LICENSE-SAIRA-OFL.txt` | Saira SemiCondensed license (embedded in the HTML as base64 by `tools/embed_fonts.mjs`) |
 | `leip_distance_model.json` | Poster charter distances + per-leg sea-lane corrections (see Distance model) |
 | `leip_fleet_reference.json` | 28 observed charters + route groups, the secondary external check |
-| `test/headless.mjs` | §11.2–11.6 + poster parity + distance rule + leaderboard logic (156 checks, 2 open items — see below) |
+| `test/headless.mjs` | §11.2–11.6 + poster parity + distance rule + leaderboard logic (166 checks, 1 open item — see below) |
 | `test/geometry.mjs` | Ports on real coastline, no sailed leg crossing land (8 checks) |
 | `test/fleet.mjs` | Secondary validation against the observed fleet, ±15% (`npm run test:fleet`) |
 | `test/smoke.mjs` | §11.1 + §11.7 + §11.8: stubbed Three.js/DOM boot → plan → simulate → playback → results → save → share (62 checks) |
@@ -51,27 +51,70 @@ read straight off `DATA.hotelKw` (128.0 kW at rest / 113.4 kW under way).
 Scoring distance follows the distance model below
 (`DATA.distanceBasis: 'corrected'`), never the raw great-circle matrix.
 
-**One** of the seven published poster routes now reconciles within ±1 MWh from
-first principles (SOF_GREEN), down from four. The other six output their
-published figure via the §6 exact-match override, logged. All seven still
-output their published **nm** exactly. This is a direct consequence of removing
-`propFactor` — those were the constants absorbing the gap — and is reported
-rather than tuned away; see the open-items note printed by `npm test`.
+**None** of the seven published poster routes now reconciles within ±1 MWh from
+first principles, down from four. All seven output their published figure via
+the §6 exact-match override, logged, and all seven still output their published
+**nm** exactly — nothing a player sees is wrong. What is lost is first-principles
+reconciliation. Reported rather than tuned away; see the open-item note printed
+by `npm test`.
 
-| route | published | simulated | Δ | |
+| route | published | before | after | |
 |---|---|---|---|---|
-| SOF_BLUE | 35 | 41.99 | +6.99 | override |
-| SOF_GREEN | 48 | 48.65 | +0.65 | **calibrated** |
-| SARD_BLUE | 35 | 50.23 | +15.23 | override |
-| SARD_GREEN | 50 | 53.07 | +3.07 | override |
-| BALEARICS | 36 | 46.28 | +10.28 | override |
-| GREECE | 43 | 52.71 | +9.71 | override |
-| TURKEY | 38.5 | 45.34 | +6.84 | override |
+| SOF_BLUE | 35 | 35.63 calib | 41.88 (+6.88) | override |
+| SOF_GREEN | 48 | 38.21 | 49.48 (+1.48) | override |
+| SARD_BLUE | 35 | 40.85 | 50.65 (+15.65) | override |
+| SARD_GREEN | 50 | 43.17 | 53.60 (+3.60) | override |
+| BALEARICS | 36 | 36.98 calib | 46.75 (+10.75) | override |
+| GREECE | 43 | 42.54 calib | 53.34 (+10.34) | override |
+| TURKEY | 38.5 | 37.52 calib | 45.44 (+6.94) | override |
 
-The §5 canonical worked example lands on **base 17.63 × multiplier 6.3 = 111**.
-The multiplier is unchanged by the curve — it reads the itinerary, not the
-energy — so the whole movement from the previous 101 is in the base, and all of
-that is the energy ladder (23.96 → 27.05 MWh of battery).
+Two changes took it there, both on the engineering team's own figures. Deleting
+`propFactor` took parity 4/7 → 1/7; the distance-based speed regression took it
+1/7 → 0/7, because poster routes are long and now run a faster mix (SOF_GREEN
+went +0.65 → +1.48 MWh, just outside the window). Every route simulates **high**,
+by +1.5 to +15.7 MWh — a spread no single scalar closes, over published figures
+that are mutually inconsistent to begin with.
+
+The §5 canonical worked example lands on **base 17.55 × multiplier 6.3 = 111**.
+The multiplier reads the itinerary, not the energy, so every energy change lands
+entirely in the base: 23.96 → 27.05 MWh on the electrical curve (base 16.08 →
+17.63, final 101 → 111), then 27.05 → 26.89 MWh on the regression (base → 17.55,
+final unchanged at 111).
+
+## Speed model
+
+The speed split is **predicted from total route distance** by linear regression
+over the 28 observed charters, not fixed per toggle. The two profiles it
+replaced were a single split computed at one route distance and applied to every
+route regardless of length.
+
+```
+share%(v) = slopePctPerNm × routeNm + interceptPct
+  14 kt:  0.0073 × nm +  6.90
+  11 kt:  0.0108 × nm + 75.68
+   8 kt: -0.0182 × nm + 17.40
+```
+
+The **Hare/Tortoise** toggle is one editable constant (`hareTortoisePct`, 5
+points) added to the 14 kt share and mirrored on 8 kt; 11 kt is never touched,
+so the toggle trades slow miles for fast miles rather than changing the cruise.
+At the sheet's 71.3 nm check point this reproduces Hare 12.4/76.5/11.1 and
+Tortoise 2.4/76.5/21.1 exactly.
+
+Effective speed and average draw both move with route length:
+
+| route nm | Tortoise | Hare |
+|---|---|---|
+| 71.3 | 10.24 kt / 661 kW | 10.84 kt / 803 kW |
+| 440 | 10.55 kt / 722 kW | 11.18 kt / 872 kW |
+| 1,039 | 11.08 kt / 829 kW | 11.45 kt / 933 kW |
+
+Two properties of the fit are handled explicitly, and both are asserted. The
+intercepts sum to 99.98 with slopes summing to −0.0001/nm, so the shares are
+**renormalised to 100 after clamping** or a long route silently loses ~0.1% of
+its distance. And the 8 kt share goes **negative** past 956 nm neutral / 681 nm
+on Hare — distances real routes reach — so it is **clamped at zero**; beyond
+that the regression is extrapolating past its observed range.
 
 ## Scoring (spec §5)
 
@@ -107,14 +150,29 @@ is. `ENGINE.computeScore` is pure — quantities in, score out, no route and no
 timeline — and the four worked examples in `DATA.scoringExamples` are asserted
 against it directly.
 
+**Score Over 400 is clean-reachable.** Verified by optimised search — seeded
+from the poster routes, hill-climbed by single-port insert/swap/delete over
+55,480 route/nights combinations — not by random sampling, which misses the
+optimum because uniformly-drawn routes almost never land near the battery cap.
+Of 9,275 clean completions, **1,370 clear 400**; the best clean week scores
+**423** (base 45.93 × 9.20, 418.6 nm, 49.995 MWh, zero diesel: Savona → Monaco
+→ Nice → Saint Tropez → Antibes → Ajaccio → Monaco).
+
 ## Diesel reserve
 
 Diesel is a **finite, depletable energy reserve**, not an unlimited fallback.
-`DATA.dieselReserveMwh` is **348.6 MWh** — the published 4,500 nm range
-expressed as energy through the same model everything else uses: 431.8 h at the
-Typical cruise of 10.42 kt, propulsion 694 kW plus hotel 113.4 kW. (It was
-251.4 MWh before the curve became electrical; the range is fixed, so a heavier
-per-mile draw makes the same range cost more energy.)
+`DATA.dieselReserveMwh` is **362.1 MWh** — the published 4,500 nm range
+expressed as energy through the same model everything else uses: 409.1 h at a
+flat 11 kt, propulsion 771.8 kW plus hotel 113.4 kW. The basis is a flat 11 kt
+rather than a profile's effective cruise because the regression makes that
+cruise route-dependent, and a delivery passage is not a charter week.
+
+At **~7× the battery** the reserve cannot deplete in a single week, and that is
+intended: it is a realistic backstop, not a second resource to manage. The
+scoring teeth stay the uncapped −1 point/MWh diesel penalty on the base; there
+is deliberately **no reserve-depletion penalty** on top. The gauge drains on
+screen once the diesels wake because that is honest and dramatic, not because
+running it dry is a normal-play concern.
 
 Resources deplete in order. The 50 MWh battery goes first; only once it is
 spent do the diesels wake and start drawing the reserve down by **actual
@@ -129,12 +187,31 @@ playback. It appears in the title block at the moment the diesels wake — the
 same moment the smoke starts — and the results sheet reports the reserve used
 in MWh and as a percentage.
 
-## Pending data
+## Port energy colours
 
-Port **energy types** are now real — derived by quartile from each port's
-carbon intensity. **Genoa** carries no carbon figure in the source, so its
-`energy` is `null` and it scores **grey** (3×) on the recharge factor — the
-middle band, never a reward for being unrated; the team is to confirm a value.
+Port **energy colours** are **fixed thresholds** on grid carbon intensity —
+green ≤ 150, blue ≤ 300, grey ≤ 420, brown above (gCO₂/kWh) — not relative
+quartiles. That matters beyond tidiness: under quartiles a port's colour, and so
+its recharge score (the heaviest multiplier factor), could change because a
+*different* port was edited. A port's colour is now a property of that port
+alone. The cuts give **7 green / 11 blue / 6 grey / 9 brown**.
+
+**Genoa** was the pack's last blank and is now 488 gCO₂/kWh, brown. No unrated
+ports remain, so `rechargeUnrated` is unreachable and kept only as the rule for
+a future port with no figure.
+
+### Data-pack provenance, one gap
+
+The copy of `leip_game_data.json` in this repo is the **older** pack: it has no
+`speed_model` block, still carries Genoa as `null`, and still holds the relative
+`energy_colour_quartiles_gco2kwh`. The regression coefficients, the fixed
+thresholds, the Genoa figure and the 362.1 MWh reserve derivation were all
+supplied directly in the change request and are implemented and asserted from
+those values — the DATA block is the authority here, not the JSON beside it.
+Livadia's Tilos position (36.4325, 27.386) and its regenerated `leg_correction`
+ratios were already ingested, from `leip_distance_model.json`. Dropping the
+refreshed `leip_game_data.json` into the repo would let the build tools
+cross-check the DATA block against it again.
 
 ## Distance model
 
@@ -166,7 +243,7 @@ source's own ±15% band, and folding it into the primary suite would put
 pressure on the contractual §6 calibration.
 
 Current state: **3 of 8** multi-charter group cells pass, down from 6 of 8.
-The fleet-wide propulsion mean reads **+10.6%** against a hotel mean of
+The fleet-wide propulsion mean reads **+11.2%** against a hotel mean of
 **+11.6%**. Both numbers, and the failing cells themselves, changed when
 `propFactor` was deleted — see below.
 
@@ -185,26 +262,34 @@ model went from running light to running heavy.
 | | before | after |
 |---|---|---|
 | fleet cells passing (n≥2) | 6/8 | **3/8** |
-| fleet total mean | −9.9% | **+10.5%** |
-| fleet propulsion mean | −23.7% | **+10.6%** |
+| fleet total mean | −9.9% | **+11.0%** |
+| fleet propulsion mean | −23.7% | **+11.2%** |
 | fleet hotel mean | +4.0% | +11.6% |
-| SoF→Italy Intense | −20.9% | **−2.3% ok** |
-| Greece Intense | −15.8% | **+6.3% ok** |
-| SoF Typical | ok | +16.9% |
-| Sardinia & Corsica Typical (n=5) | ok | +32.7% |
-| Greece Typical | ok | +20.7% |
-| Turkey Typical | ok | +20.4% |
-| Balearics Typical | ok | +25.4% |
+| SoF→Italy Intense | −20.9% | **−2.6% ok** |
+| Greece Intense | −15.8% | **+6.1% ok** |
+| SoF Typical | ok | +16.6% |
+| Sardinia & Corsica Typical (n=5) | ok | +33.8% |
+| Greece Typical | ok | +22.1% |
+| Turkey Typical | ok | +20.7% |
+| Balearics Typical | ok | +26.6% |
 
-**1. The error now sorts by profile, not by route.** Every failing cell is a
-**Typical** cell and every one overshoots. That is a different signature from
-the old failure and it points at the Typical speed profile rather than at the
-curve: under electrical power the Typical mix spends too long under way, too
-fast, or both, for the charters filed under it. The Intense profile lands.
+**1. The error sorts by profile, not by route** — every failing cell is a
+**Typical** cell and every one overshoots — and that is the whole diagnosis. It
+is **not** a profile that can be re-fitted away: replacing the two fixed profiles
+with the distance-based regression did not move these cells, which stayed high to
+within a point or two.
 
-Per charter, observed ÷ modelled propulsion has a median of **0.934** and a
-mean of **0.908** — the curve is now about 7% heavy on the median charter where
-it was roughly 31% light before. The spread is still **0.53 to 1.20**, far too
+It is the known **source-data disagreement**. The pack ships a distance-share
+distribution *and* a per-knot **hours** distribution for the same 28 charters,
+and the two imply different propulsion — 694/868 kW against 852/1152. The game
+is built on the distance-share side; these cells are the hours side pushing
+back. Reconciling the two speed representations is for the engineers, not the
+build.
+
+Note the direction of travel: the failure **count went up while the model got
+closer to reality**. Per charter, observed ÷ modelled propulsion has a median of
+**0.934** and a mean of **0.908** — the curve is now about 7% heavy on the
+median charter where it was roughly 31% light before. The spread is still **0.53 to 1.20**, far too
 wide to read a constant off, and ratios above 1.0 still say some observed
 `propulsion_mwh` includes load this model books separately (manoeuvring, DP,
 station keeping). That caveat no longer rests on a brake-to-electrical
@@ -222,23 +307,18 @@ all-charter mean on none (Sicily/Italy stores 537.1 against members who ran
 286.5). Substituting per-profile means still nets nothing: 3/8 → 5/8, fixing
 two cells and breaking two that pass.
 
-### The speed-profile disagreement, still open
+### The speed-representation disagreement, still open
 
-The shipped speed profiles come from the pack's distance-share distributions
-and now imply **694 / 868 kW** (Typical / Intense) with no conversion applied,
-while the fleet reference's own per-knot underway **hours**, for the same 28
-charters, imply **852 / 1152**. Two irreconcilable propulsion figures for the
-same vessels. Re-deriving the profiles from the hours was evaluated in full and
-rejected because it took §6 poster parity from 4/7 reconciled to 0/7 and
-collapsed the diesel-dash balance scenario.
-
-That evaluation predates the `propFactor` deletion and its numbers are stale,
-but its conclusion is not: the source contains two incompatible propulsion
-bases, and the Typical-profile overshoot above is the same disagreement
-surfacing from the other side.
+Re-deriving the speed model from the per-knot hours instead of the distance
+shares was evaluated in full and rejected: it took §6 poster parity from 4/7
+reconciled to 0/7 and collapsed the diesel-dash balance scenario. That
+evaluation predates both the `propFactor` deletion and the regression, and its
+numbers are stale — but its conclusion is not. The source contains two
+incompatible propulsion bases, and the Typical-cell overshoot above is that same
+disagreement surfacing from the other side.
 
 No model constant changes on this evidence, and the curve is **not** re-tuned
-back — it is the engineering team's stated figure, used as-is. Four questions
-go back to the source: per-profile group distances, what `distNm` measures,
-what `propulsion_mwh` includes, and whether the Typical speed distribution is
-representative of the charters filed under it.
+back — it is the engineering team's stated figure, used as-is. Four questions go
+back to the source: per-profile group distances, what `distNm` measures, what
+`propulsion_mwh` includes, and which of the two speed representations is
+authoritative.
