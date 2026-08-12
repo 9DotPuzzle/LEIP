@@ -171,6 +171,51 @@ const shots = {
     await settle(page);
     return { clip: stageClip };
   },
+  // --- the water/wake atmosphere pass ------------------------------
+  // Sea at rest: open water with the swell banding and the drifting glint.
+  // Deliberately away from land so nothing but the sea is in frame.
+  'sea-at-rest': async (page) => {
+    await page.evaluate(() => {
+      window.LEIP_APP.debugView({ focus: ['Eivissa', 'Palma', "Port d'Andratx"], zoom: 340 });
+    });
+    await settle(page, 40);
+    return { clip: stageClip };
+  },
+  // Under way with the wake: laid down at the real frame cadence, then the
+  // clock is frozen so the shutter catches the V instead of its ashes.
+  'wake-underway': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      A.setSpeed('fast');                       // the stronger of the two wakes
+      ['Monaco', 'Calvi'].forEach((n) => A.pickPort(n));
+      A.simulate();
+      for (let i = 0; i < 400 && A.getState().phase === 'playback' &&
+                      !A.debugYacht().moving; i++) A.tick(0.25);
+      for (let i = 0; i < 3; i++) A.tick(0.25);
+      for (let i = 0; i < 80; i++) A.tick(0.0167);   // lay wake at frame cadence
+      A.debugPause();
+      const y = A.debugYacht();
+      A.debugView({ at: [y.x, y.z], zoom: 'max' });
+    });
+    await settle(page, 12);
+    return { clip: stageClip };
+  },
+  // At anchor: the hull breathing on the swell rather than frozen. Athens,
+  // because its berth is well out into the Saronic Gulf, so the hull is
+  // unambiguously on open water rather than tucked against a headland.
+  'yacht-at-anchor': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      ['Athens', 'Livadia'].forEach((n) => A.pickPort(n));
+      A.simulate();
+      for (let i = 0; i < 40 && A.getState().playT < 3; i++) A.tick(0.1);
+      A.debugPause();
+      const y = A.debugYacht();
+      A.debugView({ at: [y.x, y.z], zoom: 'max' });
+    });
+    await settle(page, 12);
+    return { clip: stageClip };
+  },
   // --- 11 & 12: playback pace, clock and progress
   'mid-simulation': async (page) => {
     await page.evaluate(() => {
