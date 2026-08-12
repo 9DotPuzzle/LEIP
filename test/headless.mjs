@@ -139,6 +139,42 @@ check('every activity has an icon, and no icon is orphaned',
   Object.keys(T.icons.defs).filter(k => /^A\d\d$/.test(k)).length === 14);
 check('nine achievements', D.achievements.list.length === 9);
 check('Santorini tagged for Volcano Chief', D.ports.some(p => p.tags.includes(D.achievements.santoriniTag)));
+// ---- Animated sea and wake: visual tokens, all in THEME ------------
+check('THEME.water describes a calm sea, not weather',
+  T.water.swell.length === 3 &&
+  T.water.swell.every(w => w.wavelength > 20 && w.speed > 0 && w.speed < 0.2 && w.amp > 0) &&
+  T.water.depth > 0 && T.water.depth <= 0.08 &&
+  T.water.steps >= 3 && T.water.steps <= 8);
+check('the sea shading is stepped, not smooth — the flat-shaded look holds',
+  Number.isInteger(T.water.steps));
+check('the glint is a soft band, not a specular highlight',
+  T.water.glint.strength > 0 && T.water.glint.strength <= 1 &&
+  T.water.glint.width > 0 && T.water.glint.width < 1);
+check('water carries no colour of its own — the scene tint is the only source',
+  !/#[0-9a-fA-F]{3,8}/.test(JSON.stringify(T.water)));
+check('small viewports drop to a cheaper sea',
+  T.water.lowDetailSwells < T.water.swell.length && T.water.lowDetailMaxPx > 0);
+{
+  const Y = T.world.yacht;
+  check('the wake is a drawn V, laid down in pairs and faded',
+    Y.wake.halfAngleDeg > 10 && Y.wake.halfAngleDeg < 30 &&
+    Y.wake.beatSec > 0 && Y.wake.life > 0 && Y.wake.opacity > 0 && Y.wake.opacity <= 1);
+  check('the wake starts clear of the transom, not under the hull',
+    Y.wake.astern > 0.5);
+  check('a Hare leg leaves a stronger wake than a Tortoise one, gently',
+    Y.wake.fastScale > 1 && Y.wake.fastScale < 1.5);
+  check('the bow wave sits forward of amidships, at the waterline',
+    Y.bowWave.x > 0 && Y.bowWave.opacity > 0 && Y.bowWave.opacity < 1);
+  check('the idle bob is a breath, not a roll',
+    Y.idle.heave < 0.02 && Y.idle.roll < 0.05 && Y.idle.pitch < 0.05 &&
+    [Y.idle.heaveSec, Y.idle.rollSec, Y.idle.pitchSec, Y.idle.yawSec].every(p => p > 3));
+  // Mutually prime-ish periods, so the four axes never re-synchronise into
+  // a visible loop.
+  const per = [Y.idle.heaveSec, Y.idle.rollSec, Y.idle.pitchSec, Y.idle.yawSec];
+  check('the idle periods do not share a short common multiple',
+    new Set(per).size === 4 && per.every((a, i) => per.every((b, j) =>
+      i === j || Math.abs(a / b - Math.round(a / b)) > 0.05)));
+}
 check('THEME carries the four scene tints and the volt accent',
   ['dawn', 'day', 'dusk', 'night'].every(s => T.scenes[s] && T.scenes[s].sea && T.scenes[s].sky && T.scenes[s].land) &&
   T.volt === '#F5D90A' && T.ink.onLight === '#22344A' && T.ink.onDark === '#E8EEF2');

@@ -449,9 +449,44 @@ globalThis.LEIP_THEME = {
       // Wake and funnel smoke, as fractions of hull length so they stay in
       // proportion when the hull is rescaled. They used to be absolute
       // sizes tuned against the old 9-unit hull.
-      wake:  { w: 0.078, l: 0.311, y: 0.033 },
+      //
+      // The wake is a drawn V, not a particle system: two flat foam strokes
+      // per beat, laid down port and starboard at the quarter and left
+      // behind as the hull moves on. Each one spreads and fades where it
+      // lies. No spray, no droplets — geometric foam, same white as the
+      // shore bevel.
+      wake: {
+        w: 0.05, l: 0.42, y: 0.033,
+        beatSec: 0.17,          // how often a pair is laid down — roughly one
+                                // pair per hull length at playback speed, so
+                                // the V reads as drawn ticks, not a slab
+        halfAngleDeg: 19,       // the V — a displacement wake runs ~19-20 deg
+        offset: 0.26,           // x length: lateral spacing at the quarter
+        astern: 0.62,           // x length: clear of the transom, not under it
+        spread: 1.15,           // how much a stroke grows over its life
+        life: 1.0,              // seconds — the week plays in 58, so this is
+                                // a short tail in charter hours, not a scar
+        opacity: 0.72,
+        // Hare leaves a stronger wake than Tortoise. Gently: the fast
+        // profile is only ~7% quicker, so this is a legibility cue rather
+        // than a simulation. Scales width, opacity and life.
+        fastScale: 1.28
+      },
+      // A soft crescent of foam at the stem while under way. Parented to
+      // the hull, so it turns with her; hidden the moment she stops.
+      bowWave: { w: 0.62, l: 0.30, x: 0.44, y: 0.006, opacity: 0.42 },
       smoke: { size: 0.178, y: 0.356 },
-      waterlineY: 0.022      // x length: how high the hull floats
+      waterlineY: 0.022,     // x length: how high the hull floats
+      // At anchor she breathes on the swell instead of freezing. Amplitudes
+      // are tiny and the periods are long and mutually prime, so the motion
+      // never visibly loops. Heave is a fraction of hull length; roll and
+      // pitch are radians.
+      idle: {
+        heave: 0.009, heaveSec: 5.7,
+        roll:  0.021, rollSec:  7.3,
+        pitch: 0.011, pitchSec: 9.1,
+        yaw:   0.030, yawSec:  13.7
+      }
     },
 
     // Port name plates lie flat on the world, above the relief so land
@@ -8387,11 +8422,14 @@ globalThis.LEIP_APP = (function () {
       sun: sun, sunO: sunO, amb: amb, ambO: ambO,
       sea: sea, landMat: landMat, reliefMat: reliefMat, hitMeshes: hitMeshes,
       yacht: yacht, foamMat: foamMat, smokeMat: smokeMat, hullMat: hullMat,
-      wake: [], smoke: [], wakeClock: 0, smokeClock: 0,
+      wake: [], smoke: [], wakeClock: 0, smokeClock: 0, bowWave: null, idleHeading: 0,
       cam: { x: 0, z: 0, dist: 640, tx: 0, tz: 0, tdist: 640 },
       w: 800, h: 600,
       raycaster: new THREE.Raycaster(), ndc: new THREE.Vector2()
     };
+    // The bow wave is parented to the hull so it turns with her.
+    G.bowWave = buildBowWave();
+    yacht.add(G.bowWave);
     resize();
   }
 
@@ -8644,17 +8682,74 @@ globalThis.LEIP_APP = (function () {
     G.overlay.add(mesh);
     (isSmoke ? G.smoke : G.wake).push({ mesh: mesh, age: 0, life: isSmoke ? 3.4 : 2.0, x: x, y: mesh.position.y, z: z });
   }
+
+  // One arm of the wake V. Laid down at the quarter, angled out from the
+  // centreline, then left where it is — the hull sails on and the V opens
+  // behind her because each successive pair is dropped further along.
+  //
+  // Strength is the Hare/Tortoise scale: it widens the stroke, holds it a
+  // little longer and starts it a little more opaque. Nothing here is
+  // simulated; it is drawn foam that happens to be laid down in a V.
+  function spawnWakeArm(x, z, heading, side, strength) {
+    if (!G || S.reducedMotion) return;
+    var Y = T.world.yacht, L = Y.length, W = Y.wake;
+    var halfA = W.halfAngleDeg * Math.PI / 180;
+    var mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(W.w * L * strength, W.l * L),
+      G.foamMat.clone());
+    mesh.material.opacity = W.opacity * strength;
+    mesh.material.transparent = true;
+    mesh.rotation.x = -Math.PI / 2;
+    // The stroke lies along the arm of the V, not along the hull.
+    mesh.rotation.z = heading + Math.PI / 2 + side * halfA;
+    var ox = -Math.cos(heading) * W.astern * L - side * Math.sin(heading) * W.offset * L;
+    var oz =  Math.sin(heading) * W.astern * L - side * Math.cos(heading) * W.offset * L;
+    mesh.position.set(x + ox, W.y * L, z + oz);
+    mesh.renderOrder = T.world.order.wake;
+    G.overlay.add(mesh);
+    G.wake.push({ mesh: mesh, age: 0, life: W.life * (0.85 + 0.3 * strength),
+                  x: mesh.position.x, y: mesh.position.y, z: mesh.position.z,
+                  spread: W.spread, fade: true, baseOpacity: mesh.material.opacity });
+  }
+
+  // A crescent of foam at the stem, parented to the hull so it turns with
+  // her. Built once and shown only while under way.
+  function buildBowWave() {
+    var Y = T.world.yacht, L = Y.length, B = Y.bowWave;
+    var mesh = new THREE.Mesh(new THREE.PlaneGeometry(B.w * L, B.l * L), G.foamMat.clone());
+    mesh.material.transparent = true;
+    mesh.material.opacity = B.opacity;
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(B.x * L, B.y * L - T.world.yacht.waterlineY * L, 0);
+    mesh.renderOrder = T.world.order.wake;
+    mesh.visible = false;
+    return mesh;
+  }
   function updateStrokes(list, dt, rise) {
     for (var i = list.length - 1; i >= 0; i--) {
       var p = list[i];
       p.age += dt;
-      if (p.age >= p.life) { G.overlay.remove(p.mesh); list.splice(i, 1); continue; }
+      if (p.age >= p.life) {
+        G.overlay.remove(p.mesh);
+        if (p.fade && p.mesh.material.dispose) p.mesh.material.dispose();
+        if (p.mesh.geometry && p.mesh.geometry.dispose) p.mesh.geometry.dispose();
+        list.splice(i, 1);
+        continue;
+      }
       var f = p.age / p.life;
       p.y += rise * dt;
       p.mesh.position.set(p.x, p.y, p.z);
-      var s = 1 + f * (rise > 0 ? 2.4 : 1.2);
-      p.mesh.scale.set(s, s, 1);
-      if (rise > 0 && p.mesh.material) p.mesh.material.opacity = 0.45 * (1 - f);
+      var s = 1 + f * (p.spread !== undefined ? p.spread : (rise > 0 ? 2.4 : 1.2));
+      // A wake arm spreads across its width and stretches far less along
+      // its length — foam fanning out, not a growing square.
+      p.mesh.scale.set(s, p.fade ? 1 + f * 0.35 : s, 1);
+      if (p.fade && p.mesh.material) {
+        // Ease out rather than fade linearly, so the near wake stays crisp
+        // and only the far end dissolves.
+        p.mesh.material.opacity = p.baseOpacity * (1 - f) * (1 - f);
+      } else if (rise > 0 && p.mesh.material) {
+        p.mesh.material.opacity = 0.45 * (1 - f);
+      }
     }
   }
 
@@ -9393,18 +9488,41 @@ globalThis.LEIP_APP = (function () {
     var sim = S.sim, t = S.playT;
     var yw = yachtWorldAt(t);
     if (G) {
-      G.yacht.position.set(yw.x, T.world.yacht.waterlineY * T.world.yacht.length, yw.z);
+      var Y = T.world.yacht, L = Y.length;
+      var baseY = Y.waterlineY * L;
       var heading = 0;
       if (yw.moving) {
         heading = Math.atan2(-(yw.to.z - yw.from.z), yw.to.x - yw.from.x);
         G.yacht.rotation.y = heading;
       }
+      // AT ANCHOR she breathes on the swell — a slow heave with a little
+      // roll, pitch and yaw on mutually prime periods so it never visibly
+      // loops. Under way the wake takes over and the hull sits steady on
+      // her heading, or the bob would read as a steering wobble.
+      if (!yw.moving && !S.reducedMotion) {
+        var I = Y.idle, a = S.animT;
+        G.yacht.position.set(yw.x,
+          baseY + Math.sin(a * 2 * Math.PI / I.heaveSec) * I.heave * L, yw.z);
+        G.yacht.rotation.z = Math.sin(a * 2 * Math.PI / I.rollSec) * I.roll;
+        G.yacht.rotation.x = Math.sin(a * 2 * Math.PI / I.pitchSec) * I.pitch;
+        G.yacht.rotation.y = G.idleHeading +
+          Math.sin(a * 2 * Math.PI / I.yawSec) * I.yaw;
+      } else {
+        G.yacht.position.set(yw.x, baseY, yw.z);
+        G.yacht.rotation.z = 0;
+        G.yacht.rotation.x = 0;
+        G.idleHeading = heading;      // she lies as she arrived
+      }
+      if (G.bowWave) G.bowWave.visible = !!yw.moving && !S.reducedMotion;
       G.cam.tx = yw.x; G.cam.tz = yw.z;   // follow the yacht; the player keeps zoom control
       clampCam();
       G.wakeClock += dt;
-      if (yw.moving && G.wakeClock > 0.13) {
+      if (yw.moving && G.wakeClock > Y.wake.beatSec) {
         G.wakeClock = 0;
-        spawnStroke('wake', yw.x - Math.cos(heading) * 3.1, yw.z + Math.sin(heading) * 3.1, heading + Math.PI / 2);
+        // Both arms of the V at once, port and starboard off the quarter.
+        var strength = S.inputs.speed === 'fast' ? Y.wake.fastScale : 1;
+        spawnWakeArm(yw.x, yw.z, heading, +1, strength);
+        spawnWakeArm(yw.x, yw.z, heading, -1, strength);
       }
       // The diesel moment: subtle smoke only — no message, no HUD alert.
       if (sim.dieselStartH !== null && t >= sim.dieselStartH) {
@@ -9545,7 +9663,11 @@ globalThis.LEIP_APP = (function () {
       dt = (typeof dt === 'number' && dt > 0) ? Math.min(dt, 10) : 0.016;
       // debugPause holds the charter clock AND the camera-follow so a
       // screenshot can be framed deliberately; the scene still renders.
-      if (S.debugPaused) { render(dt); return; }
+      // dt 0: freezes the charter clock, the camera easing, the wake
+      // ageing and the water phase, so a captured frame is exactly the
+      // frame that was set up. Without this a slow renderer ages the
+      // wake out between setup and shutter.
+      if (S.debugPaused) { render(0); return; }
       if (S.phase === 'playback' && S.sim) {
         S.playT += dt * (D.time.charterHours / T.motion.weekSeconds);
         if (S.playT >= D.time.charterHours) S.playT = D.time.charterHours;
@@ -9670,6 +9792,12 @@ globalThis.LEIP_APP = (function () {
     debugView: debugView,
     debugYacht: debugYacht,
     debugPause: function (on) { S.debugPaused = on !== false; },
+    debugYachtPose: function () {
+      if (!G) return null;
+      var o = G.yacht;
+      return { y: +o.position.y.toFixed(4), roll: +o.rotation.z.toFixed(4),
+               pitch: +o.rotation.x.toFixed(4), yaw: +o.rotation.y.toFixed(4) };
+    },
     debugRoute: debugRoute,
     // What the layout pass currently has on the map.
     debugLabels: function () {
