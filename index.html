@@ -532,6 +532,43 @@ globalThis.LEIP_THEME = {
 
   lines: { hairlinePx: 1, rulePx: 1.5, routePx: 1.75 },
 
+  // ---- WATER — animated sea surface (visual only) --------------------
+  // A calm Mediterranean, not an ocean. Everything here is deliberately
+  // near the threshold of noticing: the sea should read as breathing, not
+  // as weather. All of it is FRAGMENT-SHADER work over the existing flat
+  // plane — no vertex displacement, no extra geometry, no reflection, no
+  // bloom. The plane stays flat and the palette stays the scene tint;
+  // what moves is a small shading modulation on top of it.
+  //
+  // The tint itself is NOT defined here. The shader takes the day/night
+  // colour as a uniform, so the existing scene-tint system is untouched
+  // and remains the single source of sea colour.
+  water: {
+    // Two crossing swells and a slow cross-ripple. wavelengths are in
+    // world units; the chart is ~2,600 across, so these are long, lazy
+    // sets. amp is a SHADING weight, not a height — nothing moves in z.
+    swell: [
+      { wavelength: 132, angleDeg:  18, speed: 0.055, amp: 1.00 },
+      { wavelength:  88, angleDeg: -37, speed: 0.041, amp: 0.62 },
+      { wavelength:  47, angleDeg:  74, speed: 0.088, amp: 0.28 }
+    ],
+    // The whole modulation, as a fraction of the sea tint's luminance.
+    // 0.055 is about one step of a flat-shaded ramp — visible in motion,
+    // invisible as a static frame.
+    depth: 0.055,
+    // Quantisation: the shading is stepped, not smooth, so the sea keeps
+    // the flat-shaded chart look instead of turning into a gradient.
+    steps: 5,
+    // Sun glint: a broad soft band that drifts across the basin. Never a
+    // specular highlight — no HDR, no bloom, just a slightly lighter
+    // stepped band riding the same swell.
+    glint: { strength: 0.5, width: 0.34, speed: 0.021, angleDeg: -24 },
+    // Detail tier. Phones drop the third swell and the glint; the sea
+    // still breathes, at roughly half the per-pixel cost.
+    lowDetailMaxPx: 900,      // viewport min-dimension at or below this
+    lowDetailSwells: 2
+  },
+
   motion: {
     weekSeconds: 58,           // one charter week of playback
     tintCrossfadeShare: 0.25,  // fraction of each scene span spent crossfading
@@ -8045,6 +8082,96 @@ globalThis.LEIP_APP = (function () {
     return mesh;
   }
 
+  // ---- Animated sea (visual only; spec: serene, flat, stylised) ------
+  // A ShaderMaterial over the SAME single-quad plane the flat sea used, so
+  // there is no extra geometry and no CPU work per frame beyond two
+  // uniform writes. Everything is per-pixel and cheap: three sines, a
+  // quantiser and a mix. No lighting, no normals, no reflection, no HDR.
+  //
+  // The colour comes in as a uniform from the existing day/night tint, so
+  // this cannot drift from the scene system — it shades AROUND whatever
+  // colour that system produces.
+  //
+  // uAnim goes to 0 under prefers-reduced-motion, which collapses the
+  // whole thing to the flat tint the sea had before this existed.
+  function buildWaterMaterial() {
+    var W = T.water;
+    var lowDetail = false;
+    try {
+      var minPx = Math.min(globalThis.innerWidth || 1200, globalThis.innerHeight || 800);
+      lowDetail = minPx <= W.lowDetailMaxPx;
+    } catch (e) {}
+    var nSwell = lowDetail ? Math.min(W.lowDetailSwells, W.swell.length) : W.swell.length;
+    var dirs = [], nums = [];
+    for (var i = 0; i < nSwell; i++) {
+      var sw = W.swell[i], a = sw.angleDeg * Math.PI / 180;
+      // xz direction, spatial frequency, temporal frequency, weight
+      dirs.push(new THREE.Vector4(Math.cos(a), Math.sin(a),
+        2 * Math.PI / sw.wavelength, sw.speed * 2 * Math.PI));
+      nums.push(sw.amp);
+    }
+    var ga = W.glint.angleDeg * Math.PI / 180;
+    var uniforms = {
+      uColor:   { value: new THREE.Color(T.scenes.day.sea) },
+      uTime:    { value: 0 },
+      uAnim:    { value: 1 },
+      uDepth:   { value: W.depth },
+      uSteps:   { value: W.steps },
+      uSwell:   { value: dirs },
+      uAmp:     { value: nums },
+      uGlint:   { value: new THREE.Vector4(Math.cos(ga), Math.sin(ga),
+                                           W.glint.speed, W.glint.strength) },
+      uGlintW:  { value: W.glint.width },
+      uUseGlint:{ value: lowDetail ? 0 : 1 }
+    };
+    var mat = new THREE.ShaderMaterial({
+      uniforms: uniforms,
+      vertexShader: [
+        'varying vec2 vWorld;',
+        'void main() {',
+        '  vec4 wp = modelMatrix * vec4(position, 1.0);',
+        '  vWorld = wp.xz;',
+        '  gl_Position = projectionMatrix * viewMatrix * wp;',
+        '}'
+      ].join('\n'),
+      fragmentShader: [
+        '#define NSWELL ' + nSwell,
+        'precision mediump float;',
+        'uniform vec3 uColor;',
+        'uniform float uTime, uAnim, uDepth, uSteps, uGlintW;',
+        'uniform float uAmp[NSWELL];',
+        'uniform vec4 uSwell[NSWELL];',
+        'uniform vec4 uGlint;',
+        'uniform float uUseGlint;',
+        'varying vec2 vWorld;',
+        'void main() {',
+        '  float h = 0.0, wsum = 0.0;',
+        '  for (int i = 0; i < NSWELL; i++) {',
+        '    vec4 s = uSwell[i];',
+        '    h += uAmp[i] * sin(dot(vWorld, s.xy) * s.z - uTime * s.w);',
+        '    wsum += uAmp[i];',
+        '  }',
+        '  h = h / max(wsum, 0.001);',                    // -1..1
+        // Quantise to a small number of steps: flat-shaded, not gradient.
+        '  float q = floor(h * 0.5 * uSteps + 0.5) / uSteps;',   // stepped -0.5..0.5
+        '  float shade = 1.0 + uAnim * uDepth * q * 2.0;',
+        '  vec3 c = uColor * shade;',
+        '  if (uUseGlint > 0.5) {',
+        // A broad soft band drifting across the basin, riding the same
+        // swell so it reads as sun on water rather than a moving light.
+        '    float band = dot(normalize(uGlint.xy), vWorld) * 0.0016 - uTime * uGlint.z;',
+        '    float g = smoothstep(1.0 - uGlintW, 1.0, cos(band) * 0.5 + 0.5);',
+        '    g *= smoothstep(0.05, 0.6, h * 0.5 + 0.5);',
+        '    c += uColor * (uAnim * uGlint.w * uDepth * floor(g * 3.0) / 3.0);',
+        '  }',
+        '  gl_FragColor = vec4(c, 1.0);',
+        '}'
+      ].join('\n')
+    });
+    mat.lowDetail = lowDetail;
+    return mat;
+  }
+
   function buildYacht(hullMat, teakMat, inkMat) {
     var y = T.world.yacht;
     var L = y.length, HB = L * y.beamRatio / 2;
@@ -8136,7 +8263,7 @@ globalThis.LEIP_APP = (function () {
     var spread = T.world.seaSpread;
     var sea = new THREE.Mesh(
       new THREE.PlaneGeometry((r.maxX - r.minX) * spread.x, (r.maxZ - r.minZ) * spread.z),
-      new THREE.MeshBasicMaterial({ color: T.scenes.day.sea }));
+      buildWaterMaterial());
     sea.rotation.x = -Math.PI / 2;
     scene.add(sea);
 
@@ -9210,7 +9337,15 @@ globalThis.LEIP_APP = (function () {
     updateSceneVars(tint);
     if (tint.inkDark !== S.inkDark) { S.inkDark = tint.inkDark; requestChart(); }
     G.renderer.setClearColor(new THREE.Color(tint.sky));
-    G.sea.material.color = new THREE.Color(tint.sea);
+    // The sea shader takes the scene tint as a uniform — the day/night
+    // system stays the only source of sea colour. Two writes a frame.
+    if (G.sea.material.uniforms) {
+      G.sea.material.uniforms.uColor.value.set(tint.sea);
+      G.sea.material.uniforms.uTime.value = S.animT;
+      G.sea.material.uniforms.uAnim.value = S.reducedMotion ? 0 : 1;
+    } else {
+      G.sea.material.color = new THREE.Color(tint.sea);
+    }
     G.landMat.color = new THREE.Color(scaleHex(tint.land, T.world.massTones.mid));
     G.reliefMat.color = new THREE.Color(scaleHex(tint.land, T.world.massTones.lit));
     G.sun.intensity = 0.28 + 0.85 * (1 - tint.night01);
