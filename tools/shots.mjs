@@ -124,6 +124,53 @@ const shots = {
     await settle(page, 10);
     return { clip: stageClip };
   },
+  // --- evidence for the three rendering fixes ---------------------
+  // FIX 1: the yacht STATIONARY at a berth. Athens was the reported case —
+  // it sat on the Attic coast. Zoomed in close enough that the hull and the
+  // shoreline are both legible.
+  'berth-athens': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      ['Athens', 'Livadia'].forEach((n) => A.pickPort(n));
+      A.simulate();
+      // Hold the clock inside the opening dwell, before she leaves Athens.
+      for (let i = 0; i < 40 && A.getState().playT < 3; i++) A.tick(0.1);
+      // Centre on the hull itself, not the port marker — the berth lies
+      // offshore, which is the whole point of the fix.
+      A.debugPause();                       // hold the clock and the camera
+      const y = A.debugYacht();
+      A.debugView({ at: [y.x, y.z], zoom: 60 });
+    });
+    await settle(page);
+    return { clip: stageClip };
+  },
+  // FIX 2: yacht UNDER WAY with the passage plot beneath the hull. Held
+  // mid-leg on a long straight run so the line passes under the whole boat.
+  'yacht-over-route': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      ['Monaco', 'Calvi'].forEach((n) => A.pickPort(n));
+      A.simulate();
+      for (let i = 0; i < 4000 && A.getState().phase === 'playback' &&
+                      A.getState().playT < 40; i++) A.tick(0.25);
+      const y = A.getState().sim ? A.debugYacht() : null;
+      A.debugView(y ? { at: [y.x, y.z], zoom: 'max' } : { zoom: 'max' });
+    });
+    await settle(page);
+    return { clip: stageClip };
+  },
+  // FIX 3: a leg that used to clip. Bonifacio -> Porto Vecchio runs the
+  // Strait of Bonifacio and then up a tight lee shore; it is also the leg
+  // that proved 3.6 nm of lane clearance closes the strait entirely.
+  'strait-of-bonifacio': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      A.debugRoute(['Porto Cervo', 'Bonifacio', 'Porto Vecchio']);
+      A.debugView({ focus: ['Bonifacio', 'Porto Vecchio'] });
+    });
+    await settle(page);
+    return { clip: stageClip };
+  },
   // --- 11 & 12: playback pace, clock and progress
   'mid-simulation': async (page) => {
     await page.evaluate(() => {

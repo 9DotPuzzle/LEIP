@@ -51,7 +51,7 @@ const CFG = {
   // anchorage pass maximises clearance rather than taking the first
   // navigable cell it finds, and degrades gracefully where a gulf simply
   // has no more water (Gocek, Gulluk, the Gulf of Olbia).
-  berthClearanceCells: 8,    // aim for ~4.8 nm around a berth
+  berthClearanceCells: 10,   // aim for ~6 nm around a berth
   anchorMaxCells: 40,        // how far offshore a port may be pushed
   reliefCell: 0.04,          // coarse raster for the relief tier only
   reliefInsetCells: 4,       // how far inside the coast the highland step starts

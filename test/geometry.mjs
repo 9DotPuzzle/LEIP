@@ -129,21 +129,32 @@ section('Ports sit on their coastline, never in open sea');
   };
   const nmPerWorld = 60 / T.world.scalePerDeg;
   const halfHullNm = T.world.yacht.length * nmPerWorld / 2;
+  // The land is EXTRUDED and the camera looks down a fixed rake, so a coast
+  // paints its silhouette some way toward the viewer: a berth can be clear
+  // in plan and still sit under the drawn shore. The camera sits at
+  // (0.85·d high, 0.58·d back), so a feature of height h lands 0.58/0.85·h
+  // nearer the viewer on the ground plane. Only the coast tier matters —
+  // the relief tier is inset ~9 nm inland, far past the shoreline.
+  const rake = 0.58 / 0.85;
+  const silhouetteNm = T.terrain.landHeight * rake * nmPerWorld;
+  const needNm = halfHullNm + silhouetteNm;
   const tight = D.ports.map((p) => {
     const b = E.berth(p.name);
     return { name: p.name, clr: coastNm(b.lon, b.lat) };
   }).sort((a, b) => a.clr - b.clr);
   check(`the hull is ${(halfHullNm * 2).toFixed(1)} nm long and every berth clears its half-length ` +
-    `(tightest ${tight[0].name} ${tight[0].clr.toFixed(2)} nm)`,
-    tight[0].clr > halfHullNm,
-    tight.filter((t) => t.clr <= halfHullNm).map((t) => `${t.name} ${t.clr.toFixed(2)}`).join(', '));
+    `plus the ${silhouetteNm.toFixed(2)} nm the drawn shore leans toward the camera ` +
+    `(tightest ${tight[0].name} ${tight[0].clr.toFixed(2)} nm vs ${needNm.toFixed(2)} needed)`,
+    tight[0].clr > needNm,
+    tight.filter((t) => t.clr <= needNm).map((t) => `${t.name} ${t.clr.toFixed(2)}`).join(', '));
   // The berth pass targets more than the lane pass on purpose; if that ever
   // gets flattened back the stationary hull starts clipping again.
   check('berths are held clear of the beach by more than the lane threshold',
     tight[0].clr > SL.clearanceNm, `tightest ${tight[0].clr.toFixed(2)} vs lane ${SL.clearanceNm} nm`);
   console.log(`  info berth clearance: min ${tight[0].clr.toFixed(2)} nm, ` +
     `median ${tight[Math.floor(tight.length / 2)].clr.toFixed(2)} nm, ` +
-    `max ${tight[tight.length - 1].clr.toFixed(2)} nm · hull half-length ${halfHullNm.toFixed(2)} nm`);
+    `max ${tight[tight.length - 1].clr.toFixed(2)} nm · needs ${needNm.toFixed(2)} nm ` +
+    `(hull half-length ${halfHullNm.toFixed(2)} + shore silhouette ${silhouetteNm.toFixed(2)})`);
 }
 
 // ---------------------------------------------------------------- sea lanes
