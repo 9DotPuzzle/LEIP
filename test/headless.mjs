@@ -147,9 +147,48 @@ check('THEME.water describes a calm sea, not weather',
   T.water.steps >= 3 && T.water.steps <= 8);
 check('the sea shading is stepped, not smooth — the flat-shaded look holds',
   Number.isInteger(T.water.steps));
-check('the glint is a soft band, not a specular highlight',
+check('the glitter path is a soft pool, not a specular highlight',
   T.water.glint.strength > 0 && T.water.glint.strength <= 1 &&
-  T.water.glint.width > 0 && T.water.glint.width < 1);
+  T.water.glint.moonStrength > 0 && T.water.glint.moonStrength < T.water.glint.strength &&
+  T.water.glint.radius > 0 && T.water.glint.reach > 0);
+// ---- Sky: one clock, no disc, no bloom -----------------------------
+check('the sun arc runs sunrise to sunset within a single day',
+  T.sky.sunriseHour >= 0 && T.sky.sunsetHour <= 24 &&
+  T.sky.sunsetHour > T.sky.sunriseHour);
+check('the arc stays southern, so a low sun rakes across the land',
+  T.sky.azimuthFromDeg > 0 && T.sky.azimuthToDeg < 180 &&
+  T.sky.azimuthToDeg > T.sky.azimuthFromDeg);
+check('the sun climbs but never stands overhead',
+  T.sky.maxElevationDeg > 30 && T.sky.maxElevationDeg < 90);
+check('the moon runs the same arc, lower',
+  T.sky.moonElevationScale > 0 && T.sky.moonElevationScale < 1);
+check('the light is warm low, near-neutral high, cool after dark',
+  [T.sky.warmLow, T.sky.neutralHigh, T.sky.moonCool].every(c => /^#[0-9A-F]{6}$/i.test(c)));
+// The sun's hours are the SAME hours the scene tints are centred on. If
+// these ever diverged there would in effect be two clocks.
+check('the sun is up across the daylight scenes and down at night',
+  T.sceneHours.dawn >= T.sky.sunriseHour && T.sceneHours.dusk < T.sky.sunsetHour &&
+  T.sceneHours.night > T.sky.sunsetHour);
+// ---- Cloud shadows -------------------------------------------------
+check('cloud shadows are sparse — only the top of the field darkens',
+  T.clouds.coverage > 0.5 && T.clouds.coverage < 0.9 &&
+  T.clouds.softness > 0.1 && T.clouds.softness < 0.6);
+// Scale is judged against the VIEWPORT, not the basin: the camera's
+// ground footprint runs 160-510 world units, so a patch has to be a
+// fraction of that or a whole view sits inside one trough and shows
+// nothing. Measured, 150 puts 15% of a typical frame in soft shadow.
+check('patches are sized against the viewport, and the drift is slow',
+  T.clouds.scale > 80 && T.clouds.scale < 260 &&
+  T.clouds.driftSpeed > 0 && T.clouds.driftSpeed < 20);
+check('the shadow is light, not UI — it must not read as a panel',
+  T.clouds.seaDepth > 0 && T.clouds.seaDepth <= 0.2 &&
+  T.clouds.landDepth > 0 && T.clouds.landDepth <= 0.2);
+check('sea and land take the shadow from one field at near-equal depth',
+  Math.abs(T.clouds.landDepth - T.clouds.seaDepth) < 0.06);
+check('phones drop a term rather than the whole effect',
+  T.clouds.lowDetailTerms >= 2 && T.clouds.lowDetailTerms < 3);
+check('nothing in the sky or cloud blocks carries a banned effect',
+  !/bloom|glow|hdr|flare/i.test(JSON.stringify(T.sky) + JSON.stringify(T.clouds)));
 check('water carries no colour of its own — the scene tint is the only source',
   !/#[0-9a-fA-F]{3,8}/.test(JSON.stringify(T.water)));
 check('small viewports drop to a cheaper sea',

@@ -567,6 +567,69 @@ globalThis.LEIP_THEME = {
 
   lines: { hairlinePx: 1, rulePx: 1.5, routePx: 1.75 },
 
+  // ---- SKY — a tracked sun and moon (visual only) --------------------
+  // The day/night cycle already re-tints the scene; this gives that light a
+  // SOURCE. There is no second clock: sunStateAt() reads the same local
+  // hour that tintAt() does, so the sun's position, the scene tint and the
+  // water's glitter path can never drift apart.
+  //
+  // NOTE ON THE DISC. There is no sun disc in the sky, and it is not an
+  // omission. The camera sits at a fixed rake — (0.85d high, 0.58d back),
+  // 55.7 degrees below horizontal — with a 42 degree frustum, so the top
+  // of frame is still 34.7 degrees BELOW the horizon at every zoom from
+  // 90 to 1800. The sky is never in shot. What the sun does instead is
+  // what you would actually see looking down at water: it lays a glitter
+  // path on the sea at its own bearing. That lives in WATER.glint below.
+  sky: {
+    // Solar day in LOCAL hours — the same hours the scene tints are
+    // centred on (dawn 6, day 11, dusk 19, night 22).
+    sunriseHour: 6, sunsetHour: 20,
+    // Azimuth measured from +x (east) through +z (south) to -x (west).
+    // Deliberately a shallow southern arc: the camera looks north from the
+    // south, so a low sun near either end rakes ACROSS the land and gives
+    // the three-tone masses their long shadows. A sun directly behind the
+    // camera would flatten them.
+    azimuthFromDeg: 15, azimuthToDeg: 165,
+    maxElevationDeg: 62,
+    // The moon runs the same arc across the night, lower and dimmer.
+    moonElevationScale: 0.72,
+    // Light colour by elevation: warm on the horizon, near-neutral
+    // overhead, cool after dark. These tint the LIGHT, never the scene
+    // palette — DATA and THEME.scenes stay the only source of surface
+    // colour.
+    warmLow: '#FFCF9E', neutralHigh: '#FFF7EC', moonCool: '#A9C2E6',
+    distance: 900        // only the direction matters; this just places it
+  },
+
+  // ---- CLOUD SHADOWS (visual only) -----------------------------------
+  // Dappled light on a calm day, not weather. Two crossed low-frequency
+  // fields, thresholded so only the top of the range darkens — which is
+  // what makes the patches SPARSE rather than an overcast wash. Nothing
+  // is drawn in the sky; the shadow implies the cloud.
+  //
+  // The same function runs in the water shader and is injected into the
+  // land materials, so a patch crosses a coastline without breaking.
+  clouds: {
+    // World units per field cycle. This has to be read against the
+    // VIEWPORT, not the basin: the camera's ground footprint runs about
+    // 160 units at the closest zoom to 510 at playback's widest. At the
+    // 460 this shipped with, one period spanned the whole screen and a
+    // given view usually held no patch at all — the effect was real and
+    // almost never on screen.
+    //
+    // Measured at a typical playback zoom, as share of frame shadowed and
+    // peak darkening: 240/0.60 gave 0% (empty view), 180/0.58 gave 3.9%,
+    // 150/0.56 gives 15.2% at 6% darkening, 120/0.54 gives 43.9% — which
+    // is the busy field the brief rules out. 150 it is.
+    scale: 150,
+    driftDeg: 108, driftSpeed: 3.1,
+    coverage: 0.56,       // threshold: higher = fewer, smaller patches
+    softness: 0.34,       // edge feather, in field units
+    seaDepth: 0.11,       // darkening at the centre of a patch
+    landDepth: 0.13,
+    lowDetailTerms: 2     // phones drop the third field term
+  },
+
   // ---- WATER — animated sea surface (visual only) --------------------
   // A calm Mediterranean, not an ocean. Everything here is deliberately
   // near the threshold of noticing: the sea should read as breathing, not
@@ -594,10 +657,13 @@ globalThis.LEIP_THEME = {
     // Quantisation: the shading is stepped, not smooth, so the sea keeps
     // the flat-shaded chart look instead of turning into a gradient.
     steps: 5,
-    // Sun glint: a broad soft band that drifts across the basin. Never a
-    // specular highlight — no HDR, no bloom, just a slightly lighter
-    // stepped band riding the same swell.
-    glint: { strength: 0.5, width: 0.34, speed: 0.021, angleDeg: -24 },
+    // Sun glitter: a broad soft pool on the water beneath the sun's own
+    // bearing, cast by the tracked sun in THEME.sky rather than drifting
+    // on its own. Never a specular highlight — no HDR, no bloom, just a
+    // slightly lighter stepped pool riding the same swell.
+    //   reach  how far downsun of the view centre the pool sits
+    //   radius how wide it is, world units
+    glint: { strength: 0.85, moonStrength: 0.40, reach: 190, radius: 320 },
     // Detail tier. Phones drop the third swell and the glint; the sea
     // still breathes, at roughly half the per-pixel cost.
     lowDetailMaxPx: 900,      // viewport min-dimension at or below this
@@ -7590,6 +7656,59 @@ globalThis.LEIP_APP = (function () {
     return (S.phase === 'playback' || S.phase === 'results') && S.sim ? Math.min(S.playT, D.time.charterHours) : 3; // planning sits in held daylight
   }
 
+  // ------------------------------------------------------------ sky
+  // Where the sun (or moon) is, for a given SIM hour. This reads the very
+  // same local hour tintAt() reads — one clock, so the light direction,
+  // the scene tint and the water's glitter path cannot drift apart.
+  //
+  // Returns a unit direction in world space. +x is east, +z is south
+  // (world z runs latC - lat), so azimuth 0 is east, 90 south, 180 west.
+  function sunStateAt(simHour) {
+    var K = T.sky;
+    var local = ((T.charterStartHour + simHour) % 24 + 24) % 24;
+    var dayLen = K.sunsetHour - K.sunriseHour;
+    var up = local >= K.sunriseHour && local <= K.sunsetHour;
+    var f;
+    if (up) {
+      f = (local - K.sunriseHour) / dayLen;
+    } else {
+      // The moon takes the same arc across the remaining hours.
+      var nightLen = 24 - dayLen;
+      f = (((local - K.sunsetHour) % 24) + 24) % 24 / nightLen;
+    }
+    f = Math.max(0, Math.min(1, f));
+    var elevScale = up ? 1 : K.moonElevationScale;
+    var elev = Math.sin(Math.PI * f) * K.maxElevationDeg * elevScale * Math.PI / 180;
+    var az = (K.azimuthFromDeg + (K.azimuthToDeg - K.azimuthFromDeg) * f) * Math.PI / 180;
+    var ce = Math.cos(elev);
+    return {
+      isSun: up, f: f, elevation: elev, azimuth: az,
+      // How high it stands, 0 at the horizon to 1 at its own transit —
+      // this is what warms the light near the ends of the arc.
+      altitude01: Math.sin(Math.PI * f),
+      dir: { x: Math.cos(az) * ce, y: Math.sin(elev), z: Math.sin(az) * ce }
+    };
+  }
+
+  // Cloud-shadow field, shared verbatim by the water shader and by the
+  // land materials, so a patch crossing a coastline stays one patch.
+  // Two crossed low-frequency fields, thresholded: only the top of the
+  // range darkens, which is what keeps the patches sparse.
+  function cloudGlsl(terms) {
+    return [
+      'uniform vec2 uCloudDrift;',
+      'uniform vec4 uCloudCfg;',          // scale, coverage, softness, depth
+      'float leipCloud(vec2 p) {',
+      '  vec2 q = (p + uCloudDrift) / uCloudCfg.x;',
+      '  float n = sin(q.x) * sin(q.y * 0.9 + 1.7);',
+      '  n += 0.55 * sin(q.x * 1.9 - 2.1) * sin(q.y * 1.7 - 0.4);',
+      terms > 2 ? '  n += 0.30 * sin((q.x + q.y) * 2.7 + 0.9);' : '',
+      '  n = n / ' + (terms > 2 ? '1.85' : '1.55') + ' * 0.5 + 0.5;',
+      '  return smoothstep(uCloudCfg.y, uCloudCfg.y + uCloudCfg.z, n) * uCloudCfg.w;',
+      '}'
+    ].join('\n');
+  }
+
   // ------------------------------------------------------------ projection
   var PROJ = (function () {
     var minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
@@ -8117,6 +8236,49 @@ globalThis.LEIP_APP = (function () {
     return mesh;
   }
 
+  // ---- Cloud shadows -------------------------------------------------
+  // One set of uniforms, shared by the water shader and by the land
+  // materials, so a patch crossing a coastline stays a single patch. Only
+  // the depth differs between the two (land takes it slightly harder).
+  // Everything is a plain object literal read from THEME — no colour, no
+  // geometry, nothing in the sky.
+  // Built lazily: the app block is evaluated before three.js exists in the
+  // headless harness, so these cannot be constructed at load time.
+  var CLOUDS = null;
+  function initClouds() {
+    if (CLOUDS) return CLOUDS;
+    var C = T.clouds;
+    CLOUDS = {
+      drift: { value: new THREE.Vector2(0, 0) },
+      sea:   { value: new THREE.Vector4(C.scale, C.coverage, C.softness, 0) },
+      land:  { value: new THREE.Vector4(C.scale, C.coverage, C.softness, 0) }
+    };
+    return CLOUDS;
+  }
+
+  // Inject the shadow into a stock three.js material. This is string
+  // surgery on three's own chunk names, so it is guarded: if either marker
+  // is missing the material is left exactly as it was and the land simply
+  // has no cloud shadow. Three is pinned at 0.152.2, where both exist.
+  function attachCloudShadow(mat, cfgUniform, terms) {
+    mat.onBeforeCompile = function (shader) {
+      var vs = shader.vertexShader, fs = shader.fragmentShader;
+      if (vs.indexOf('#include <begin_vertex>') < 0 ||
+          fs.indexOf('#include <dithering_fragment>') < 0) return;
+      shader.uniforms.uCloudDrift = CLOUDS.drift;
+      shader.uniforms.uCloudCfg = cfgUniform;
+      shader.vertexShader = 'varying vec3 vLeipW;\n' + vs.replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\n  vLeipW = (modelMatrix * vec4(position, 1.0)).xyz;');
+      shader.fragmentShader = 'varying vec3 vLeipW;\n' + cloudGlsl(terms) + '\n' +
+        fs.replace('#include <dithering_fragment>',
+                   '#include <dithering_fragment>\n  gl_FragColor.rgb *= 1.0 - leipCloud(vLeipW.xz);');
+    };
+    // Or three caches one compiled program for every Lambert material and
+    // the injection lands on whichever compiled first.
+    mat.customProgramCacheKey = function () { return 'leip-cloud-' + terms; };
+  }
+
   // ---- Animated sea (visual only; spec: serene, flat, stylised) ------
   // A ShaderMaterial over the SAME single-quad plane the flat sea used, so
   // there is no extra geometry and no CPU work per frame beyond two
@@ -8145,7 +8307,6 @@ globalThis.LEIP_APP = (function () {
         2 * Math.PI / sw.wavelength, sw.speed * 2 * Math.PI));
       nums.push(sw.amp);
     }
-    var ga = W.glint.angleDeg * Math.PI / 180;
     var uniforms = {
       uColor:   { value: new THREE.Color(T.scenes.day.sea) },
       uTime:    { value: 0 },
@@ -8154,10 +8315,16 @@ globalThis.LEIP_APP = (function () {
       uSteps:   { value: W.steps },
       uSwell:   { value: dirs },
       uAmp:     { value: nums },
-      uGlint:   { value: new THREE.Vector4(Math.cos(ga), Math.sin(ga),
-                                           W.glint.speed, W.glint.strength) },
-      uGlintW:  { value: W.glint.width },
-      uUseGlint:{ value: lowDetail ? 0 : 1 }
+      // The glitter path: a soft pool on the water where the sun (or moon)
+      // is bearing, anchored to the view. Driven every frame from
+      // sunStateAt() — see render(). Replaces the fixed drifting band the
+      // water pass shipped with, which had no source to be cast by.
+      uGlintCentre: { value: new THREE.Vector2(0, 0) },
+      uGlintR:      { value: 1 },
+      uGlintStr:    { value: 0 },
+      uUseGlint:    { value: lowDetail ? 0 : 1 },
+      uCloudDrift:  initClouds().drift,
+      uCloudCfg:    initClouds().sea
     };
     var mat = new THREE.ShaderMaterial({
       uniforms: uniforms,
@@ -8173,12 +8340,13 @@ globalThis.LEIP_APP = (function () {
         '#define NSWELL ' + nSwell,
         'precision mediump float;',
         'uniform vec3 uColor;',
-        'uniform float uTime, uAnim, uDepth, uSteps, uGlintW;',
+        'uniform float uTime, uAnim, uDepth, uSteps;',
         'uniform float uAmp[NSWELL];',
         'uniform vec4 uSwell[NSWELL];',
-        'uniform vec4 uGlint;',
-        'uniform float uUseGlint;',
+        'uniform vec2 uGlintCentre;',
+        'uniform float uGlintR, uGlintStr, uUseGlint;',
         'varying vec2 vWorld;',
+        cloudGlsl(lowDetail ? T.clouds.lowDetailTerms : 3),
         'void main() {',
         '  float h = 0.0, wsum = 0.0;',
         '  for (int i = 0; i < NSWELL; i++) {',
@@ -8192,13 +8360,17 @@ globalThis.LEIP_APP = (function () {
         '  float shade = 1.0 + uAnim * uDepth * q * 2.0;',
         '  vec3 c = uColor * shade;',
         '  if (uUseGlint > 0.5) {',
-        // A broad soft band drifting across the basin, riding the same
-        // swell so it reads as sun on water rather than a moving light.
-        '    float band = dot(normalize(uGlint.xy), vWorld) * 0.0016 - uTime * uGlint.z;',
-        '    float g = smoothstep(1.0 - uGlintW, 1.0, cos(band) * 0.5 + 0.5);',
-        '    g *= smoothstep(0.05, 0.6, h * 0.5 + 0.5);',
-        '    c += uColor * (uAnim * uGlint.w * uDepth * floor(g * 3.0) / 3.0);',
+        // The glitter path: a broad soft pool under the sun's bearing,
+        // riding the same swell so it sparkles rather than glows. Stepped
+        // to four levels, additive on the tint only — it cannot blow out,
+        // and there is no bloom anywhere near it.
+        '    float d = length(vWorld - uGlintCentre) / uGlintR;',
+        '    float g = smoothstep(1.0, 0.0, d);',
+        '    g *= smoothstep(0.05, 0.65, h * 0.5 + 0.5);',
+        '    c += uColor * (uAnim * uGlintStr * uDepth * floor(g * 3.0 + 0.5) / 3.0);',
         '  }',
+        // Cloud shadow last, so a patch dims the glitter it crosses.
+        '  c *= 1.0 - leipCloud(vWorld);',
         '  gl_FragColor = vec4(c, 1.0);',
         '}'
       ].join('\n')
@@ -8286,8 +8458,21 @@ globalThis.LEIP_APP = (function () {
 
     // Three tones per mass (visual direction): mid for the coastal land,
     // lit for the relief step. Both re-tint with the day cycle.
+    initClouds();
     var landMat = new THREE.MeshLambertMaterial({ flatShading: true });
     var reliefMat = new THREE.MeshLambertMaterial({ flatShading: true });
+    // Cloud shadows fall on the land as well as the sea, from the same
+    // field, so a patch does not stop at the beach.
+    {
+      var lowSky = false;
+      try {
+        lowSky = Math.min(globalThis.innerWidth || 1200, globalThis.innerHeight || 800)
+                 <= T.water.lowDetailMaxPx;
+      } catch (e) {}
+      var terms = lowSky ? T.clouds.lowDetailTerms : 3;
+      attachCloudShadow(landMat, CLOUDS.land, terms);
+      attachCloudShadow(reliefMat, CLOUDS.land, terms);
+    }
     var hullMat = new THREE.MeshLambertMaterial({ color: T.world.yachtHull, flatShading: true });
     var teakMat = new THREE.MeshLambertMaterial({ color: T.world.yachtTeak, flatShading: true });
     var inkMat = new THREE.MeshLambertMaterial({ color: T.ink.onLight, flatShading: true });
@@ -8600,69 +8785,6 @@ globalThis.LEIP_APP = (function () {
     clampCam(true);
   }
 
-  // The camera's ground footprint at unit distance. It depends only on the
-  // viewport aspect and the fixed tilt, so it is solved once per viewport
-  // and scaled — no per-frame unprojection.
-  var footCache = { aspect: 0, box: null };
-  function groundFootprint() {
-    if (!G || !G.camera) return null;
-    if (footCache.box && footCache.aspect === G.camera.aspect) return footCache.box;
-    var probe = new THREE.PerspectiveCamera(G.camera.fov, G.camera.aspect, 0.5, 9000);
-    probe.position.set(0, 0.85, 0.58);
-    probe.lookAt(new THREE.Vector3(0, 0, 0));
-    probe.updateMatrixWorld(); probe.updateProjectionMatrix();
-    var box = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
-    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (c) {
-      var dir = new THREE.Vector3(c[0], c[1], 0.5).unproject(probe).sub(probe.position).normalize();
-      // A ray that never meets the ground would open the footprint to the
-      // horizon; cap it so the clamp stays finite.
-      var t = dir.y < -1e-6 ? -probe.position.y / dir.y : 40;
-      t = Math.min(t, 40);
-      var gx = probe.position.x + dir.x * t, gz = probe.position.z + dir.z * t;
-      box.minX = Math.min(box.minX, gx); box.maxX = Math.max(box.maxX, gx);
-      box.minZ = Math.min(box.minZ, gz); box.maxZ = Math.max(box.maxZ, gz);
-    });
-    footCache = { aspect: G.camera.aspect, box: box };
-    return box;
-  }
-
-  // Hard bounds on pan and zoom-out: the visible ground rectangle must stay
-  // inside PROJ.rect, the fixed charted frame. The player can go anywhere
-  // within it and nowhere outside — no teal void, no plate edge, ever.
-  function clampCam(now) {
-    if (!G) return;
-    var box = groundFootprint();
-    if (!box) return;
-    var f = PROJ.rect;
-    var bw = box.maxX - box.minX, bh = box.maxZ - box.minZ;
-    // The widest view whose footprint still fits the frame in both axes.
-    // A hair under the exact fit, so the limit distance still satisfies the
-    // centre clamp rather than tipping into the degenerate branch below.
-    var panelFrac = G.w > 0 ? Math.min(0.6, T.ui.panelWidthPx / G.w) : 0;
-    var maxDist = Math.min((f.maxX - f.minX) / (bw * (1 - panelFrac)),
-                           (f.maxZ - f.minZ) / bh) * 0.999;
-    maxDist = Math.min(maxDist, T.frame.maxDist);
-    var lim = function (d) { return Math.max(T.frame.minDist, Math.min(maxDist, d)); };
-    G.cam.tdist = lim(G.cam.tdist);
-    if (now) G.cam.dist = lim(G.cam.dist);
-    // Centre bounds follow from the footprint at whichever distance is in
-    // force; when the frame is tighter than the minimum view, centre it.
-    var clampAxis = function (v, d, lo0, hi0, bMin, bMax) {
-      var lo = lo0 - bMin * d, hi = hi0 - bMax * d;
-      return lo <= hi ? Math.max(lo, Math.min(hi, v)) : (lo0 + hi0) / 2;
-    };
-    // The planning panel covers the left of the stage, so the frame's
-    // western edge may sit behind it: that strip is occluded, never seen as
-    // void, and allowing it is what lets the whole basin fit the SAFE area
-    // (panel excluded) at full zoom-out rather than the raw viewport.
-    var panelWorld = (G.w > 0 ? Math.min(0.6, T.ui.panelWidthPx / G.w) : 0) * bw * G.cam.tdist;
-    G.cam.tx = clampAxis(G.cam.tx, G.cam.tdist, f.minX - panelWorld, f.maxX, box.minX, box.maxX);
-    G.cam.tz = clampAxis(G.cam.tz, G.cam.tdist, f.minZ, f.maxZ, box.minZ, box.maxZ);
-    if (now) {
-      G.cam.x = clampAxis(G.cam.x, G.cam.dist, f.minX - panelWorld, f.maxX, box.minX, box.maxX);
-      G.cam.z = clampAxis(G.cam.z, G.cam.dist, f.minZ, f.maxZ, box.minZ, box.maxZ);
-    }
-  }
 
 
   function spawnStroke(kind, x, z, heading) {
@@ -9432,12 +9554,47 @@ globalThis.LEIP_APP = (function () {
     updateSceneVars(tint);
     if (tint.inkDark !== S.inkDark) { S.inkDark = tint.inkDark; requestChart(); }
     G.renderer.setClearColor(new THREE.Color(tint.sky));
+    // ---- The tracked sun (or moon) -------------------------------
+    // Same clock as the tint above — currentSimHour() feeds both, so the
+    // light direction, the palette and the glitter path move together.
+    // Under reduced motion the light stays on its original fixed vector,
+    // which is exactly the lighting the scene had before this existed.
+    var K = T.sky, sky = sunStateAt(currentSimHour());
+    if (!S.reducedMotion) {
+      var d = sky.dir, R = K.distance;
+      G.sun.position.set(d.x * R, d.y * R, d.z * R);
+      G.sunO.position.copy(G.sun.position);
+      // Warm on the horizon, near-neutral overhead, cool after dark.
+      var lit = sky.isSun
+        ? lerpHex(K.warmLow, K.neutralHigh, Math.min(1, sky.altitude01 * 1.25))
+        : K.moonCool;
+      G.sun.color.set(lit);
+    }
+    // ---- Cloud drift ---------------------------------------------
+    var C = T.clouds, CU = initClouds();
+    var da = C.driftDeg * Math.PI / 180;
+    var drift = S.reducedMotion ? 0 : S.animT * C.driftSpeed;
+    CU.drift.value.set(Math.cos(da) * drift, Math.sin(da) * drift);
+    CU.sea.value.w = S.reducedMotion ? 0 : C.seaDepth;
+    CU.land.value.w = S.reducedMotion ? 0 : C.landDepth;
+
     // The sea shader takes the scene tint as a uniform — the day/night
-    // system stays the only source of sea colour. Two writes a frame.
+    // system stays the only source of sea colour.
     if (G.sea.material.uniforms) {
-      G.sea.material.uniforms.uColor.value.set(tint.sea);
-      G.sea.material.uniforms.uTime.value = S.animT;
-      G.sea.material.uniforms.uAnim.value = S.reducedMotion ? 0 : 1;
+      var su = G.sea.material.uniforms;
+      su.uColor.value.set(tint.sea);
+      su.uTime.value = S.animT;
+      su.uAnim.value = S.reducedMotion ? 0 : 1;
+      // The glitter path sits on the water under the body's bearing,
+      // anchored to what the camera is looking at, because a specular
+      // path is a view-dependent thing — that is what keeps it in shot.
+      // It fades out as the body nears the horizon, where a real glitter
+      // path stretches away rather than pooling.
+      var W = T.water.glint, gd = W.reach * (0.45 + 0.55 * sky.altitude01);
+      su.uGlintCentre.value.set(G.cam.x + sky.dir.x * gd, G.cam.z + sky.dir.z * gd);
+      su.uGlintR.value = W.radius;
+      su.uGlintStr.value = S.reducedMotion ? 0
+        : (sky.isSun ? W.strength : W.moonStrength) * Math.max(0.15, sky.altitude01);
     } else {
       G.sea.material.color = new THREE.Color(tint.sea);
     }
@@ -9792,6 +9949,27 @@ globalThis.LEIP_APP = (function () {
     debugView: debugView,
     debugYacht: debugYacht,
     debugPause: function (on) { S.debugPaused = on !== false; },
+    // Park the charter clock at a given hour — the light, the tint and the
+    // glitter path all read it, so this drives the whole time of day.
+    debugHour: function (h) {
+      if (S.phase !== 'playback' || !S.sim) return null;
+      S.playT = Math.max(0, Math.min(D.time.charterHours, Number(h) || 0));
+      updatePlayback(0);
+      return S.playT;
+    },
+    debugSky: function () {
+      if (!G) return null;
+      var k = sunStateAt(currentSimHour());
+      var u = G.sea.material.uniforms;
+      return { hour: +currentSimHour().toFixed(2), body: k.isSun ? 'sun' : 'moon',
+               elevDeg: +(k.elevation * 180 / Math.PI).toFixed(1),
+               azDeg: +(k.azimuth * 180 / Math.PI).toFixed(0),
+               lightPos: G.sun.position.toArray().map(function (v) { return +v.toFixed(0); }),
+               lightCol: '#' + G.sun.color.getHexString(),
+               glint: u ? { c: u.uGlintCentre.value.toArray().map(function (v) { return +v.toFixed(0); }),
+                            str: +u.uGlintStr.value.toFixed(3) } : null,
+               cloudDrift: initClouds().drift.value.toArray().map(function (v) { return +v.toFixed(1); }) };
+    },
     debugYachtPose: function () {
       if (!G) return null;
       var o = G.yacht;

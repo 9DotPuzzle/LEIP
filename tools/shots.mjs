@@ -24,6 +24,28 @@ const settle = (page, frames = 30) => page.evaluate((n) => new Promise((res) => 
   requestAnimationFrame(step);
 }), frames);
 
+// Four stills across one charter day, sharing a route and a framing so the
+// only thing that changes between them is the light.
+function timeOfDay() {
+  const at = { dawn: 22, midday: 3, dusk: 11, night: 14 };
+  const out = {};
+  Object.keys(at).forEach((name) => {
+    out['sky-' + name] = async (page) => {
+      await page.evaluate((h) => {
+        const A = window.LEIP_APP;
+        ['Ajaccio', 'Calvi', 'Monaco'].forEach((n) => A.pickPort(n));
+        A.simulate();
+        A.debugHour(h);
+        A.debugPause();
+        A.debugView({ focus: ['Ajaccio', 'Calvi', 'Monaco'], zoom: 300 });
+      }, at[name]);
+      await settle(page, 12);
+      return { clip: stageClip };
+    };
+  });
+  return out;
+}
+
 const shots = {
   // --- 1 & 2: hard frame bounds and grid across all water
   'zoom-out': async (page) => {
@@ -212,6 +234,25 @@ const shots = {
       A.debugPause();
       const y = A.debugYacht();
       A.debugView({ at: [y.x, y.z], zoom: 'max' });
+    });
+    await settle(page, 12);
+    return { clip: stageClip };
+  },
+  // --- the sky pass: one clock, four times of day -------------------
+  // Scene tints are centred on local 6 / 11 / 19 / 22, and the charter
+  // starts at local 8, so these are sim hours 22 / 3 / 11 / 14. The same
+  // hour drives the tint, the light direction and the glitter path.
+  ...timeOfDay(),
+  // Cloud shadows crossing open water, at midday where the contrast
+  // between lit sea and shadowed sea is clearest.
+  'cloud-shadows': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      ['Eivissa', 'Palma'].forEach((n) => A.pickPort(n));
+      A.simulate();
+      A.debugHour(3);
+      A.debugPause();
+      A.debugView({ focus: ['Eivissa', 'Palma', "Port d'Andratx"], zoom: 260 });
     });
     await settle(page, 12);
     return { clip: stageClip };
