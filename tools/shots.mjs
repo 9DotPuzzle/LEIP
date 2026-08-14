@@ -257,6 +257,19 @@ const shots = {
     await settle(page, 12);
     return { clip: stageClip };
   },
+  // The opening view: a stated Mediterranean rectangle, not the bounding
+  // box of the port list. This is what the game boots to.
+  'home-view': async (page) => {
+    await settle(page, 12);
+    return { clip: stageClip };
+  },
+  // The pan limit, which every port must sit inside — including the ones
+  // outside the opening view.
+  'full-extent': async (page) => {
+    await page.evaluate(() => window.LEIP_APP.debugView({ zoom: 'min' }));
+    await settle(page, 12);
+    return { clip: stageClip };
+  },
   // --- 11 & 12: playback pace, clock and progress
   'mid-simulation': async (page) => {
     await page.evaluate(() => {

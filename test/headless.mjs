@@ -214,6 +214,26 @@ check('small viewports drop to a cheaper sea',
     new Set(per).size === 4 && per.every((a, i) => per.every((b, j) =>
       i === j || Math.abs(a / b - Math.round(a / b)) > 0.05)));
 }
+// The opening view is a STATED rectangle, not the bounding box of the port
+// list — or adding a port in the Channel would open the game on a
+// continental map. Home must sit inside the pan limit, and the limit must
+// still be wide enough to reach anything outside home by zooming out.
+{
+  const h = T.frame.homeDeg, b = T.frame.boundsDeg;
+  check('the home view is stated, not derived from the ports',
+    h && h.minLon < h.maxLon && h.minLat < h.maxLat);
+  check('home sits inside the pan limit',
+    h.minLon > b.minLon && h.maxLon < b.maxLon &&
+    h.minLat > b.minLat && h.maxLat < b.maxLat);
+  check('home is the working Mediterranean, not the whole frame',
+    (h.maxLon - h.minLon) < (b.maxLon - b.minLon) * 0.6);
+  // Every port must be reachable: inside the pan limit, whether or not it
+  // is inside the opening view.
+  const outside = D.ports.filter(p =>
+    p.lon <= b.minLon || p.lon >= b.maxLon || p.lat <= b.minLat || p.lat >= b.maxLat);
+  check(`all ${D.ports.length} ports are reachable within the pan limit`,
+    outside.length === 0, outside.map(p => p.name).join(', '));
+}
 check('THEME carries the four scene tints and the volt accent',
   ['dawn', 'day', 'dusk', 'night'].every(s => T.scenes[s] && T.scenes[s].sea && T.scenes[s].sky && T.scenes[s].land) &&
   T.volt === '#F5D90A' && T.ink.onLight === '#22344A' && T.ink.onDark === '#E8EEF2');

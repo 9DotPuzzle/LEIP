@@ -785,7 +785,20 @@ globalThis.LEIP_THEME = {
   // lands on ocean or land and never on void. Checked at boot.
   frame: {
     marginNdc: 0.06, minDist: 90, maxDist: 1800,
-    boundsDeg: { minLon: -28, maxLon: 58, minLat: 22, maxLat: 59 }
+    boundsDeg: { minLon: -28, maxLon: 58, minLat: 22, maxLat: 59 },
+    // HOME — the opening view, and what the camera returns to when no
+    // route is picked. Stated as its own rectangle rather than derived
+    // from the port list, because the port list is about to reach from
+    // the English Channel to Morocco: fitting every port would open the
+    // game on a continental map with the Mediterranean a smudge in the
+    // middle. This is the working sea area where most play happens;
+    // boundsDeg above is still the limit, so zooming out to find the
+    // Atlantic and Channel ports stays possible.
+    // These are the 33-port bounding box as it stood before the map
+    // reached the Atlantic and the Channel — so the opening view the game
+    // has today is preserved EXACTLY, and stays put when far-flung ports
+    // are added rather than zooming out to swallow them.
+    homeDeg: { minLon: 1.44, maxLon: 28.94, minLat: 36.12, maxLat: 45.44 }
   },
 
   shareCard: { w: 1080, h: 1920, dotSpreadPx: 72, dotRadiusPx: 13 }   // story format, canvas-rendered
@@ -8697,10 +8710,18 @@ globalThis.LEIP_APP = (function () {
     }
   }
 
+  // names: a port list to frame, or null for the home view. Home is a
+  // stated rectangle, NOT the bounding box of every port — see
+  // THEME.frame.homeDeg.
   function fitCamera(names) {
     if (!G) return;
-    var list = (names && names.length) ? names : D.ports.map(function (p) { return p.name; });
-    var pts = list.map(function (n) { return PROJ.portPos(n); });
+    var pts;
+    if (names && names.length) {
+      pts = names.map(function (n) { return PROJ.portPos(n); });
+    } else {
+      var h = T.frame.homeDeg;
+      pts = [PROJ.pos(h.minLat, h.minLon), PROJ.pos(h.maxLat, h.maxLon)];
+    }
     var minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
     pts.forEach(function (p) {
       minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
