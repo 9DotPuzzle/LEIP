@@ -31,26 +31,41 @@ player needs for controls.
 
 **Planning panel.**
 
-- **Ports are grouped under one heading per country** — the *derived* country,
-  the same field the Countries multiplier scores on, so Corsica files under
-  France and Sardinia, Sicily and the mainland all file under one Italy. The
-  picker and the scoreboard therefore agree about what a country is. Headings
-  run in `DATA.countryOrder`; ports run alphabetically inside each.
+- **One flat, continuous port list**, sorted by country and then by name, with
+  **no country headings** — the ordering does the grouping, and the flag on each
+  chip says which country you are in. Fifteen headings cost a row each to repeat
+  what the flags already say, which is most of a phone screen. The sort key is
+  the *derived* country, the same field the Countries multiplier scores on, so
+  Corsica sorts under France and Sardinia, Sicily and the mainland all sort under
+  one Italy: the picker and the scoreboard agree about what a country is.
+  Countries run in `DATA.countryOrder`, ports alphabetically inside each.
 - **A chip adds a port; the same chip again drops it.** If a port is in the
   route more than once, the *most recent* instance goes — dropping the earliest
   would silently reroute the week around a stop the player never touched.
+- **Repeats are allowed, via the `+`** that a chosen chip grows. The chip body
+  toggles the port off; the `+` adds another instance, and the `×2` count rides
+  beside it so "in the route twice" and "add a third" read as one control.
+  Clicking the port on the chart adds a repeat too.
 - **Stops drag to reorder** inside the route box, renumbering and re-timing the
   whole week live as they move (pointer events, so it works on the mobile
   sheet, which HTML5 drag-and-drop does not).
+- **The camera holds the whole route**, not the latest pick: every selection
+  re-solves the widest view that still centres every stop in the safe area, and
+  only the camera's *targets* are set, so the per-frame easing carries the move
+  rather than cutting. A route reaching Lateral pulls back from 90 to 617 over
+  five picks with no stop ever leaving frame (`node tools/reach.mjs` checks
+  exactly that). The re-solve is keyed on the port *set*, so dragging a stop to
+  reorder — which cannot change the fit — does not re-solve on every pointermove.
 - **One selected style across the panel** — dark-navy fill, paper text — shared
   by the speed toggle, the port chips and the activity tiles, so "chosen" looks
   like one thing wherever it appears. Activities toggle off on a second press
   and there is a **Clear all activities** button.
 
-One consequence worth stating: **repeats are no longer reachable from the port
-list**, because the chip is now a toggle. They are still legal, still scored,
-and still reachable by clicking the port on the chart — a chip showing `x2`
-means exactly that.
+The planning line is drawn **heavier while planning** (`planningLineWorld`) and
+drops back to its plotted weight once the charter runs, so the white plan reads
+on its own against the sea while it is the only line there, and cannot fringe
+the volt trail once that exists. Same white throughout — brighter by weight,
+never by colour, so white-plan / volt-progress never blurs.
 
 ## Layout
 

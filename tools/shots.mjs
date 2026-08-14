@@ -121,19 +121,51 @@ const shots = {
     await settle(page, 6);
     return {};
   },
-  // The picker, grouped under one heading per real country.
-  'panel-ports-by-country': async (page) => {
+  // The picker: ONE flat list, country-major, no headings. Scrolled to the
+  // France/Italy boundary, which is where the ordering has to be doing the
+  // work now that nothing labels it.
+  'panel-ports-flat': async (page) => {
     await page.evaluate(() => {
       const A = window.LEIP_APP;
-      // A few picks so the selected style shows on the chips too, and one
-      // country's worth of grouping is visible above and below them.
       ['Ajaccio', 'Bonifacio', 'Cannes'].forEach((n) => A.pickPort(n));
       const plan = document.getElementById('plan');
       const el = document.getElementById('port-list');
-      plan.scrollTop = el.offsetTop - plan.offsetTop - 120;
+      plan.scrollTop = el.offsetTop - plan.offsetTop - 60;
     });
     await settle(page, 6);
     return { clip: await page.locator('#plan').boundingBox() };
+  },
+  // A port taken three times: the count and the + riding together on the
+  // chosen chip. This is the check the element stub in smoke.mjs cannot
+  // make — that the + actually renders on a chosen chip.
+  'repeat-plus': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      ['Nice', 'Monaco', 'Nice', 'Cannes', 'Nice'].forEach((n) => A.pickPort(n));
+      const plan = document.getElementById('plan');
+      const el = document.getElementById('port-list');
+      plan.scrollTop = el.offsetTop - plan.offsetTop - 60;
+    });
+    await settle(page, 6);
+    return { clip: await page.locator('#plan').boundingBox() };
+  },
+  // The camera holding a route that crosses the map. Picked one at a time,
+  // settling between, exactly as a player builds it.
+  'route-fits-lateral': async (page) => {
+    await page.evaluate(async () => {
+      const A = window.LEIP_APP;
+      const wait = () => new Promise((res) => {
+        let i = 0;
+        const step = () => (++i >= 40 ? res() : requestAnimationFrame(step));
+        requestAnimationFrame(step);
+      });
+      for (const n of ['Monaco', 'Cannes', 'Barcelona', 'Gibraltar', 'Lateral']) {
+        A.pickPort(n);
+        await wait();
+      }
+    });
+    await settle(page, 20);
+    return { clip: stageClip };
   },
   // Selected against unselected, side by side in one grid — this is the
   // check that the dark-navy fill actually lands on the tile, which the

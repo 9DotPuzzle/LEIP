@@ -271,6 +271,36 @@ check('small viewports drop to a cheaper sea',
       /ctx\.strokeStyle = T\.volt;/.test(trail) && T.volt === '#F5D90A');
   }
 
+  // The PLANNING weight: heavier while the plan is the only line on the
+  // water, back to the original once the volt trail can fringe it.
+  check('the planning line is drawn heavier than the plotted one',
+    rc.planningLineWorld > rc.lineWorld * 2 &&
+    rc.planningDashWorld[0] > rc.dashWorld[0] &&
+    rc.planningTickWorld > rc.tickWorld);
+  check('the heavier dash is still a dash — mark longer than gap, not a solid line',
+    rc.planningDashWorld.length === 2 && rc.planningDashWorld[0] > rc.planningDashWorld[1]);
+  check('and it is the same white — brighter by weight, never by colour',
+    rc.plannedInk === '#FFFFFF');
+  check('the weight is chosen by PHASE, so playback is untouched',
+    /var planning = S\.phase === 'planning';/.test(src) &&
+    /planning \? rc\.planningLineWorld : rc\.lineWorld/.test(src) &&
+    /planning \? rc\.planningTickWorld : rc\.tickWorld/.test(src));
+  check('and the volt trail still takes its width from the ORIGINAL lineWorld',
+    /ctx\.lineWidth = rc\.lineWorld \* ppu \* 1\.5;/.test(src));
+
+  // THE CAMERA HOLDS THE WHOLE ROUTE. Asserted against the source here
+  // because fitCamera needs a live scene; that it actually frames a route
+  // reaching to Lateral is checked in the browser by tools/reach.mjs.
+  check('a route change reframes on the WHOLE route, not the latest pick',
+    /fitCamera\(S\.inputs\.route\.length \? S\.inputs\.route : null\)/.test(src));
+  check('it sets targets only, so the per-frame easing carries the move',
+    /c\.x \+= \(c\.tx - c\.x\) \* k/.test(src) &&
+    !/fitCamera[\s\S]{0,400}G\.cam\.x = /.test(src));
+  check('and it re-solves on the port SET, so a reorder drag does not thrash it',
+    /S\.lastFitKey/.test(src) && /route\.slice\(\)\.sort\(\)\.join/.test(src));
+  check('the min/max distance clamps still bound the answer',
+    /var dist = Math\.min\(f\.maxDist, Math\.max\(f\.minDist, hi\)\);/.test(src));
+
   // Port names are chips: one dark box with light type, for every port.
   const chip = T.world.labelPlate.chip;
   check('port labels are chips — a dark box with light type',

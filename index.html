@@ -146,29 +146,28 @@ main { position: relative; flex: 1; min-height: 0; }
 .pick.dragging { cursor: grabbing; background: var(--ink-fixed); color: var(--paper); }
 #route-summary { font-size: 11px; letter-spacing: var(--label-tracking); margin-left: auto; opacity: 0.7; }
 
-/* The picker groups by COUNTRY — one heading per real country, the same
-   derived field the Countries factor scores on. The flag moves up to the
-   heading, since repeating it on every chip under it says nothing. */
-#port-list { display: block; }
-.port-group + .port-group { margin-top: 10px; }
-.port-country {
-  display: flex; align-items: center; gap: 7px; margin-bottom: 4px;
-  font-size: 10px; font-weight: 600; text-transform: uppercase;
-  letter-spacing: var(--label-tracking); opacity: 0.75;
-  border-bottom: var(--hairline) solid var(--ink-fixed); padding-bottom: 3px;
-}
-.port-country b { font-weight: 600; }
-.port-country span { margin-left: auto; font-family: var(--font-data); opacity: 0.7; }
-.port-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+/* ONE flat list, country-major, no headings — the ordering does the
+   grouping and the flag on each chip says which country you are in.
+   Fifteen headings cost a row each to repeat what the flags already say,
+   which is most of a phone screen. */
+#port-list { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 .port-chip {
   text-align: left; padding: 5px 8px; font-size: 12.5px; text-transform: none;
   letter-spacing: 0; display: flex; align-items: center; gap: 7px;
-  border-width: var(--hairline);
+  border-width: var(--hairline); min-width: 0;
 }
-.port-chip i {
-  font-style: normal; font-family: var(--font-data); font-size: 10px;
-  margin-left: auto; opacity: 0.8;
+.pc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The count and the + ride together at the trailing edge of a chosen
+   chip: "in the route twice" and "add a third" are one control. */
+.pc-extra { margin-left: auto; display: flex; align-items: center; gap: 5px; flex: none; }
+.pc-extra i {
+  font-style: normal; font-family: var(--font-data); font-size: 10px; opacity: 0.85;
 }
+.pc-plus {
+  font-weight: 600; font-size: 14px; line-height: 1; padding: 1px 5px 3px;
+  border: var(--hairline) solid currentColor; cursor: pointer; opacity: 0.85;
+}
+.pc-plus:hover { opacity: 1; background: var(--paper); color: var(--ink-fixed); }
 .flag { flex: none; width: var(--flag-w); height: calc(var(--flag-w) * 0.667); display: block; }
 .flag rect, .flag circle { shape-rendering: crispEdges; }
 
@@ -360,7 +359,7 @@ table.board td.num { font-family: var(--font-data); }
     <aside id="plan">
       <section>
         <h3>Route</h3>
-        <p class="hint">Pick a starting port, then destinations — on the chart or below. The pick order is the route, and you can drag the stops to reorder them. Pick a listed port again to drop it. The final pick is the recharge port.</p>
+        <p class="hint">Pick a starting port, then destinations — on the chart or below. The pick order is the route, and you can drag the stops to reorder them. Pick a listed port again to drop it; repeats are allowed — press + on a chosen stop to add it again. The final pick is the recharge port.</p>
         <div id="route-strip"></div>
         <div class="row">
           <button id="btn-undo">Undo</button>
@@ -907,8 +906,15 @@ globalThis.LEIP_THEME = {
   // scene ink is a dark navy for three of the four scenes, which is what
   // made the plot disappear into the animated sea. The volt trail that
   // inks over it as she sails is untouched and stays the one accent.
+  // While PLANNING the white plan is the only line on the water and has to
+  // carry on its own, so it is drawn heavier and in longer dashes. Once the
+  // charter runs, the volt trail is doing the talking and the plan drops
+  // back to its original weight — otherwise a white line half again wider
+  // than the volt one would fringe it the whole way along. Same colour
+  // throughout, so white-plan / volt-progress never blurs.
   routeCanvas: { px: 2048, marginWorld: 26, annotWorld: 4.4, dashWorld: [2.6, 2.0], tickWorld: 1.7, lineWorld: 0.3,
-                 plannedInk: '#FFFFFF' },
+                 plannedInk: '#FFFFFF',
+                 planningLineWorld: 0.72, planningDashWorld: [4.4, 2.8], planningTickWorld: 2.4 },
   playbackZoom: { spanFactor: 1.8, min: 100, max: 320 },
   // The fixed charted frame (spec: one frame, all ports visible at once).
   // boundsDeg is the rectangle the camera may never leave — the working
@@ -9080,7 +9086,8 @@ globalThis.LEIP_APP = (function () {
     persistent: { unlocked: {}, posterDone: [], repeatCount: 0, board: [] },
     webgl: false,
     reducedMotion: false,
-    inkDark: false
+    inkDark: false,
+    lastFitKey: null              // the port SET the camera is framed on
   };
   // v3: the 0-50 base rescale. Anything saved under v2 was scored on the
   // old 0-1000 board and would misread against new scores, so it is left
@@ -9724,9 +9731,15 @@ globalThis.LEIP_APP = (function () {
       ctx.lineJoin = 'round';
       // The planned passage — dashes AND the waypoint ticks below, which
       // are the same drawing — carries its own fixed ink, not the scene's.
+      // While planning it is the only line on the water, so it is drawn
+      // heavier; once the volt trail exists it drops back so it cannot
+      // fringe it. Colour is the same either way.
+      var planning = S.phase === 'planning';
       ctx.strokeStyle = rc.plannedInk;
-      ctx.lineWidth = rc.lineWorld * ppu;
-      ctx.setLineDash(rc.dashWorld.map(function (d) { return d * ppu; }));
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = (planning ? rc.planningLineWorld : rc.lineWorld) * ppu;
+      ctx.setLineDash((planning ? rc.planningDashWorld : rc.dashWorld)
+        .map(function (d) { return d * ppu; }));
       legs.forEach(function (leg) {
         ctx.beginPath();
         leg.pts.forEach(function (p, n) { if (n === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y); });
@@ -9734,7 +9747,7 @@ globalThis.LEIP_APP = (function () {
       });
       ctx.setLineDash([]);
       // Waypoint ticks at the berths only — rounding points stay unmarked.
-      var tick = rc.tickWorld * ppu;
+      var tick = (planning ? rc.planningTickWorld : rc.tickWorld) * ppu;
       var berths = legs.map(function (l) { return l.pts[0]; });
       if (legs.length) berths.push(legs[legs.length - 1].pts.slice(-1)[0]);
       berths.forEach(function (p) {
@@ -10674,20 +10687,30 @@ globalThis.LEIP_APP = (function () {
   // factor — and deliberately not the pack's `region`, which splits Italy
   // into five and would have the picker disagree with the scoreboard about
   // what a country is.
-  function portGroups() {
-    var by = {};
-    D.ports.forEach(function (p) { (by[p.country] || (by[p.country] = [])).push(p); });
+  // ONE flat list, country-major. The ordering does the grouping and there
+  // are no headings: France's ports land together because France sorts
+  // before Italy, and the flag on each chip says which country you are in.
+  // Headings cost a row of vertical space per country — fifteen of them —
+  // to state something the flag beside every name already states, and that
+  // is the whole list's height again on a phone.
+  //
+  // The sort key is the DERIVED country, the same field the Countries
+  // multiplier scores on, so the picker and the scoreboard agree about
+  // what a country is: Corsica sorts under France, and Sardinia, Sicily
+  // and the mainland all sort under one Italy.
+  function portsInOrder() {
     var order = D.countryOrder || [];
-    var names = Object.keys(by).sort(function (a, b) {
-      var ia = order.indexOf(a), ib = order.indexOf(b);
-      if (ia < 0) ia = order.length + 1;
-      if (ib < 0) ib = order.length + 1;
-      return ia !== ib ? ia - ib : (a < b ? -1 : a > b ? 1 : 0);
-    });
-    return names.map(function (c) {
-      return { country: c, ports: by[c].slice().sort(function (a, b) {
-        return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
-      }) };
+    var rank = function (c) {
+      var i = order.indexOf(c);
+      return i < 0 ? order.length + 1 : i;
+    };
+    return D.ports.slice().sort(function (a, b) {
+      var ra = rank(a.country), rb = rank(b.country);
+      if (ra !== rb) return ra - rb;
+      // Two countries neither of which is listed: alphabetical between
+      // them, so the order is total and never depends on DATA's own order.
+      if (a.country !== b.country) return a.country < b.country ? -1 : 1;
+      return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
     });
   }
   function buildPortList() {
@@ -10695,22 +10718,29 @@ globalThis.LEIP_APP = (function () {
     if (!el) return;
     // Energy type is deliberately NOT shown while planning — it still
     // scores at the finish (spec §5), but the player picks blind.
-    el.innerHTML = portGroups().map(function (grp) {
-      return '<div class="port-group">' +
-        '<div class="port-country">' + flagSvg(grp.country) +
-          '<b>' + esc(grp.country) + '</b><span>' + grp.ports.length + '</span></div>' +
-        '<div class="port-grid">' + grp.ports.map(function (p) {
-          return '<button class="port-chip" data-port="' + esc(p.name) + '" ' +
-            'aria-pressed="false" title="' + esc(p.name) + ' · ' + esc(p.country) + '">' +
-            esc(p.name) + '</button>';
-        }).join('') + '</div></div>';
+    el.innerHTML = portsInOrder().map(function (p) {
+      return '<button class="port-chip" data-port="' + esc(p.name) + '" ' +
+        'aria-pressed="false" title="' + esc(p.name) + ' \u00b7 ' + esc(p.country) + '">' +
+        flagSvg(p.country) + '<span class="pc-name">' + esc(p.name) + '</span></button>';
     }).join('');
     if (el.querySelectorAll) {
       var chips = el.querySelectorAll('button[data-port]');
       for (var i = 0; i < chips.length; i++) {
         (function (chip) {
-          chip.addEventListener('click', function () {
-            API.togglePort(chip.getAttribute('data-port'));
+          chip.addEventListener('click', function (ev) {
+            var name = chip.getAttribute('data-port');
+            // The + is a button inside the chip: it REPEATS the port
+            // rather than toggling it off, which is what the chip body
+            // does. Without this the only way back to a repeat would be
+            // the chart.
+            var t = ev && ev.target;
+            var plus = t && t.closest ? t.closest('.pc-plus') : null;
+            if (plus) {
+              if (ev.stopPropagation) ev.stopPropagation();
+              API.pickPort(name);
+              return;
+            }
+            API.togglePort(name);
           });
         })(chips[i]);
       }
@@ -10849,23 +10879,33 @@ globalThis.LEIP_APP = (function () {
         : '<span class="hint">No ports picked — the first pick is the start.</span>';
     }
     // Every chip for a port that is in the route wears the panel's one
-    // selected style, and clicking it drops the port again.
+    // selected style. The chip body toggles it off; the + it grows while
+    // selected adds ANOTHER instance, which is what keeps repeats — legal
+    // and scored — reachable from the list rather than only from the
+    // chart. The count sits next to the +, so "in the route twice" and
+    // "add a third" read as one control.
     var pl = $('port-list');
     if (pl && pl.querySelectorAll) {
       var chips = pl.querySelectorAll('button[data-port]');
       for (var c = 0; c < chips.length; c++) {
-        var nm = chips[c].getAttribute('data-port');
+        var chip = chips[c];
+        var nm = chip.getAttribute('data-port');
         var uses = 0;
         for (var u = 0; u < S.inputs.route.length; u++) if (S.inputs.route[u] === nm) uses++;
-        if (chips[c].classList) chips[c].classList[uses ? 'add' : 'remove']('on');
-        if (chips[c].setAttribute) chips[c].setAttribute('aria-pressed', uses ? 'true' : 'false');
-        // A repeat is only reachable from the chart now, but if one is
-        // there the chip has to say so or "click to drop" reads as a bug.
-        var tag = chips[c].querySelector ? chips[c].querySelector('i') : null;
-        if (uses > 1 && tag) tag.textContent = 'x' + uses;
-        else if (uses > 1 && chips[c].insertAdjacentHTML) {
-          chips[c].insertAdjacentHTML('beforeend', '<i>x' + uses + '</i>');
-        } else if (uses <= 1 && tag && tag.remove) tag.remove();
+        if (chip.classList) chip.classList[uses ? 'add' : 'remove']('on');
+        if (chip.setAttribute) chip.setAttribute('aria-pressed', uses ? 'true' : 'false');
+        var extra = chip.querySelector ? chip.querySelector('.pc-extra') : null;
+        if (!uses) {
+          if (extra && extra.remove) extra.remove();
+        } else {
+          var want = (uses > 1 ? '<i>\u00d7' + uses + '</i>' : '') +
+            '<b class="pc-plus" role="button" aria-label="Add ' + esc(nm) +
+            ' to the route again" title="Add again">+</b>';
+          if (extra) { if (extra.innerHTML !== want) extra.innerHTML = want; }
+          else if (chip.insertAdjacentHTML) {
+            chip.insertAdjacentHTML('beforeend', '<span class="pc-extra">' + want + '</span>');
+          }
+        }
       }
     }
     // Pick count only — no running distance total. Per-leg bearing and
@@ -10898,6 +10938,25 @@ globalThis.LEIP_APP = (function () {
     var ca = $('btn-clear-acts');
     if (ca) ca.disabled = Object.keys(S.inputs.activities).length === 0 || S.phase !== 'planning';
     RoutePlot.fit(S.inputs.route);
+    // THE CAMERA HOLDS THE WHOLE ROUTE, not the latest pick. fitCamera
+    // solves for the widest view that still centres every stop in the safe
+    // area, and it only sets the camera's TARGETS — the per-frame easing
+    // in tick() carries it there, so a pick that reaches for Lateral pulls
+    // back over a second or so rather than cutting. The min/max distance
+    // clamps still bound the answer; a route that cannot fit inside them
+    // simply fits as far as it can.
+    //
+    // Keyed on the SET of ports, not the route array: dragging a stop to
+    // reorder fires this on every pointermove and cannot change the fit,
+    // and fitCamera runs a 22-step binary search over a projection of
+    // every stop. Nothing to re-solve, so nothing is re-solved.
+    if (S.phase === 'planning') {
+      var key = S.inputs.route.slice().sort().join('|');
+      if (key !== S.lastFitKey) {
+        S.lastFitKey = key;
+        fitCamera(S.inputs.route.length ? S.inputs.route : null);
+      }
+    }
     requestRoute();
   }
 

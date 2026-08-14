@@ -52,5 +52,38 @@ console.log(res.unreachable.length
   ? `UNREACHABLE (${res.unreachable.length}): ${res.unreachable.join(', ')}`
   : 'every port frames inside the safe area — none is unreachable by pan');
 
+// ---------------------------------------------------------------- framing
+// The camera holds the WHOLE route as it grows, rather than hopping to the
+// latest pick. The case that matters is the one that crosses the map: a
+// week that starts on the Riviera and ends up in the Channel.
+const grow = await page.evaluate(async () => {
+  const A = window.LEIP_APP;
+  const settle = () => new Promise((res) => {
+    let i = 0;
+    const step = () => (++i >= 45 ? res() : requestAnimationFrame(step));
+    requestAnimationFrame(step);
+  });
+  A.clearRoute();
+  const out = [];
+  for (const n of ['Monaco', 'Cannes', 'Barcelona', 'Gibraltar', 'Lateral']) {
+    A.pickPort(n);
+    await settle();                       // let the easing arrive
+    const route = A.getState().inputs.route;
+    const missed = A.debugSafeArea().outside.filter((p) => route.includes(p));
+    out.push({ after: n, stops: route.length, missed,
+               dist: Math.round(A.debugSafeArea().cam.dist) });
+  }
+  return out;
+});
+let framingOk = true;
+for (const s of grow) {
+  if (s.missed.length) framingOk = false;
+  console.log(`  + ${s.after.padEnd(10)} ${s.stops} stops, camera ${String(s.dist).padStart(4)} — ` +
+    (s.missed.length ? `NOT FRAMED: ${s.missed.join(', ')}` : 'all stops framed'));
+}
+console.log(framingOk
+  ? 'the camera holds every stop as the route grows, Channel included'
+  : 'FRAMING FAILED — a stop fell outside the safe area as the route grew');
+
 await browser.close();
-process.exit(res.unreachable.length ? 1 : 0);
+process.exit(res.unreachable.length || !framingOk ? 1 : 0);

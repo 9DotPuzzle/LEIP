@@ -199,33 +199,51 @@ section('Planning panel — the playtest rules the markup must keep');
   check('both speed icons live in the THEME, not inline in the UI',
     !!g2.LEIP_THEME.icons.defs.SPD_TURTLE && !!g2.LEIP_THEME.icons.defs.SPD_HARE);
 
-  // ---- the picker groups by country ----
+  // ---- the picker is ONE flat list, country-major, no headings ----
   const D2 = g2.LEIP_DATA;
   const list = sb2.document.getElementById('port-list').innerHTML;
-  const heads = (list.match(/<div class="port-country">[\s\S]*?<b>([^<]+)<\/b>/g) || [])
-    .map(s => s.replace(/[\s\S]*<b>/, '').replace('</b>', ''));
-  const want = [...new Set(D2.ports.map(p => p.country))];
-  check(`one heading per country, ${want.length} of them, none empty and none repeated`,
-    heads.length === want.length && new Set(heads).size === heads.length &&
-    want.every(c => heads.includes(c)), heads.join(', '));
-  check('the headings are the DERIVED country, not the pack region',
-    heads.includes('Italy') && heads.includes('France') &&
-    !heads.some(h => /\(|Sardegna|Siciliy|Corsica|Nothern/.test(h)),
-    heads.join(', '));
-  check('every one of the 44 ports is under exactly one heading',
-    (list.match(/class="port-chip"/g) || []).length === D2.ports.length);
-  check('the headings run in the DATA-block order, not alphabetically',
-    heads.filter(h => D2.countryOrder.includes(h)).join() ===
-      D2.countryOrder.filter(c => heads.includes(c)).join(), heads.join(', '));
+  const order = (list.match(/data-port="([^"]+)"/g) || []).map(s => s.slice(11, -1));
+  const byName = Object.fromEntries(D2.ports.map(p => [p.name, p]));
+  check('every one of the 44 ports, once each, in one list',
+    order.length === D2.ports.length && new Set(order).size === order.length);
+  check('no country headings survive — the ordering does the grouping',
+    !/port-country|port-group|port-grid/.test(list));
   {
-    // Alphabetical WITHIN each group.
-    const groups = list.split('<div class="port-group">').slice(1);
-    const unsorted = groups.map((grp) => {
-      const names = (grp.match(/data-port="([^"]+)"/g) || []).map(s => s.slice(11, -1));
-      return names.join() === names.slice().sort().join() ? null : names[0];
-    }).filter(Boolean);
-    check('ports run alphabetically inside each country', unsorted.length === 0, unsorted.join(', '));
+    // Country-major: each country occupies ONE contiguous run. A country
+    // appearing twice would mean the sort is not country-first, which is
+    // the only thing holding the grouping together now the headings are
+    // gone.
+    const runs = [];
+    for (const n of order) {
+      const c = byName[n].country;
+      if (!runs.length || runs[runs.length - 1] !== c) runs.push(c);
+    }
+    check(`each country is one contiguous run (${runs.length} runs, ${new Set(runs).size} countries)`,
+      runs.length === new Set(runs).size, runs.join(' > '));
+    check('the runs follow the DATA-block country order',
+      runs.filter(c => D2.countryOrder.includes(c)).join() ===
+        D2.countryOrder.filter(c => runs.includes(c)).join(), runs.join(' > '));
+    check('the sort key is the DERIVED country, not the pack region',
+      runs.includes('Italy') && runs.includes('France') &&
+      !runs.some(c => /\(|Sardegna|Siciliy|Corsica|Nothern/.test(c)), runs.join(' > '));
+    // Corsica under France and Sardinia/Sicily under Italy is the whole
+    // point of using the derived field, so name the ports outright.
+    check('Corsican ports sort under France; Sardinian and Sicilian under Italy',
+      ['Ajaccio', 'Bonifacio', 'Calvi'].every(n => byName[n].country === 'France') &&
+      ['Cagliari', 'Olbia', 'Taormina'].every(n => byName[n].country === 'Italy'));
+    // Alphabetical inside each run.
+    const bad = [];
+    let i = 0;
+    while (i < order.length) {
+      const c = byName[order[i]].country;
+      const run = [];
+      while (i < order.length && byName[order[i]].country === c) run.push(order[i++]);
+      if (run.join() !== run.slice().sort().join()) bad.push(c);
+    }
+    check('ports run alphabetically inside each country', bad.length === 0, bad.join(', '));
   }
+  check('the flag rides on the chip, since there is no heading to carry it',
+    (list.match(/class="flag"/g) || []).length === D2.ports.length);
 
   // ---- selecting, dropping and reordering ----
   const A2 = g2.LEIP_APP;
@@ -234,10 +252,50 @@ section('Planning panel — the playtest rules the markup must keep');
   check('a chip adds the port', A2.getState().inputs.route.join() === 'Nice,Monaco,Cannes');
   A2.togglePort('Monaco');
   check('the same chip again drops it', A2.getState().inputs.route.join() === 'Nice,Cannes');
-  A2.pickPort('Nice');                       // a repeat, as only the chart can make
+  A2.pickPort('Nice');                       // a repeat
   A2.dropPort('Nice');
   check('dropping a repeated port takes the MOST RECENT instance',
     A2.getState().inputs.route.join() === 'Nice,Cannes');
+
+  // ---- repeats, via the + on a chosen chip ----
+  // The chip body toggles; the + repeats. Both live on the same chip, so
+  // the markup has to distinguish them or one gesture does both.
+  //
+  // WHAT THIS CAN AND CANNOT SEE. The + is added to live chip nodes by
+  // refreshPlanning, and this sandbox's element stub does not model
+  // querySelector, so it never reaches innerHTML here. So: the BEHAVIOUR
+  // is asserted through the API, and the WIRING is asserted against the
+  // source. That the + actually appears on a chosen chip is checked in the
+  // browser, by the repeat-plus shot in tools/shots.mjs.
+  A2.clearRoute();
+  A2.togglePort('Nice');
+  check('a chip is built with no + until it is chosen',
+    !/pc-plus/.test(sb2.document.getElementById('port-list').innerHTML));
+  A2.pickPort('Nice');
+  check('+ adds another instance rather than toggling the port off',
+    A2.getState().inputs.route.join() === 'Nice,Nice');
+  A2.pickPort('Nice');
+  check('and again, so a port can appear three times',
+    A2.getState().inputs.route.join() === 'Nice,Nice,Nice');
+  A2.togglePort('Nice');
+  check('the chip body still drops one instance, not the whole run',
+    A2.getState().inputs.route.join() === 'Nice,Nice');
+  {
+    // The chip has two gestures on one element, so the handler must split
+    // them: a click landing on the + repeats, anything else toggles. If
+    // the closest('.pc-plus') branch were dropped, + would silently
+    // become "remove" — the exact opposite of what it says.
+    const handler = html.slice(html.indexOf("chip.addEventListener('click'"),
+                               html.indexOf('})(chips[i]);'));
+    check('the + is wired to pickPort, and the chip body to togglePort',
+      /closest\('\.pc-plus'\)/.test(handler) &&
+      /API\.pickPort\(name\)/.test(handler) && /API\.togglePort\(name\)/.test(handler));
+    check('the + is only rendered on a chosen chip, alongside its count',
+      /pc-extra/.test(html) && /uses > 1 \? '<i>/.test(html));
+  }
+  check('the route hint tells the player how to repeat a stop',
+    html.includes('repeats are allowed \u2014 press + on a chosen stop to add it again') ||
+    html.includes('repeats are allowed — press + on a chosen stop to add it again'));
   A2.clearRoute();
   ['Nice', 'Monaco', 'Cannes', 'Antibes'].forEach((n) => A2.pickPort(n));
   A2.reorderRoute(0, 2);
