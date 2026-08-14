@@ -264,10 +264,27 @@ const shots = {
     return { clip: stageClip };
   },
   // The pan limit, which every port must sit inside — including the ones
-  // outside the opening view.
+  // outside the opening view. Lateral is up in the Channel.
   'full-extent': async (page) => {
     await page.evaluate(() => window.LEIP_APP.debugView({ zoom: 'min' }));
-    await settle(page, 12);
+    await settle(page, 14);
+    return { clip: stageClip };
+  },
+  // Zoomed fully out the frame is wider than the stage, so the western
+  // ports the expansion added — Gibraltar, Casablanca, Barcelona — sit
+  // behind the planning panel until the player pans. This is that pan.
+  'full-extent-west': async (page) => {
+    await page.evaluate(() => window.LEIP_APP.debugView({ zoom: 'min', pan: [-400, 0] }));
+    await settle(page, 14);
+    return { clip: stageClip };
+  },
+  // The easter egg itself, and the Atlantic lane that reaches it.
+  'lateral-route': async (page) => {
+    await page.evaluate(() => {
+      window.LEIP_APP.debugRoute(['Monaco', 'Gibraltar', 'Lateral']);
+      window.LEIP_APP.debugView({ zoom: 'min' });
+    });
+    await settle(page, 14);
     return { clip: stageClip };
   },
   // --- 11 & 12: playback pace, clock and progress
