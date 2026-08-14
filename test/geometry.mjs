@@ -84,6 +84,11 @@ section('Ports sit on their coastline, never in open sea');
   const coastReachDeg = 0.08;                    // ~5 nm
   const offshore = [];
   for (const p of D.ports) {
+    // The easter egg is the one licensed exception: Lateral is a novelty
+    // position in the middle of the English Channel, 8 nm off the nearest
+    // coast, and is meant to be. Every other port is a real harbour and
+    // must sit on real coastline.
+    if (p.easterEgg) continue;
     if (onLand(p.lon, p.lat)) continue;
     let near = false;
     for (let dx = -coastReachDeg; dx <= coastReachDeg && !near; dx += coastReachDeg / 2) {
@@ -93,7 +98,14 @@ section('Ports sit on their coastline, never in open sea');
     }
     if (!near) offshore.push(p.name);
   }
-  check(`all ${D.ports.length} ports are on or beside real coastline`, offshore.length === 0, offshore.join(', '));
+  const eggs = D.ports.filter((p) => p.easterEgg);
+  check(`all ${D.ports.length - eggs.length} charted ports are on or beside real coastline ` +
+    `(${eggs.length} easter egg exempt: ${eggs.map((p) => p.name).join(', ') || 'none'})`,
+    offshore.length === 0, offshore.join(', '));
+  // The exemption is not a free pass: an easter-egg port still has to be in
+  // water and still has to get a berth, or it would be unplayable.
+  check('the easter-egg port is still in open water, not on land',
+    eggs.every((p) => !onLand(p.lon, p.lat)));
 
   const wet = D.ports.filter((p) => onLand(E.berth(p.name).lon, E.berth(p.name).lat));
   check('every berth is in water, not on the beach', wet.length === 0, wet.map((p) => p.name).join(', '));

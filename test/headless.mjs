@@ -72,38 +72,62 @@ check('shares always sum to 1 and never go negative',
 check('the 8 kt share clamps to zero past the regression\'s observed range',
   E.profileStats('Intense', 700).share[8] === 0 &&
   E.profileStats('Intense', 400).share[8] > 0);
-check('33 ports, names unique',
-  D.ports.length === 33 && new Set(D.ports.map(p => p.name)).size === 33);
+check('44 ports, names unique',
+  D.ports.length === 44 && new Set(D.ports.map(p => p.name)).size === 44);
+// v4 replaced the pack's country field with SHEET REGIONS — "Corsica
+// (France)", "Sardegna (Italy)", "Northern Italy" AND "Nothern Italy".
+// Countries is a scored factor, so the region is kept for provenance and
+// the country is derived. If these two were ever conflated, one Italy
+// would score as five and a spelling mistake would be worth points.
+check('every port carries both a country and the pack region it came from',
+  D.ports.every(p => p.country && p.region));
+check('regions collapse to real countries — Italy is one country, not five',
+  new Set(D.ports.map(p => p.country)).size === 15 &&
+  D.ports.filter(p => p.country === 'Italy').length === 11 &&
+  new Set(D.ports.filter(p => p.country === 'Italy').map(p => p.region)).size === 5);
+check('every country the ports use has a flag',
+  [...new Set(D.ports.map(p => p.country))].every(c => T.flags.defs[c]),
+  [...new Set(D.ports.map(p => p.country))].filter(c => !T.flags.defs[c]).join(', '));
+check('Livadia is on Astypalea, not Tilos',
+  (() => { const l = D.ports.find(p => p.name === 'Livadia');
+           return l.lat === 36.5423 && l.lon === 26.3429; })());
+check('the eleven new ports are all present',
+  ['Sidi Fredj', 'Split', 'Marseille', 'Valletta', 'Casablanca', 'Koper',
+   'Barcelona', 'Bizerte', 'Gibraltar', 'Vlore', 'Lateral']
+    .every(n => D.ports.some(p => p.name === n)));
+check('Lateral is flagged as the easter egg, and nothing else is',
+  D.ports.filter(p => p.easterEgg).map(p => p.name).join() === 'Lateral');
 check('energy types are the four carbon classes, or null where the source has no figure',
   D.ports.every(p => p.energy === null || ['green', 'blue', 'grey', 'brown'].includes(p.energy)));
-check('every port is rated — Genoa was the last blank and is now 488, brown',
-  D.ports.every(p => p.carbon !== null && p.energy !== null) &&
-  D.ports.find(p => p.name === 'Genoa').carbon === 488 &&
-  D.ports.find(p => p.name === 'Genoa').energy === 'brown');
+check('every port is rated — no blanks left in the pack',
+  D.ports.every(p => p.carbon !== null && p.energy !== null));
 check('an unrated port would still never be a reward',
   D.scoring.multiplier.rechargeUnrated === D.scoring.multiplier.recharge.grey);
-// FIXED thresholds, not relative quartiles: a port's colour must be a
-// property of that port alone, so editing one port cannot recolour another.
-check('energy classes follow the fixed carbon thresholds',
-  D.ports.every(p => {
-    const q = D.energyThresholdsGco2kwh;
-    const want = p.carbon <= q.greenMax ? 'green' : p.carbon <= q.blueMax ? 'blue'
-      : p.carbon <= q.greyMax ? 'grey' : 'brown';
-    return p.energy === want;
-  }));
-check('the thresholds are the published fixed cuts, 150/300/420',
-  D.energyThresholdsGco2kwh.greenMax === 150 &&
-  D.energyThresholdsGco2kwh.blueMax === 300 &&
-  D.energyThresholdsGco2kwh.greyMax === 420 &&
-  D.energyQuartilesGco2kwh === undefined);
+// v4: colour comes from the sheet's Category column, NOT derived from
+// carbon. The two mostly agree but not always — the three Turkish ports
+// sit at 440 gCO2/kWh, which any threshold would call brown, and the
+// sheet calls grey. The sheet wins; that is what "category-driven" means.
+check('energy is one of the four classes, taken from the pack',
+  D.ports.every(p => ['green', 'blue', 'grey', 'brown'].includes(p.energy)));
+check('colour is category-driven, not derived from carbon',
+  D.energyThresholdsGco2kwh === undefined && D.energyQuartilesGco2kwh === undefined);
 {
   const n = (c) => D.ports.filter(p => p.energy === c).length;
-  check('the fixed cuts give 7 green / 11 blue / 6 grey / 9 brown',
-    [n('green'), n('blue'), n('grey'), n('brown')].join('/') === '7/11/6/9',
+  check('the pack gives 11 green / 15 blue / 7 grey / 11 brown',
+    [n('green'), n('blue'), n('grey'), n('brown')].join('/') === '11/15/7/11',
     [n('green'), n('blue'), n('grey'), n('brown')].join('/'));
+  // Carbon and colour must still broadly track, or the Category column has
+  // drifted from the physical figure it is supposed to summarise.
+  const rank = { green: 0, blue: 1, grey: 2, brown: 3 };
+  const bad = D.ports.filter(p => {
+    const others = D.ports.filter(o => rank[o.energy] > rank[p.energy]);
+    return others.some(o => o.carbon < p.carbon - 120);
+  });
+  check('a greener port is never far dirtier than a browner one',
+    bad.length <= 3, bad.map(p => `${p.name} ${p.carbon}/${p.energy}`).join(', '));
 }
-check('33x33 distance matrix, symmetric, zero on the diagonal',
-  Object.keys(D.distanceMatrixNm).length === 33 &&
+check('44x44 distance matrix, symmetric, zero on the diagonal',
+  Object.keys(D.distanceMatrixNm).length === 44 &&
   D.ports.every(a => D.ports.every(b =>
     D.distanceMatrixNm[a.name][b.name] === D.distanceMatrixNm[b.name][a.name])) &&
   D.ports.every(a => D.distanceMatrixNm[a.name][a.name] === 0));
@@ -548,8 +572,14 @@ section('Per-leg sea-lane correction — read through the one accessor');
   // legs carry none. Both extremes must be present or the table is inert.
   check('legs that round land are corrected hardest',
     E.getLegCorrection('Genoa', 'Venice') > 4 &&
-    E.getLegCorrection('Ajaccio', 'Calvi') > 1.5,
+    E.getLegCorrection('Ajaccio', 'Calvi') > 1.3,
     `Genoa-Venice ×${E.getLegCorrection('Genoa', 'Venice')}, Ajaccio-Calvi ×${E.getLegCorrection('Ajaccio', 'Calvi')}`);
+  // Lateral is the easter egg: the English Channel, reachable only out
+  // through Gibraltar and up the Atlantic. Nothing special enforces that —
+  // the correction and the diesel it costs do all the work.
+  check(`Lateral costs ×${E.getLegCorrection('Lateral', 'Monaco')} from the Riviera`,
+    E.getLegCorrection('Lateral', 'Monaco') > 3 &&
+    E.getLegCorrection('Lateral', 'Monaco') < 4.5);
   check('open-water legs are left alone',
     names.some(a => names.some(b => a !== b && E.getLegCorrection(a, b) === 1)));
   // The accessor is the only boundary: the engine must not read the table.

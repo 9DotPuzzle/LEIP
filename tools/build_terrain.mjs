@@ -36,7 +36,13 @@ const CFG = {
   // RASTERISED for navigation: the basin the ports actually live in, kept
   // tight so the grid and the A* over it stay tractable.
   clip: { lon0: -32, lat0: 17, lon1: 62, lat1: 61 },
-  route: { lon0: -8, lat0: 30, lon1: 38, lat1: 48 },
+  // v4 pushed the port list out of the Mediterranean: Lateral sits in the
+  // English Channel at 50.9N, past the old 48N ceiling, and the only way to
+  // reach it is out through Gibraltar and up the Atlantic — which means the
+  // raster has to hold sea room west of Iberia (Cape St Vincent is -9.0,
+  // Finisterre -9.3) or the lane has nowhere to run. Widened west and
+  // north accordingly; the drawn `clip` frame already covered both.
+  route: { lon0: -13, lat0: 30, lon1: 38, lat1: 52 },
   simplifyDeg: 0.008,        // ~0.9 km — kills jaggedness, keeps identity
   minAreaDeg2: 0.0016,       // drop specks...
   portKeepDeg: 0.25,         // ...unless a port sits on one
