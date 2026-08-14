@@ -258,6 +258,34 @@ const shots = {
     await settle(page, 12);
     return { clip: stageClip };
   },
+  // Close on the hull under way. This is the shot that shows there is
+  // nothing ahead of the bow any more: wake astern, clear water forward.
+  'yacht-no-bow-box': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      A.setSpeed('fast');
+      ['Monaco', 'Calvi'].forEach((n) => A.pickPort(n));
+      A.simulate();
+      for (let i = 0; i < 400 && A.getState().phase === 'playback' &&
+                      !A.debugYacht().moving; i++) A.tick(0.25);
+      for (let i = 0; i < 3; i++) A.tick(0.25);
+      for (let i = 0; i < 80; i++) A.tick(0.0167);
+      A.debugPause();
+      const y = A.debugYacht();
+      A.debugView({ at: [y.x, y.z], zoom: 'max' });
+    });
+    await settle(page, 12);
+    // minDist is 90 — the closest the game ever lets the player get — and
+    // at that distance the hull is only ~70px of a 3200px frame. So this
+    // CROPS to her rather than zooming past the game's own limit: the shot
+    // has to be able to show that the water ahead of the stem is empty.
+    const box = await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      const p = A.debugYachtScreen();
+      return p && { x: p.x - 90, y: p.y - 70, width: 180, height: 140 };
+    });
+    return { clip: box || stageClip };
+  },
   // At anchor: the hull breathing on the swell rather than frozen. Athens,
   // because its berth is well out into the Saronic Gulf, so the hull is
   // unambiguously on open water rather than tucked against a headland.

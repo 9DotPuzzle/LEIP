@@ -11693,6 +11693,7 @@ globalThis.LEIP_APP = (function () {
 
     debugView: debugView,
     debugYacht: debugYacht,
+    debugYachtScreen: debugYachtScreen,
     debugPause: function (on) { S.debugPaused = on !== false; },
     // Park the charter clock at a given hour — the light, the tint and the
     // glitter path all read it, so this drives the whole time of day.
@@ -11779,6 +11780,20 @@ globalThis.LEIP_APP = (function () {
     if (!G || !S.sim) return null;
     var yw = yachtWorldAt(S.playT);
     return { x: yw.x, z: yw.z, moving: yw.moving };
+  }
+  // Where she is in CSS pixels on the stage. The camera bottoms out at
+  // T.frame.minDist, so a shot that has to show detail on the hull has to
+  // crop to her rather than zoom further in than the game itself allows.
+  function debugYachtScreen() {
+    if (!G || !G.camera || !S.sim) return null;
+    var yw = yachtWorldAt(S.playT);
+    G.camera.updateMatrixWorld(); G.camera.updateProjectionMatrix();
+    var v = new THREE.Vector3(yw.x, 0, yw.z).project(G.camera);
+    var el = $('stage-wrap');
+    var r = el && el.getBoundingClientRect ? el.getBoundingClientRect()
+                                           : { left: 0, top: 0, width: G.w, height: G.h };
+    return { x: r.left + (v.x + 1) / 2 * r.width,
+             y: r.top + (1 - v.y) / 2 * r.height };
   }
   function debugRoute(names) {
     API.clearRoute();
