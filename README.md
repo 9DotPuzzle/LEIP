@@ -20,16 +20,17 @@ results — the math never depends on either.
 | Path | What it is |
 |---|---|
 | `index.html` | The game: `#leip-theme` (THEME block — every visual value), `#leip-data` (DATA block — every gameplay value), `#leip-engine` (pure scoring/simulation), `#leip-app` (world + chart + UI) |
-| `leip_game_data.json` / `LEIP_game_data.xlsx` | Real engineering data pack (reports 200-52, 835-52, 320-52, port list, Charter_Routes.pptx) mirrored 1:1 into the DATA block |
-| `LEIP_activities_data.xlsx` | Dataset 5 (activities) — **stale**: still the old 24-item sheet, see Activities |
+| `leip_game_data.json` | Real engineering data pack, **v4 (44 ports)**. Folded into the DATA block by `tools/ingest_pack.mjs` — the only writer of ports, the distance matrix and the leg corrections |
+| `LEIP_activities_data.xlsx` | Dataset 5 (activities) — the 14-item sheet, mirrored 1:1 |
 | `fonts/leip-ocra.woff2` | **OCR-A LEIP** — original CC0 digitization of the ANSI X3.17 OCR-A model, built by `tools/build_ocra_font.py`. See `fonts/LICENSE-OCR-A-LEIP.txt` for the license-verification record (the common "free" OCR-A lineage carries a no-profit restriction and was rejected) |
 | `fonts/LICENSE-SAIRA-OFL.txt` | Saira SemiCondensed license (embedded in the HTML as base64 by `tools/embed_fonts.mjs`) |
 | `leip_distance_model.json` | Poster charter distances + per-leg sea-lane corrections (see Distance model) |
 | `leip_fleet_reference.json` | 28 observed charters + route groups, the secondary external check |
-| `test/headless.mjs` | §11.2–11.6 + poster parity + distance rule + leaderboard logic (186 checks, 1 open item — see below) |
-| `test/geometry.mjs` | Ports on real coastline, no sailed leg crossing land (8 checks) |
+| `test/headless.mjs` | §11.2–11.6 + poster parity + distance rule + leaderboard logic (221 checks, 1 open item — see below) |
+| `test/geometry.mjs` | Ports on real coastline, no sailed leg crossing land, hull clears every berth (12 checks) |
 | `test/fleet.mjs` | Secondary validation against the observed fleet, ±15% (`npm run test:fleet`) |
 | `test/smoke.mjs` | §11.1 + §11.7 + §11.8: stubbed Three.js/DOM boot → plan → simulate → playback → results → save → share (62 checks) |
+| `tools/ingest_pack.mjs` | Folds `leip_game_data.json` into DATA: ports, distance matrix, leg corrections |
 | `tools/calibrate.mjs` | Prints the calibration table and canonical breakdown |
 | `tools/shots.mjs` | Playtest screenshots driven through the real page in Chromium (`shots/`, gitignored) |
 | `tools/decompose_fleet.mjs` | Attributes the fleet-check error to distance, speed-mix or power terms |
@@ -231,10 +232,9 @@ factor tops out at `(10 + 6.667) / 2 = 8.333` — the twelve cleanest, leaving o
 jet skis (1) and wakeboarding (2). That caps the attainable multiplier at 9.83
 and the best clean score at 414.
 
-`LEIP_activities_data.xlsx` in this repo is **still the old 24-item sheet**. The
-fourteen and their eco ratings came with the change request and the DATA block
-is the authority for them; dropping the refreshed workbook in would restore the
-cross-check.
+`LEIP_activities_data.xlsx` is now the refreshed 14-item sheet, and the DATA
+block matches it exactly on id, name and eco rating — the values that arrived by
+written brief are confirmed against the source.
 
 ## Diesel reserve
 
@@ -265,31 +265,65 @@ playback. It appears in the title block at the moment the diesels wake — the
 same moment the smoke starts — and the results sheet reports the reserve used
 in MWh and as a percentage.
 
-## Port energy colours
+## Ports and energy colours
 
-Port **energy colours** are **fixed thresholds** on grid carbon intensity —
-green ≤ 150, blue ≤ 300, grey ≤ 420, brown above (gCO₂/kWh) — not relative
-quartiles. That matters beyond tidiness: under quartiles a port's colour, and so
-its recharge score (the heaviest multiplier factor), could change because a
-*different* port was edited. A port's colour is now a property of that port
-alone. The cuts give **7 green / 11 blue / 6 grey / 9 brown**.
+**44 ports** as of pack v4, from the English Channel and Morocco in the west to
+the Adriatic and the Turkish coast in the east, across **15 countries**.
 
-**Genoa** was the pack's last blank and is now 488 gCO₂/kWh, brown. No unrated
-ports remain, so `rechargeUnrated` is unreachable and kept only as the rule for
-a future port with no figure.
+**Energy colour comes straight from the pack's Category column** — it is no
+longer derived from carbon by threshold. The two mostly agree, but not always,
+and where they differ the sheet wins: the three Turkish ports sit at 440
+gCO₂/kWh, which any threshold would call brown, and the sheet calls them grey.
+The counts are **11 green / 15 blue / 7 grey / 11 brown**.
 
-### Data-pack provenance, one gap
+No unrated ports remain, so `rechargeUnrated` is unreachable and kept only as
+the rule for a future port with no figure.
 
-The copy of `leip_game_data.json` in this repo is the **older** pack: it has no
-`speed_model` block, still carries Genoa as `null`, and still holds the relative
-`energy_colour_quartiles_gco2kwh`. The regression coefficients, the fixed
-thresholds, the Genoa figure and the 362.1 MWh reserve derivation were all
-supplied directly in the change request and are implemented and asserted from
-those values — the DATA block is the authority here, not the JSON beside it.
-Livadia's Tilos position (36.4325, 27.386) and its regenerated `leg_correction`
-ratios were already ingested, from `leip_distance_model.json`. Dropping the
-refreshed `leip_game_data.json` into the repo would let the build tools
-cross-check the DATA block against it again.
+**Livadia is on Astypalea** (36.5423, 26.3429). It had always been charted on
+Tilos, which was simply the wrong island.
+
+### Lateral, the easter egg
+
+**Lateral** (United Kingdom, 50.9095 / 1.3793) sits in the English Channel and is
+the one port that is not on a coastline — it is 8 nm offshore and meant to be,
+so the geometry suite exempts it explicitly rather than by accident. It is
+selectable and behaves like any other port; nothing special enforces its
+novelty. The distance does that on its own: Monaco → Lateral routes out through
+Gibraltar and up the Atlantic at ×3.67 correction, **1,817 nm**, burning
+**83.7 MWh** of diesel for a base of −33.7 and a final of **−79**.
+
+### Data-pack provenance
+
+Both packs are now current and the DATA block is generated from them, not
+hand-merged.
+
+`leip_game_data.json` is **v4 (44 ports)** and carries `speed_model`,
+`prop_curve_electrical`, `diesel_reserve` and a 44-port `leg_correction` — every
+figure this build had been carrying from a written brief is now confirmed
+against the file, and they agree. `tools/ingest_pack.mjs` folds it in and is the
+only writer of `DATA.ports`, `DATA.distanceMatrixNm` and `LEIP_LEG_CORRECTION`.
+
+Two things that tool does deliberately, both explained at the top of it:
+
+- **The distance matrix is computed, not copied.** v4 dropped
+  `distance_matrix_nm`. The old 33×33 reproduces from its own coordinates by
+  haversine to 0.0496 nm across all 1,056 pairs — it was always plain
+  great-circle — so the 44×44 is regenerated the same way from the pack's own
+  lat/lon. The tool re-checks that assumption on every write and refuses to run
+  if it stops holding.
+- **`country` is derived, `region` is kept.** v4's `country` field is really a
+  sheet *region*: "Corsica (France)", "Sardegna (Italy)", "Central South Italy",
+  "Northern Italy" *and* "Nothern Italy", "Siciliy (Italy)", "Algiers". Countries
+  is a scored factor, so taken literally one Italy becomes five and a typo is
+  worth points. The region is kept verbatim for provenance; the country is
+  derived through an explicit table that throws on anything unrecognised.
+
+`LEIP_activities_data.xlsx` is the 14-item sheet and matches the DATA block
+exactly on id, name and eco rating.
+
+Two sheet typos are mapped rather than corrected in place, and are worth fixing
+at source: **"Nothern Italy"** (Genoa, Savona) and **"Siciliy (Italy)"**
+(Taormina).
 
 ## Distance model
 
