@@ -114,6 +114,42 @@ const shots = {
     await settle(page, 5);
     return { clip: await page.locator('#plan').boundingBox() };
   },
+  // --- the UI overhaul ------------------------------------------------
+  // The landing screen, as it comes up on every open.
+  'landing': async (page) => {
+    await page.evaluate(() => window.LEIP_APP.showLanding(true));
+    await settle(page, 6);
+    return {};
+  },
+  // The picker, grouped under one heading per real country.
+  'panel-ports-by-country': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      // A few picks so the selected style shows on the chips too, and one
+      // country's worth of grouping is visible above and below them.
+      ['Ajaccio', 'Bonifacio', 'Cannes'].forEach((n) => A.pickPort(n));
+      const plan = document.getElementById('plan');
+      const el = document.getElementById('port-list');
+      plan.scrollTop = el.offsetTop - plan.offsetTop - 120;
+    });
+    await settle(page, 6);
+    return { clip: await page.locator('#plan').boundingBox() };
+  },
+  // Selected against unselected, side by side in one grid — this is the
+  // check that the dark-navy fill actually lands on the tile, which the
+  // smoke test's element stub cannot see.
+  'panel-activities-selected': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      // Alternate picks so both states are legible in the same shot.
+      ['A02', 'A04', 'A07', 'A10', 'A12'].forEach((id) => A.setActivity(id, 1));
+      const plan = document.getElementById('plan');
+      const el = document.getElementById('activity-list');
+      plan.scrollTop = el.offsetTop - plan.offsetTop - 30;
+    });
+    await settle(page, 6);
+    return { clip: await page.locator('#plan').boundingBox() };
+  },
   // --- 3: the densest clusters during a live run, callouts and all
   'sim-costa-smeralda': async (page) => {
     await page.evaluate(() => {
@@ -327,6 +363,10 @@ for (const name of names) {
   await page.goto('file://' + join(ROOT, 'index.html'));
   await page.waitForFunction(() => window.LEIP_APP && window.LEIP_APP.getState().phase === 'planning',
     null, { timeout: 15000 });
+  // The landing screen covers the chart on every open. Every shot but the
+  // landing one is of the game behind it, so dismiss it exactly as the
+  // player's button does; the shots that want it re-open it themselves.
+  await page.evaluate(() => window.LEIP_APP.showLanding(false));
   stageClip = await page.locator('#stage-wrap').boundingBox();
   const opts = (await shots[name](page)) || {};
   await page.screenshot({ path: join(OUT, `${name}.png`), ...opts });

@@ -1,8 +1,16 @@
-# LEIP — Best Week of Charter
+# ENX50 — Best Week of Charter
 
-Plan a one-week Mediterranean charter aboard **LEIP** — a 70 m E-Hybrid
+Plan a one-week Mediterranean charter aboard **ENX50** — a 70 m E-Hybrid
 superyacht with a 50 MWh battery and diesel backup — then watch it play out on
 a sculptural nautical chart. Score = energy discipline × charter quality.
+
+> **The vessel is called ENX50 to the player; the CODE is still called LEIP.**
+> The rename is player-facing text only, by instruction: the wordmark, the HUD
+> title block, the landing copy and the browser title read ENX50, while
+> `globalThis.LEIP_DATA`, the `#leip-*` script ids, `LEIP_SEALANES`, the
+> `OCR-A-LEIP` font, every filename and this repository keep their names. A
+> smoke check asserts both halves, so a find-and-replace cannot quietly take
+> the globals with it.
 
 Built to [`LEIP_charter_game_spec_v2.md`](LEIP_charter_game_spec_v2.md) (v2.1)
 and [`LEIP_visual_direction.md`](LEIP_visual_direction.md), both contractual.
@@ -14,6 +22,35 @@ font file (`fonts/leip-ocra.woff2`); Three.js via CDN is the only network
 dependency. Works from `file://`, static hosting and GitHub Pages, desktop and
 mobile. Without WebGL or network it degrades to a readable notice and instant
 results — the math never depends on either.
+
+The game opens on a **landing screen** carrying the premise and the rules; the
+button enters the game, and the **ⓘ** in the header brings it back at any point
+without disturbing the week in progress. That copy used to sit permanently at
+the top of the planning panel, where it cost a screenful of the one column the
+player needs for controls.
+
+**Planning panel.**
+
+- **Ports are grouped under one heading per country** — the *derived* country,
+  the same field the Countries multiplier scores on, so Corsica files under
+  France and Sardinia, Sicily and the mainland all file under one Italy. The
+  picker and the scoreboard therefore agree about what a country is. Headings
+  run in `DATA.countryOrder`; ports run alphabetically inside each.
+- **A chip adds a port; the same chip again drops it.** If a port is in the
+  route more than once, the *most recent* instance goes — dropping the earliest
+  would silently reroute the week around a stop the player never touched.
+- **Stops drag to reorder** inside the route box, renumbering and re-timing the
+  whole week live as they move (pointer events, so it works on the mobile
+  sheet, which HTML5 drag-and-drop does not).
+- **One selected style across the panel** — dark-navy fill, paper text — shared
+  by the speed toggle, the port chips and the activity tiles, so "chosen" looks
+  like one thing wherever it appears. Activities toggle off on a second press
+  and there is a **Clear all activities** button.
+
+One consequence worth stating: **repeats are no longer reachable from the port
+list**, because the chip is now a toggle. They are still legal, still scored,
+and still reachable by clicking the port on the chart — a chip showing `x2`
+means exactly that.
 
 ## Layout
 
@@ -76,14 +113,17 @@ went +0.65 → +1.48 MWh, just outside the window). Every route simulates **high
 by +1.5 to +15.7 MWh — a spread no single scalar closes, over published figures
 that are mutually inconsistent to begin with.
 
-The §5 canonical worked example lands on **base 17.55 × multiplier 6.52 = 114**.
+The §5 canonical worked example lands on **base 17.55 × multiplier 6.30 = 111**.
 The multiplier reads the itinerary, not the energy, so every *energy* change
 landed entirely in the base: 23.96 → 27.05 MWh on the electrical curve (base
 16.08 → 17.63, final 101 → 111), then 27.05 → 26.89 MWh on the speed regression
-(base → 17.55, final held at 111). The activities eco blend is the first change
-to move the multiplier itself (6.3 → 6.55, final 115), and the simplified
-14-activity set moved it again: the same four experiences are now single picks
-rather than six uses, and average eco 8.0 → 7.5, for 6.52 and a final of **114**.
+(base → 17.55, final held at 111). The activities eco blend was the first change
+to move the multiplier itself (6.3 → 6.55, final 115); the simplified
+14-activity set moved it again (6.52, final 114); and the gated activities
+factor has now moved it back. This week's four picks are three clean and one
+dirty — a majority, but the gate needs **seven picks as well**, so the factor
+falls from the blend's 5.25 to the 4–6 count band's 3, and the multiplier from
+6.52 to **6.30**. The base is untouched: same four picks, same flat energy.
 
 ## Speed model
 
@@ -122,6 +162,14 @@ that the regression is extrapolating past its observed range.
 
 ## Scoring (spec §5)
 
+> **This section, not the spec, is the current scoring contract.** §5 of
+> `LEIP_charter_game_spec_v2.md` still carries the pre-overhaul model (base 78 ×
+> 6.2 = 483.6, and a Relaxing/Active activity split that no longer exists). It
+> has been superseded twice by direct instruction — once by the base/multiplier
+> redesign, once by the gated activities factor below — and the spec has not
+> been re-issued. Where the two disagree, the build follows this file and the
+> fixtures in `DATA.scoringExamples`.
+
 **Base, 0–50**, two linear ladders and a penalty, with no floor:
 
 - **distance** — 5 points per 100 nm, capped at 25 (continuous, not stepped)
@@ -142,57 +190,67 @@ by band, with weights summing to 5:
 | ports visited | 1.25 | 1–3 | 4 | 5 | 6+ |
 | countries | 1.00 | 1 | 2 | 3 | 4+ |
 | anchor nights | 0.75 | 0–1 | 6+ | 2–3 | 4–5 |
-| activity **count band** | 0.50 | 0–3 | 4–7 | 8–11 | 12+ |
+| activity **count band** | 0.50 | 1–3 | 4–6 | 7+ | *(gated — see below)* |
 
 Anchor nights is deliberately non-monotonic — six or more nights at anchor
 drops back to 3 — which is why `bandLookup` takes ordered `[threshold, score]`
 pairs and lets the last match win rather than assuming a rising ladder.
 
-**Activities is the one factor that is not a plain band.** It blends how much
-the guests did with how cleanly they did it:
+**Activities is the one factor that is not a plain band.** The count band stops
+at 6; the last four points are a **gate**, not a slope:
 
 ```
-0 selected → 1
-otherwise  → (count band + average eco rating) / 2
+0 selected                                    → 1
+7+ selected AND a strict majority rated 6+    → 10
+otherwise                                     → the count band
 ```
 
 `eco` is the 1–10 rating each activity carries in Dataset 5, and it is hidden
-from the player. Six dirty picks and six clean ones are the same *count* and
-must not score alike — the blend is what makes the **choice** of activity
-matter, not just the number. Six eco-4 picks score 5.0; two eco-10 picks score
-5.5 and beat them outright.
+from the player. Seven dirty picks and seven clean ones are the same *count* and
+must not score alike — the gate is what makes the **choice** of activity matter,
+not just the number.
 
-Because only two of the fourteen are rated eco 10, the factor's own optimum is
-**8.333** — the twelve cleanest, `(10 + 6.667) / 2` — not 10. Reaching the top
-count band forces the dirty picks in. See Activities below.
+**Strict** majority: `clean × 2 > count`. Seven picks need four clean; an even
+split never counts. Eight of the fourteen are rated 6 or better, so a clean
+majority at seven picks is comfortably available.
+
+This replaced an earlier `(count band + average eco) / 2` blend, for two
+reasons. An average can be dragged up by a single pristine pick, where a
+majority rule cannot. And the blend capped the factor near **7.9** in practice —
+reaching the old 12+ count band forced the dirty picks into the average — which
+put a multiplier of 10, and therefore a perfect **500**, mathematically out of
+reach. The gate lands exactly on 10 and makes the ceiling real.
 
 The multiplier is **truncated to 2 dp**, and that is the actual multiplier
 rather than a display rounding: the scoreboard shows base and multiplier, so
-`base × multiplier` must be reproducible by hand from what is on screen. The
-eco blend is the first thing to produce a third decimal, and the published
-examples fix the direction — 8.725 → 8.72, 5.975 → 5.97, 1.855 → 1.85, all down.
+`base × multiplier` must be reproducible by hand from what is on screen. Base is
+shown to 1 dp and the multiplier to 2 for the same reason — at 1 dp the
+ambitious dash's ×5.85 would read ×5.9 and the arithmetic on screen would not
+close.
 
 **Final = base × multiplier**, rounded, ceiling 500, and negative where the base
 is. `ENGINE.computeScore` is pure — quantities in, score out, no route and no
-timeline — and the four worked examples in `DATA.scoringExamples` are asserted
+timeline — and the five worked examples in `DATA.scoringExamples` are asserted
 against it directly.
 
-The four worked examples, all reproducing exactly:
+The five worked examples, all reproducing exactly:
 
-| example | base | multiplier | final | activities factor |
-|---|---|---|---|---|
-| Hero | 42.5 | 8.72 | **371** | band 3 + eco 7.5 → 5.25 |
-| Purist | 49.5 | 8.15 | **403** | band 1 + eco 10.0 → 5.50 |
-| Ambitious dash | 31.0 | 5.97 | **185** | band 3 + eco 5.5 → 4.25 |
-| Go-nowhere | 6.0 | 1.85 | **11** | band 6 + eco 7.1 → 6.55 |
+| example | base | multiplier | product | final | activities factor |
+|---|---|---|---|---|---|
+| Hero | 42.5 | 9.20 | 391.0 | **391** | 7 picks, 7 clean → gate → 10 |
+| Purist | 49.5 | 7.70 | 381.2 | **381** | 2 picks → band 1 |
+| Ambitious dash | 31.0 | 5.85 | 181.3 | **181** | 4 picks, 2 clean → band 3 |
+| Go-nowhere | 6.0 | 1.80 | 10.8 | **11** | 7 picks, 1 clean → band 6 |
+| **Perfect** | 50.0 | 10.00 | 500.0 | **500** | 7 picks, 7 clean → gate → 10 |
 
-Purist is the clearest read on the blend: two activities, but the cleanest
-there are, and its 5.5 beats the hero's six-activity 5.25.
+Purist is the clearest read on the gate: two activities, and the cleanest there
+are, but seven is seven — choosing well is necessary, not sufficient. Go-nowhere
+is the mirror: seven picks clears the count, one clean does not clear the
+majority, so it stops at the band's 6.
 
-The multiplier's **formula** range is 1.0–10.0, but its **attainable** range
-stops at **9.83**: the activities factor cannot reach 10 with this activity set
-(above), and the other four factors are already maxed in that figure. The
-formula ceiling of 50 × 10 = 500 is likewise a formula ceiling.
+Perfect is the point of the rework. The multiplier's formula range and its
+**attainable** range are now the same 1.0–10.0, and `50 × 10 = 500` is a score a
+player can actually post rather than an arithmetic artefact.
 
 **Score Over 400 is clean-reachable.** Verified by optimised search — seeded
 from the poster routes, hill-climbed by single-port insert/swap/delete over

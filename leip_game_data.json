@@ -1,9 +1,9 @@
 {
  "_source": "Game_Inputs.xlsx (44 ports)",
- "_version": "v4 \u2014 44 ports, Astypalea Livadia, Category-driven colours",
+ "_version": "v4 — 44 ports, Astypalea Livadia, Category-driven colours",
  "_changes": [
-  "Ports 33 \u2192 44 (added Sidi Fredj, Split, Marseille, Valletta, Casablanca, Koper, Barcelona, Bizerte, Gibraltar, Vlore, Lateral)",
-  "Livadia MOVED to Astypalea (36.5423, 26.3429) \u2014 was wrongly at Tilos",
+  "Ports 33 → 44 (added Sidi Fredj, Split, Marseille, Valletta, Casablanca, Koper, Barcelona, Bizerte, Gibraltar, Vlore, Lateral)",
+  "Livadia MOVED to Astypalea (36.5423, 26.3429) — was wrongly at Tilos",
   "Casablanca & Gibraltar longitudes sign-corrected to west (negative)",
   "Spellings fixed: Marseille, Barcelona, Bizerte, Gibraltar",
   "Energy colour now from sheet's Category column (Green/Blue/Grey/Brown), NOT derived",
@@ -410,7 +410,7 @@
  "prop_curve_electrical": [
   {
    "kts": 0,
-   "electrical_kw": 0.0,
+   "electrical_kw": 0,
    "hotel_kw": 128.042
   },
   {
@@ -429,12 +429,12 @@
    "hotel_kw": 113.375
   }
  ],
- "_prop_curve_note": "PB GEN+Sea = ELECTRICAL power directly. NO propFactor conversion \u2014 deleted. Hotel 128 at rest / 113.4 underway.",
+ "_prop_curve_note": "PB GEN+Sea = ELECTRICAL power directly. NO propFactor conversion — deleted. Hotel 128 at rest / 113.4 underway.",
  "speed_model": {
-  "_method": "Predict speed distribution from TOTAL ROUTE DISTANCE via linear regression (distance-share basis), then apply +/-5% Hare/Tortoise correction. Do NOT hard-code a fixed split \u2014 it scales with route distance.",
+  "_method": "Predict speed distribution from TOTAL ROUTE DISTANCE via linear regression (distance-share basis), then apply +/-5% Hare/Tortoise correction. Do NOT hard-code a fixed split — it scales with route distance.",
   "regression_distance_shares": {
    "pct_14kn": {
-    "slope_per_nm": 7.3e-05,
+    "slope_per_nm": 0.000073,
     "intercept": 0.069,
     "_eq": "0.0073%*x + 6.90%"
    },
@@ -462,12 +462,12 @@
   "range_nm": 4500,
   "reference_speed_kts": 11,
   "reserve_mwh": 362.1,
-  "_derivation": "4500nm / 11kn = 409.1h; (771.8 prop + 113.4 hotel) kW \u00d7 409.1h = 362.1 MWh",
+  "_derivation": "4500nm / 11kn = 409.1h; (771.8 prop + 113.4 hotel) kW × 409.1h = 362.1 MWh",
   "_usage": "Realistic backstop (option 1). Depletes only after 50 MWh battery is spent. Near-impossible to exhaust in a week (~7x battery). The scoring TEETH remain the -1 point/MWh diesel penalty on the base; the reserve is physical honesty + the gauge drama when diesels wake."
  },
  "poster_routes": {
   "SOF_BLUE": {
-   "name": "South of France \u2014 Blue",
+   "name": "South of France — Blue",
    "ports": [
     "Savona",
     "Monaco",
@@ -494,7 +494,7 @@
    "published_nm_authoritative": 220
   },
   "SOF_GREEN": {
-   "name": "South of France & Corsica \u2014 Green",
+   "name": "South of France & Corsica — Green",
    "ports": [
     "Monaco",
     "Calvi",
@@ -514,7 +514,7 @@
    "note": "sheet marks 'Not Comparable for correction factor'"
   },
   "SARD_BLUE": {
-   "name": "Sardinia & Corsica \u2014 Blue",
+   "name": "Sardinia & Corsica — Blue",
    "ports": [
     "Calvi",
     "Ajaccio",
@@ -539,7 +539,7 @@
    "published_nm_authoritative": 370
   },
   "SARD_GREEN": {
-   "name": "Sardinia to Italy \u2014 Green",
+   "name": "Sardinia to Italy — Green",
    "ports": [
     "Salerno",
     "Olbia",
@@ -632,7 +632,7 @@
     "Marseille": 1.004,
     "Nice": 1.001,
     "Saint Tropez": 1.001,
-    "Saint-Jean-Cap-Ferrat": 1.0,
+    "Saint-Jean-Cap-Ferrat": 1,
     "Athens": 1.12,
     "Corfu": 1.112,
     "Kalathos": 1.041,
@@ -661,12 +661,12 @@
     "Gulluk": 1.035,
     "Gibraltar": 1.008,
     "Vlore": 1.131,
-    "Lateral": 1.697
+    "Lateral": 1.555
    },
    "Naples": {
     "Sidi Fredj": 1.002,
     "Salerno": 1.887,
-    "Ponte Persica": 1.0,
+    "Ponte Persica": 1,
     "Bonifacio": 1.049,
     "Calvi": 1.241,
     "Porto Vecchio": 1.057,
@@ -706,7 +706,7 @@
     "Gulluk": 1.243,
     "Gibraltar": 1.021,
     "Vlore": 1.929,
-    "Lateral": 2.503
+    "Lateral": 2.168
    },
    "Salerno": {
     "Sidi Fredj": 1.001,
@@ -751,11 +751,11 @@
     "Gulluk": 1.26,
     "Gibraltar": 1.018,
     "Vlore": 2.048,
-    "Lateral": 2.46
+    "Lateral": 2.135
    },
    "Ponte Persica": {
     "Sidi Fredj": 1.001,
-    "Naples": 1.0,
+    "Naples": 1,
     "Salerno": 2.897,
     "Bonifacio": 1.012,
     "Calvi": 1.173,
@@ -796,7 +796,7 @@
     "Gulluk": 1.267,
     "Gibraltar": 1.02,
     "Vlore": 2.019,
-    "Lateral": 2.487
+    "Lateral": 2.156
    },
    "Bonifacio": {
     "Sidi Fredj": 1.01,
@@ -830,7 +830,7 @@
     "Savona": 1.096,
     "Cagliari": 1.315,
     "Olbia": 1.858,
-    "Porto Cervo": 1.0,
+    "Porto Cervo": 1,
     "Porto Rotondo": 1.78,
     "Taormina": 1.164,
     "Koper": 3.258,
@@ -841,7 +841,7 @@
     "Gulluk": 1.144,
     "Gibraltar": 1.014,
     "Vlore": 1.404,
-    "Lateral": 2.75
+    "Lateral": 2.376
    },
    "Calvi": {
     "Sidi Fredj": 1.001,
@@ -852,12 +852,12 @@
     "Porto Vecchio": 2.149,
     "Split": 2.795,
     "Ajaccio": 1.425,
-    "Antibes": 1.0,
+    "Antibes": 1,
     "Cannes": 1.002,
     "Marseille": 1.03,
-    "Nice": 1.0,
+    "Nice": 1,
     "Saint Tropez": 1.003,
-    "Saint-Jean-Cap-Ferrat": 1.0,
+    "Saint-Jean-Cap-Ferrat": 1,
     "Athens": 1.366,
     "Corfu": 1.439,
     "Kalathos": 1.188,
@@ -886,7 +886,7 @@
     "Gulluk": 1.213,
     "Gibraltar": 1.024,
     "Vlore": 1.53,
-    "Lateral": 3.132
+    "Lateral": 2.667
    },
    "Porto Vecchio": {
     "Sidi Fredj": 1.07,
@@ -920,7 +920,7 @@
     "Savona": 1.085,
     "Cagliari": 1.241,
     "Olbia": 1.561,
-    "Porto Cervo": 1.0,
+    "Porto Cervo": 1,
     "Porto Rotondo": 1.496,
     "Taormina": 1.158,
     "Koper": 3.369,
@@ -931,7 +931,7 @@
     "Gulluk": 1.148,
     "Gibraltar": 1.051,
     "Vlore": 1.417,
-    "Lateral": 2.829
+    "Lateral": 2.439
    },
    "Split": {
     "Sidi Fredj": 1.49,
@@ -976,7 +976,7 @@
     "Gulluk": 1.261,
     "Gibraltar": 1.378,
     "Vlore": 1.049,
-    "Lateral": 3.378
+    "Lateral": 2.891
    },
    "Ajaccio": {
     "Sidi Fredj": 1.003,
@@ -1021,7 +1021,7 @@
     "Gulluk": 1.171,
     "Gibraltar": 1.019,
     "Vlore": 1.449,
-    "Lateral": 2.91
+    "Lateral": 2.5
    },
    "Antibes": {
     "Sidi Fredj": 1.001,
@@ -1029,15 +1029,15 @@
     "Salerno": 1.033,
     "Ponte Persica": 1.025,
     "Bonifacio": 1.043,
-    "Calvi": 1.0,
+    "Calvi": 1,
     "Porto Vecchio": 1.326,
     "Split": 2.475,
     "Ajaccio": 1.042,
-    "Cannes": 1.0,
+    "Cannes": 1,
     "Marseille": 1.206,
-    "Nice": 1.0,
-    "Saint Tropez": 1.0,
-    "Saint-Jean-Cap-Ferrat": 1.0,
+    "Nice": 1,
+    "Saint Tropez": 1,
+    "Saint-Jean-Cap-Ferrat": 1,
     "Athens": 1.283,
     "Corfu": 1.321,
     "Kalathos": 1.139,
@@ -1047,7 +1047,7 @@
     "Palma": 1.12,
     "Port d'Andratx": 1.061,
     "Valletta": 1.018,
-    "Monaco": 1.0,
+    "Monaco": 1,
     "Tivat": 1.768,
     "Casablanca": 1.038,
     "Venice": 4.785,
@@ -1066,7 +1066,7 @@
     "Gulluk": 1.16,
     "Gibraltar": 1.039,
     "Vlore": 1.396,
-    "Lateral": 3.615
+    "Lateral": 3.046
    },
    "Cannes": {
     "Sidi Fredj": 1.001,
@@ -1078,11 +1078,11 @@
     "Porto Vecchio": 1.352,
     "Split": 2.451,
     "Ajaccio": 1.036,
-    "Antibes": 1.0,
+    "Antibes": 1,
     "Marseille": 1.211,
-    "Nice": 1.0,
-    "Saint Tropez": 1.0,
-    "Saint-Jean-Cap-Ferrat": 1.0,
+    "Nice": 1,
+    "Saint Tropez": 1,
+    "Saint-Jean-Cap-Ferrat": 1,
     "Athens": 1.282,
     "Corfu": 1.319,
     "Kalathos": 1.138,
@@ -1092,7 +1092,7 @@
     "Palma": 1.123,
     "Port d'Andratx": 1.062,
     "Valletta": 1.016,
-    "Monaco": 1.0,
+    "Monaco": 1,
     "Tivat": 1.758,
     "Casablanca": 1.039,
     "Venice": 4.672,
@@ -1111,7 +1111,7 @@
     "Gulluk": 1.16,
     "Gibraltar": 1.04,
     "Vlore": 1.393,
-    "Lateral": 3.588
+    "Lateral": 3.027
    },
    "Marseille": {
     "Sidi Fredj": 1.004,
@@ -1156,7 +1156,7 @@
     "Gulluk": 1.134,
     "Gibraltar": 1.053,
     "Vlore": 1.325,
-    "Lateral": 3.552
+    "Lateral": 3.051
    },
    "Nice": {
     "Sidi Fredj": 1.001,
@@ -1164,15 +1164,15 @@
     "Salerno": 1.028,
     "Ponte Persica": 1.019,
     "Bonifacio": 1.05,
-    "Calvi": 1.0,
+    "Calvi": 1,
     "Porto Vecchio": 1.281,
     "Split": 2.505,
     "Ajaccio": 1.044,
-    "Antibes": 1.0,
-    "Cannes": 1.0,
+    "Antibes": 1,
+    "Cannes": 1,
     "Marseille": 1.201,
-    "Saint Tropez": 1.0,
-    "Saint-Jean-Cap-Ferrat": 1.0,
+    "Saint Tropez": 1,
+    "Saint-Jean-Cap-Ferrat": 1,
     "Athens": 1.284,
     "Corfu": 1.321,
     "Kalathos": 1.138,
@@ -1182,7 +1182,7 @@
     "Palma": 1.117,
     "Port d'Andratx": 1.059,
     "Valletta": 1.022,
-    "Monaco": 1.0,
+    "Monaco": 1,
     "Tivat": 1.779,
     "Casablanca": 1.038,
     "Venice": 4.947,
@@ -1201,7 +1201,7 @@
     "Gulluk": 1.161,
     "Gibraltar": 1.039,
     "Vlore": 1.398,
-    "Lateral": 3.658
+    "Lateral": 3.073
    },
    "Saint Tropez": {
     "Sidi Fredj": 1.001,
@@ -1213,11 +1213,11 @@
     "Porto Vecchio": 1.343,
     "Split": 2.365,
     "Ajaccio": 1.025,
-    "Antibes": 1.0,
-    "Cannes": 1.0,
+    "Antibes": 1,
+    "Cannes": 1,
     "Marseille": 1.179,
-    "Nice": 1.0,
-    "Saint-Jean-Cap-Ferrat": 1.0,
+    "Nice": 1,
+    "Saint-Jean-Cap-Ferrat": 1,
     "Athens": 1.274,
     "Corfu": 1.307,
     "Kalathos": 1.133,
@@ -1227,7 +1227,7 @@
     "Palma": 1.133,
     "Port d'Andratx": 1.067,
     "Valletta": 1.013,
-    "Monaco": 1.0,
+    "Monaco": 1,
     "Tivat": 1.719,
     "Casablanca": 1.039,
     "Venice": 4.317,
@@ -1246,23 +1246,23 @@
     "Gulluk": 1.153,
     "Gibraltar": 1.04,
     "Vlore": 1.376,
-    "Lateral": 3.481
+    "Lateral": 2.959
    },
    "Saint-Jean-Cap-Ferrat": {
-    "Sidi Fredj": 1.0,
+    "Sidi Fredj": 1,
     "Naples": 1.065,
     "Salerno": 1.028,
     "Ponte Persica": 1.019,
     "Bonifacio": 1.053,
-    "Calvi": 1.0,
+    "Calvi": 1,
     "Porto Vecchio": 1.282,
     "Split": 2.514,
     "Ajaccio": 1.045,
-    "Antibes": 1.0,
-    "Cannes": 1.0,
+    "Antibes": 1,
+    "Cannes": 1,
     "Marseille": 1.188,
-    "Nice": 1.0,
-    "Saint Tropez": 1.0,
+    "Nice": 1,
+    "Saint Tropez": 1,
     "Athens": 1.284,
     "Corfu": 1.323,
     "Kalathos": 1.139,
@@ -1272,7 +1272,7 @@
     "Palma": 1.117,
     "Port d'Andratx": 1.06,
     "Valletta": 1.022,
-    "Monaco": 1.0,
+    "Monaco": 1,
     "Tivat": 1.783,
     "Casablanca": 1.038,
     "Venice": 4.972,
@@ -1291,7 +1291,7 @@
     "Gulluk": 1.161,
     "Gibraltar": 1.039,
     "Vlore": 1.4,
-    "Lateral": 3.649
+    "Lateral": 3.065
    },
    "Athens": {
     "Sidi Fredj": 1.12,
@@ -1336,7 +1336,7 @@
     "Gulluk": 1.151,
     "Gibraltar": 1.09,
     "Vlore": 1.931,
-    "Lateral": 2.092
+    "Lateral": 1.87
    },
    "Corfu": {
     "Sidi Fredj": 1.112,
@@ -1381,7 +1381,7 @@
     "Gulluk": 1.309,
     "Gibraltar": 1.085,
     "Vlore": 2.678,
-    "Lateral": 2.29
+    "Lateral": 2.019
    },
    "Kalathos": {
     "Sidi Fredj": 1.041,
@@ -1422,11 +1422,11 @@
     "Barcelona": 1.07,
     "Bizerte": 1.053,
     "Bodrum": 2.014,
-    "Gocek": 1.0,
+    "Gocek": 1,
     "Gulluk": 2.512,
     "Gibraltar": 1.033,
     "Vlore": 1.295,
-    "Lateral": 1.871
+    "Lateral": 1.692
    },
    "Livadia": {
     "Sidi Fredj": 1.028,
@@ -1471,7 +1471,7 @@
     "Gulluk": 1.158,
     "Gibraltar": 1.023,
     "Vlore": 1.302,
-    "Lateral": 1.901
+    "Lateral": 1.713
    },
    "Santorini": {
     "Sidi Fredj": 1.023,
@@ -1516,7 +1516,7 @@
     "Gulluk": 1.075,
     "Gibraltar": 1.019,
     "Vlore": 1.257,
-    "Lateral": 1.892
+    "Lateral": 1.703
    },
    "Eivissa": {
     "Sidi Fredj": 1.004,
@@ -1561,7 +1561,7 @@
     "Gulluk": 1.048,
     "Gibraltar": 1.052,
     "Vlore": 1.177,
-    "Lateral": 1.982
+    "Lateral": 1.826
    },
    "Palma": {
     "Sidi Fredj": 1.005,
@@ -1606,7 +1606,7 @@
     "Gulluk": 1.063,
     "Gibraltar": 1.032,
     "Vlore": 1.215,
-    "Lateral": 2.17
+    "Lateral": 1.978
    },
    "Port d'Andratx": {
     "Sidi Fredj": 1.003,
@@ -1651,7 +1651,7 @@
     "Gulluk": 1.063,
     "Gibraltar": 1.038,
     "Vlore": 1.214,
-    "Lateral": 2.166
+    "Lateral": 1.978
    },
    "Valletta": {
     "Sidi Fredj": 1.041,
@@ -1696,7 +1696,7 @@
     "Gulluk": 1.02,
     "Gibraltar": 1.028,
     "Vlore": 1.017,
-    "Lateral": 1.913
+    "Lateral": 1.713
    },
    "Monaco": {
     "Sidi Fredj": 1.001,
@@ -1708,12 +1708,12 @@
     "Porto Vecchio": 1.255,
     "Split": 2.532,
     "Ajaccio": 1.049,
-    "Antibes": 1.0,
-    "Cannes": 1.0,
+    "Antibes": 1,
+    "Cannes": 1,
     "Marseille": 1.182,
-    "Nice": 1.0,
-    "Saint Tropez": 1.0,
-    "Saint-Jean-Cap-Ferrat": 1.0,
+    "Nice": 1,
+    "Saint Tropez": 1,
+    "Saint-Jean-Cap-Ferrat": 1,
     "Athens": 1.285,
     "Corfu": 1.323,
     "Kalathos": 1.139,
@@ -1741,7 +1741,7 @@
     "Gulluk": 1.161,
     "Gibraltar": 1.038,
     "Vlore": 1.402,
-    "Lateral": 3.666
+    "Lateral": 3.075
    },
    "Tivat": {
     "Sidi Fredj": 1.251,
@@ -1786,7 +1786,7 @@
     "Gulluk": 1.335,
     "Gibraltar": 1.2,
     "Vlore": 1.002,
-    "Lateral": 2.809
+    "Lateral": 2.437
    },
    "Casablanca": {
     "Sidi Fredj": 1.085,
@@ -1831,7 +1831,7 @@
     "Gulluk": 1.054,
     "Gibraltar": 1.042,
     "Vlore": 1.113,
-    "Lateral": 1.035
+    "Lateral": 1
    },
    "Venice": {
     "Sidi Fredj": 1.923,
@@ -1876,7 +1876,7 @@
     "Gulluk": 1.172,
     "Gibraltar": 1.741,
     "Vlore": 1.002,
-    "Lateral": 5.013
+    "Lateral": 4.14
    },
    "Genoa": {
     "Sidi Fredj": 1.002,
@@ -1907,7 +1907,7 @@
     "Tivat": 1.972,
     "Casablanca": 1.034,
     "Venice": 7.358,
-    "Savona": 1.0,
+    "Savona": 1,
     "Cagliari": 1.109,
     "Olbia": 1.055,
     "Porto Cervo": 1.011,
@@ -1921,7 +1921,7 @@
     "Gulluk": 1.197,
     "Gibraltar": 1.034,
     "Vlore": 1.484,
-    "Lateral": 3.821
+    "Lateral": 3.147
    },
    "Savona": {
     "Sidi Fredj": 1.002,
@@ -1952,7 +1952,7 @@
     "Tivat": 1.911,
     "Casablanca": 1.036,
     "Venice": 6.519,
-    "Genoa": 1.0,
+    "Genoa": 1,
     "Cagliari": 1.14,
     "Olbia": 1.086,
     "Porto Cervo": 1.043,
@@ -1966,7 +1966,7 @@
     "Gulluk": 1.184,
     "Gibraltar": 1.036,
     "Vlore": 1.455,
-    "Lateral": 3.809
+    "Lateral": 3.146
    },
    "Cagliari": {
     "Sidi Fredj": 1.024,
@@ -2005,13 +2005,13 @@
     "Taormina": 1.282,
     "Koper": 2.335,
     "Barcelona": 1.087,
-    "Bizerte": 1.0,
+    "Bizerte": 1,
     "Bodrum": 1.075,
     "Gocek": 1.064,
     "Gulluk": 1.081,
     "Gibraltar": 1.032,
     "Vlore": 1.31,
-    "Lateral": 2.29
+    "Lateral": 2.02
    },
    "Olbia": {
     "Sidi Fredj": 1.156,
@@ -2046,7 +2046,7 @@
     "Savona": 1.086,
     "Cagliari": 1.277,
     "Porto Cervo": 4.009,
-    "Porto Rotondo": 1.0,
+    "Porto Rotondo": 1,
     "Taormina": 1.185,
     "Koper": 3.079,
     "Barcelona": 1.116,
@@ -2056,16 +2056,16 @@
     "Gulluk": 1.142,
     "Gibraltar": 1.078,
     "Vlore": 1.405,
-    "Lateral": 2.711
+    "Lateral": 2.356
    },
    "Porto Cervo": {
     "Sidi Fredj": 1.057,
     "Naples": 1.049,
     "Salerno": 1.026,
     "Ponte Persica": 1.01,
-    "Bonifacio": 1.0,
+    "Bonifacio": 1,
     "Calvi": 1.289,
-    "Porto Vecchio": 1.0,
+    "Porto Vecchio": 1,
     "Split": 2.458,
     "Ajaccio": 1.263,
     "Antibes": 1.036,
@@ -2101,7 +2101,7 @@
     "Gulluk": 1.144,
     "Gibraltar": 1.03,
     "Vlore": 1.41,
-    "Lateral": 2.697
+    "Lateral": 2.338
    },
    "Porto Rotondo": {
     "Sidi Fredj": 1.169,
@@ -2135,7 +2135,7 @@
     "Genoa": 1.034,
     "Savona": 1.065,
     "Cagliari": 1.352,
-    "Olbia": 1.0,
+    "Olbia": 1,
     "Porto Cervo": 3.145,
     "Taormina": 1.188,
     "Koper": 3.046,
@@ -2146,7 +2146,7 @@
     "Gulluk": 1.142,
     "Gibraltar": 1.083,
     "Vlore": 1.402,
-    "Lateral": 2.703
+    "Lateral": 2.352
    },
    "Taormina": {
     "Sidi Fredj": 1.143,
@@ -2191,7 +2191,7 @@
     "Gulluk": 1.069,
     "Gibraltar": 1.091,
     "Vlore": 1.08,
-    "Lateral": 2.165
+    "Lateral": 1.92
    },
    "Koper": {
     "Sidi Fredj": 1.803,
@@ -2221,7 +2221,7 @@
     "Monaco": 4.078,
     "Tivat": 1.177,
     "Casablanca": 1.559,
-    "Venice": 1.0,
+    "Venice": 1,
     "Genoa": 5.39,
     "Savona": 4.935,
     "Cagliari": 2.335,
@@ -2236,7 +2236,7 @@
     "Gulluk": 1.245,
     "Gibraltar": 1.651,
     "Vlore": 1.101,
-    "Lateral": 4.685
+    "Lateral": 3.89
    },
    "Barcelona": {
     "Sidi Fredj": 1.006,
@@ -2281,7 +2281,7 @@
     "Gulluk": 1.077,
     "Gibraltar": 1.086,
     "Vlore": 1.244,
-    "Lateral": 2.714
+    "Lateral": 2.472
    },
    "Bizerte": {
     "Sidi Fredj": 1.039,
@@ -2314,7 +2314,7 @@
     "Venice": 1.901,
     "Genoa": 1.009,
     "Savona": 1.026,
-    "Cagliari": 1.0,
+    "Cagliari": 1,
     "Olbia": 1.018,
     "Porto Cervo": 1.034,
     "Porto Rotondo": 1.051,
@@ -2326,7 +2326,7 @@
     "Gulluk": 1.045,
     "Gibraltar": 1.023,
     "Vlore": 1.177,
-    "Lateral": 2.008
+    "Lateral": 1.792
    },
    "Bodrum": {
     "Sidi Fredj": 1.032,
@@ -2371,7 +2371,7 @@
     "Gulluk": 7.407,
     "Gibraltar": 1.027,
     "Vlore": 1.343,
-    "Lateral": 1.915
+    "Lateral": 1.726
    },
    "Gocek": {
     "Sidi Fredj": 1.028,
@@ -2391,7 +2391,7 @@
     "Saint-Jean-Cap-Ferrat": 1.139,
     "Athens": 1.101,
     "Corfu": 1.229,
-    "Kalathos": 1.0,
+    "Kalathos": 1,
     "Livadia": 1.29,
     "Santorini": 1.024,
     "Eivissa": 1.038,
@@ -2416,7 +2416,7 @@
     "Gulluk": 2.417,
     "Gibraltar": 1.023,
     "Vlore": 1.293,
-    "Lateral": 1.88
+    "Lateral": 1.699
    },
    "Gulluk": {
     "Sidi Fredj": 1.035,
@@ -2461,7 +2461,7 @@
     "Gocek": 2.417,
     "Gibraltar": 1.03,
     "Vlore": 1.376,
-    "Lateral": 1.931
+    "Lateral": 1.739
    },
    "Gibraltar": {
     "Sidi Fredj": 1.008,
@@ -2506,7 +2506,7 @@
     "Gocek": 1.023,
     "Gulluk": 1.03,
     "Vlore": 1.102,
-    "Lateral": 1.127
+    "Lateral": 1.067
    },
    "Vlore": {
     "Sidi Fredj": 1.131,
@@ -2551,54 +2551,54 @@
     "Gocek": 1.293,
     "Gulluk": 1.376,
     "Gibraltar": 1.102,
-    "Lateral": 2.409
+    "Lateral": 2.114
    },
    "Lateral": {
-    "Sidi Fredj": 1.697,
-    "Naples": 2.503,
-    "Salerno": 2.46,
-    "Ponte Persica": 2.487,
-    "Bonifacio": 2.75,
-    "Calvi": 3.132,
-    "Porto Vecchio": 2.829,
-    "Split": 3.378,
-    "Ajaccio": 2.91,
-    "Antibes": 3.615,
-    "Cannes": 3.588,
-    "Marseille": 3.552,
-    "Nice": 3.658,
-    "Saint Tropez": 3.481,
-    "Saint-Jean-Cap-Ferrat": 3.649,
-    "Athens": 2.092,
-    "Corfu": 2.29,
-    "Kalathos": 1.871,
-    "Livadia": 1.901,
-    "Santorini": 1.892,
-    "Eivissa": 1.982,
-    "Palma": 2.17,
-    "Port d'Andratx": 2.166,
-    "Valletta": 1.913,
-    "Monaco": 3.666,
-    "Tivat": 2.809,
-    "Casablanca": 1.035,
-    "Venice": 5.013,
-    "Genoa": 3.821,
-    "Savona": 3.809,
-    "Cagliari": 2.29,
-    "Olbia": 2.711,
-    "Porto Cervo": 2.697,
-    "Porto Rotondo": 2.703,
-    "Taormina": 2.165,
-    "Koper": 4.685,
-    "Barcelona": 2.714,
-    "Bizerte": 2.008,
-    "Bodrum": 1.915,
-    "Gocek": 1.88,
-    "Gulluk": 1.931,
-    "Gibraltar": 1.127,
-    "Vlore": 2.409
+    "Sidi Fredj": 1.555,
+    "Naples": 2.168,
+    "Salerno": 2.135,
+    "Ponte Persica": 2.156,
+    "Bonifacio": 2.376,
+    "Calvi": 2.667,
+    "Porto Vecchio": 2.439,
+    "Split": 2.891,
+    "Ajaccio": 2.5,
+    "Antibes": 3.046,
+    "Cannes": 3.027,
+    "Marseille": 3.051,
+    "Nice": 3.073,
+    "Saint Tropez": 2.959,
+    "Saint-Jean-Cap-Ferrat": 3.065,
+    "Athens": 1.87,
+    "Corfu": 2.019,
+    "Kalathos": 1.692,
+    "Livadia": 1.713,
+    "Santorini": 1.703,
+    "Eivissa": 1.826,
+    "Palma": 1.978,
+    "Port d'Andratx": 1.978,
+    "Valletta": 1.713,
+    "Monaco": 3.075,
+    "Tivat": 2.437,
+    "Casablanca": 1,
+    "Venice": 4.14,
+    "Genoa": 3.147,
+    "Savona": 3.146,
+    "Cagliari": 2.02,
+    "Olbia": 2.356,
+    "Porto Cervo": 2.338,
+    "Porto Rotondo": 2.352,
+    "Taormina": 1.92,
+    "Koper": 3.89,
+    "Barcelona": 2.472,
+    "Bizerte": 1.792,
+    "Bodrum": 1.726,
+    "Gocek": 1.699,
+    "Gulluk": 1.739,
+    "Gibraltar": 1.067,
+    "Vlore": 2.114
    }
   },
-  "_note": "44-port sea-lane correction, regenerated. Livadia ratios reflect Astypalea position."
+  "_note": "44-port sea-lane correction, regenerated. Livadia ratios reflect Astypalea position. Lateral relocated to -1.3793, 50.9095; its 43 ratios rescaled by tools/relocate_port.mjs from the game's own sea lanes — re-issue from source when the pack can be regenerated."
  }
 }

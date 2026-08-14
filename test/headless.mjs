@@ -314,87 +314,97 @@ section('§5 Scoring formula — the four worked examples, against computeScore 
   const wsum = Object.keys(mc.weights).reduce((a, k) => a + mc.weights[k], 0);
   check(`weights sum to ${mc.weightSum}, keeping the multiplier on 1-10`,
     Math.abs(wsum - mc.weightSum) < 1e-9, `got ${wsum}`);
+  const af = mc.activitiesFactor;
   const worstMult = E.computeScore(q({})).multiplier;
-  const best = q({ countries: 9, ports: 9, anchorNights: 4, activityUses: 99,
-    activityEcoAvg: 10, rechargeEnergy: 'green' });
+  const best = q({ countries: 9, ports: 9, anchorNights: 4, activityUses: 9,
+    activityEcoClean: 9, rechargeEnergy: 'green' });
   const bestMult = E.computeScore(best).multiplier;
   check(`multiplier spans ${worstMult} to ${bestMult}`, worstMult === mc.min && bestMult === mc.max);
-  // The eco blend means COUNT ALONE no longer maxes the activities factor:
-  // the ceiling is only reachable by choosing clean activities as well.
-  const dirtyMax = E.computeScore(Object.assign({}, best, { activityEcoAvg: 2 })).multiplier;
+  // COUNT ALONE cannot max the activities factor: the band stops at 6 and
+  // the last four points are gated on a strict clean majority.
+  const dirtyMax = E.computeScore(Object.assign({}, best, { activityEcoClean: 0 })).multiplier;
   check(`a perfect week on dirty activities cannot reach the ceiling (${dirtyMax} vs ${mc.max})`,
     dirtyMax < mc.max, `${dirtyMax}`);
-  // ATTAINABILITY, which is now a different question from the formula's
-  // range. With fourteen one-off activities and only two rated eco 10,
-  // reaching the top COUNT band (12+) forces dirty picks in, so the
-  // activities factor cannot reach 10 in play — and neither, therefore,
-  // can the multiplier. Computed from the data, not asserted as a
-  // constant, so it tracks any future re-rating of the sheet.
+  // ATTAINABILITY. This used to be the place the suite recorded that a
+  // perfect week was IMPOSSIBLE: the old (count band + average eco) / 2
+  // blend topped out near 7.9 because reaching the 12+ count band forced
+  // dirty picks into the average, so neither the factor nor the multiplier
+  // could reach 10. The gate replaced it precisely to close that gap, so
+  // the check now runs the other way — build the best selection the SHEET
+  // actually allows and require that it does reach the ceiling.
   {
-    const eco = D.activities.map(a => a.eco).sort((x, y) => y - x);
-    let bestFactor = mc.activitiesFactor.emptyScore;
-    let bestN = 0;
-    for (let n = 1; n <= eco.length; n++) {
-      const avg = eco.slice(0, n).reduce((a, b) => a + b, 0) / n;
-      const f = (E.bandLookup(mc.bands.activities, n) + avg) / 2;
-      if (f > bestFactor) { bestFactor = f; bestN = n; }
-    }
-    const attainable = E.computeScore(q({ countries: 9, ports: 9, anchorNights: 4,
-      activityUses: bestN, activityEcoAvg: eco.slice(0, bestN).reduce((a, b) => a + b, 0) / bestN,
-      rechargeEnergy: 'green' })).multiplier;
-    check(`the activities factor tops out at ${bestFactor.toFixed(3)} on ${bestN} picks, not ${mc.max}`,
-      bestFactor > 8 && bestFactor < mc.max, `${bestFactor}`);
-    check(`so the attainable multiplier is ${attainable}, below the formula's ${mc.max}`,
-      attainable < mc.max && attainable > 9.5, `${attainable}`);
+    const clean = D.activities.filter(a => a.eco >= af.cleanEcoMin).length;
+    check(`the sheet carries ${clean} clean activities, enough for the gate's ` +
+      `${af.topMinCount} with a strict majority`,
+      clean >= af.topMinCount && clean * 2 > af.topMinCount);
+    const top = E.computeScore(q({ countries: 9, ports: 9, anchorNights: 4,
+      activityUses: af.topMinCount, activityEcoClean: af.topMinCount,
+      rechargeEnergy: 'green' }));
+    check(`the activities factor reaches ${mc.max} on ${af.topMinCount} clean picks`,
+      top.factors.activities.score === af.topScore && af.topScore === mc.max);
+    check(`so the attainable multiplier is ${top.multiplier} — the formula's own ceiling`,
+      top.multiplier === mc.max);
     // The other four factors must still be individually maxable, or the
-    // shortfall is somewhere it should not be.
+    // ceiling is being reached for the wrong reason.
     check('every other factor still reaches 10 in play',
       E.bandLookup(mc.bands.countries, 4) === mc.max &&
       E.bandLookup(mc.bands.ports, 6) === mc.max &&
       E.bandLookup(mc.bands.anchor, 4) === mc.max &&
       mc.recharge.green === mc.max);
   }
-  // ---- The activities factor: count blended with eco quality ----
-  check('no activities scores the floor, whatever the eco figure says',
-    E.computeScore(q({ activityUses: 0, activityEcoAvg: 10 })).factors.activities.score ===
-      mc.activitiesFactor.emptyScore);
-  check('the factor is (count band + average eco) / 2',
-    E.computeScore(q({ activityUses: 6, activityEcoAvg: 7.5 })).factors.activities.score === 5.25 &&
-    E.computeScore(q({ activityUses: 2, activityEcoAvg: 10 })).factors.activities.score === 5.5);
-  // The point of the blend: same count, different choices, different score.
+  // ---- The activities factor: a count band, then a quality gate ----
+  const actScore = (n, clean) =>
+    E.computeScore(q({ activityUses: n, activityEcoClean: clean })).factors.activities.score;
+  check('no activities scores the floor, whatever the eco figures say',
+    actScore(0, 0) === af.emptyScore);
+  check('the count bands are 1-3 -> 1, 4-6 -> 3, 7+ -> 6',
+    [1, 2, 3].every(n => actScore(n, 0) === 1) &&
+    [4, 5, 6].every(n => actScore(n, 0) === 3) &&
+    [7, 10, 14].every(n => actScore(n, 0) === 6));
+  // The point of the gate: same count, different choices, different score.
   {
-    const dirty = E.computeScore(q({ activityUses: 12, activityEcoAvg: 2 })).factors.activities.score;
-    const clean = E.computeScore(q({ activityUses: 12, activityEcoAvg: 10 })).factors.activities.score;
-    check(`twelve dirty uses (${dirty}) score below twelve clean ones (${clean})`, dirty < clean);
+    const dirty = actScore(7, 3), clean = actScore(7, 4);
+    check(`seven picks score ${dirty} on a minority clean and ${clean} on a majority`,
+      dirty === 6 && clean === af.topScore);
   }
-  // And two clean activities can beat six dirty ones — quality is not a
-  // tiebreak on quantity, it is half the factor.
-  check('two eco-10 activities beat six eco-4 ones',
-    E.computeScore(q({ activityUses: 2, activityEcoAvg: 10 })).factors.activities.score >
-    E.computeScore(q({ activityUses: 6, activityEcoAvg: 4 })).factors.activities.score);
-  // Simulated end-to-end: with one-off picks the average is a plain mean
-  // over the selection, and a dirty pick genuinely drags it down.
+  // STRICT majority, stated as its own case because an even split is the
+  // one a "more than half" rule is easy to get wrong.
+  check('an even split is not a majority — 8 picks need 5 clean, not 4',
+    actScore(8, 4) === 6 && actScore(8, 5) === af.topScore);
+  // Quality is a GATE, not a slope: below the count threshold it buys
+  // nothing at all, which is the deliberate reversal of the old blend.
+  check(`fewer than ${af.topMinCount} picks cannot open the gate however clean they are`,
+    actScore(6, 6) === 3 && actScore(3, 3) === 1);
+  check('six spotless picks score below seven mostly-spotless ones',
+    actScore(6, 6) < actScore(7, 4));
+  // Simulated end-to-end: the clean count is a plain count over the
+  // selection, and it is what decides the factor.
   {
-    const byEco = D.activities.slice().sort((x, y) => y.eco - x.eco);
-    const clean3 = byEco.slice(0, 3);
-    const dirtiest = byEco[byEco.length - 1];
+    const clean = D.activities.filter(a => a.eco >= af.cleanEcoMin);
+    const dirty = D.activities.filter(a => a.eco < af.cleanEcoMin);
     const route = ['Nice', 'Monaco'];
     const mk = (list) => {
       const a = {}; list.forEach((x) => { a[x.id] = 1; });
       return E.simulate({ route, speed: 'slow', nights: 4, activities: a });
     };
-    const cleanSim = mk(clean3);
-    const mixedSim = mk(clean3.concat([dirtiest]));
-    const wantClean = clean3.reduce((n, x) => n + x.eco, 0) / 3;
-    const wantMixed = (clean3.reduce((n, x) => n + x.eco, 0) + dirtiest.eco) / 4;
-    check(`eco average is the mean of the picks (${cleanSim.score.factors.activities.avgEco.toFixed(2)})`,
-      Math.abs(cleanSim.score.factors.activities.avgEco - wantClean) < 1e-9);
-    check(`adding ${dirtiest.name} (eco ${dirtiest.eco}) drags the average to ${wantMixed.toFixed(2)}`,
-      Math.abs(mixedSim.score.factors.activities.avgEco - wantMixed) < 1e-9 &&
-      mixedSim.score.factors.activities.avgEco < cleanSim.score.factors.activities.avgEco);
-    // A fourth pick raises nothing here: same count band, worse average.
-    check('a dirty fourth pick can LOWER the factor despite raising the count',
-      mixedSim.score.factors.activities.score < cleanSim.score.factors.activities.score);
+    const sevenClean = mk(clean.slice(0, 7));
+    const fourThree = mk(clean.slice(0, 4).concat(dirty.slice(0, 3)));
+    const threeFour = mk(clean.slice(0, 3).concat(dirty.slice(0, 4)));
+    check(`seven clean picks simulate to the ceiling (clean ${sevenClean.score.factors.activities.clean}/7)`,
+      sevenClean.score.factors.activities.clean === 7 &&
+      sevenClean.score.factors.activities.score === af.topScore);
+    check('four clean and three dirty still opens the gate',
+      fourThree.score.factors.activities.clean === 4 &&
+      fourThree.score.factors.activities.topReached === true);
+    check('three clean and four dirty does not',
+      threeFour.score.factors.activities.clean === 3 &&
+      threeFour.score.factors.activities.topReached === false &&
+      threeFour.score.factors.activities.score === 6);
+    // Swapping a clean pick for a dirty one at the SAME count is the whole
+    // design: quantity held constant, the choice alone moves the score.
+    check(`one swap costs ${fourThree.score.factors.activities.score - threeFour.score.factors.activities.score} ` +
+      'of the factor at identical count',
+      threeFour.score.factors.activities.score < fourThree.score.factors.activities.score);
   }
   // Selecting the same activity twice is not a thing any more.
   {
@@ -404,8 +414,8 @@ section('§5 Scoring formula — the four worked examples, against computeScore 
       twice.inputs.activities.A03 === 1 && twice.score.factors.activities.value === 1);
   }
   check('the multiplier truncates to 2 dp, so base x multiplier is hand-checkable',
-    E.computeScore(q({ countries: 3, ports: 6, anchorNights: 4, activityUses: 6,
-      activityEcoAvg: 7.5, rechargeEnergy: 'green' })).multiplier === 8.72);
+    E.computeScore(q({ countries: 4, ports: 7, anchorNights: 1, activityUses: 4,
+      activityEcoClean: 2, rechargeEnergy: 'grey' })).multiplier === 5.85);
   check('anchor nights are non-monotonic: 6+ scores below 4-5',
     E.bandLookup(mc.bands.anchor, 6) < E.bandLookup(mc.bands.anchor, 4));
   check('an unreached recharge port scores the floor, an unrated one scores grey',
@@ -450,11 +460,30 @@ section('Sea lanes — every leg stays on water, and scoring uses the sailed pat
   const SL = g.LEIP_SEALANES;
   check('sea-lane data present: a berth for every port', !!SL &&
     D.ports.every(p => Array.isArray(SL.anchorages[p.name])));
-  check('berths sit off the charted position, not on it',
-    D.ports.every(p => {
+  // Measured in NAUTICAL MILES, not in summed degrees. The old form added
+  // |dlat| + |dlon| against a flat 0.6 limit, which is two different units
+  // in a trench coat: a degree of longitude is 0.63 of a degree of latitude
+  // at Lateral's 51N and 0.77 in the Med, so the same real distance scored
+  // differently depending on where the port was. It only ever passed
+  // because every port was in the Mediterranean. The limit is the builder's
+  // own search radius — anchorMaxCells, 40 cells of 0.01 degrees, 24 nm —
+  // so what is actually asserted is that no berth was pushed further out
+  // than the tool is allowed to push it.
+  {
+    const R = 3440.065, rad = (d) => d * Math.PI / 180;
+    const off = D.ports.map((p) => {
       const b = E.berth(p.name);
-      return Math.abs(b.lat - p.lat) + Math.abs(b.lon - p.lon) < 0.6;
-    }));
+      const s = Math.sin(rad(b.lat - p.lat) / 2) ** 2 +
+        Math.cos(rad(p.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lon - p.lon) / 2) ** 2;
+      return { name: p.name, nm: 2 * R * Math.asin(Math.min(1, Math.sqrt(s))) };
+    }).sort((a, b) => b.nm - a.nm);
+    check(`every berth is within the builder's 24 nm search of its port ` +
+      `(furthest ${off[0].name} ${off[0].nm.toFixed(1)} nm)`,
+      off[0].nm <= 24, `${off[0].name} ${off[0].nm.toFixed(1)} nm`);
+    check('and none is ON its port — a berth is off the beach by construction',
+      off[off.length - 1].nm > 0.5,
+      `${off[off.length - 1].name} ${off[off.length - 1].nm.toFixed(2)} nm`);
+  }
   const gv = E.pathNm(E.legPath('Genoa', 'Venice'));
   check(`a leg that must round Italy is scored as sailed, not as the crow flies (${gv.toFixed(0)} nm vs ${D.distanceMatrixNm.Genoa.Venice} nm)`,
     gv > D.distanceMatrixNm.Genoa.Venice * 3);

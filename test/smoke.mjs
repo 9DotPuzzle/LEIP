@@ -150,11 +150,36 @@ section('Planning panel — the playtest rules the markup must keep');
     !/stepno/.test(html) && !/<h3>\s*\d/.test(panel));
   check('the four headings read plainly',
     ['>Route<', '>Speed<', 'Nights at anchor', '>Activities<'].every(h => panel.includes(h)));
-  check('the intro block leads the panel',
-    panel.indexOf('id="intro"') > 0 &&
-    panel.indexOf('id="intro"') < panel.indexOf('>Route<') &&
-    panel.includes('A week at sea, on battery alone.') &&
-    panel.includes('Nine achievements are hidden in the planning.'));
+  // The intro copy moved OFF the panel and onto the landing screen, so the
+  // rules are stated once, in one place, and the panel is all controls.
+  // Both halves are asserted — gone from here, present there — because
+  // "moved" is the requirement and either half alone would pass a copy.
+  check('the panel carries no prose intro; Route leads it',
+    !panel.includes('id="intro"') && panel.indexOf('>Route<') > 0);
+  const landing = html.slice(html.indexOf('<div id="landing"'), html.indexOf('<div id="results"'));
+  check('the landing screen carries the headline, the body and the way in',
+    landing.includes('Can you plan the most optimal charter?') &&
+    landing.includes('Nine achievements are hidden in the planning.') &&
+    landing.includes('Plan your week at sea.') &&
+    landing.includes('id="btn-landing-go"'));
+  check('the landing screen is up before the first frame, not revealed after one',
+    /<div id="landing" class="overlay">/.test(html));
+  check('the header carries an info button that reopens it',
+    /id="btn-info"/.test(html) && html.includes("on('btn-info', 'click'"));
+
+  // The rename is PLAYER-FACING ONLY. The wordmark, the HUD and the copy
+  // read ENX50; the data-block globals, the script ids and the filenames
+  // are untouched, and this check is what stops a well-meaning
+  // find-and-replace from taking them with it.
+  check('the wordmark, the HUD and the landing copy all read ENX50',
+    html.includes('<div id="brand">ENX50') &&
+    html.includes('<div class="tb-brand">ENX50<em>70M E-HYBRID · 50MWH</em>') &&
+    landing.includes('ENX50 carries enough installed energy') &&
+    html.includes('<title>ENX50'));
+  check('the rename did NOT reach the globals, the script ids or the fonts',
+    html.includes('globalThis.LEIP_DATA') && html.includes('globalThis.LEIP_THEME') &&
+    html.includes('id="leip-engine"') && html.includes('OCR-A-LEIP') &&
+    !/ENX50_/.test(html) && !/id="enx50-/.test(html));
 
   const { sandbox: sb2 } = makeSandbox();
   const g2 = loadGame(sb2);
@@ -173,6 +198,102 @@ section('Planning panel — the playtest rules the markup must keep');
     `${(spd.match(/<svg/g) || []).length} icons rendered`);
   check('both speed icons live in the THEME, not inline in the UI',
     !!g2.LEIP_THEME.icons.defs.SPD_TURTLE && !!g2.LEIP_THEME.icons.defs.SPD_HARE);
+
+  // ---- the picker groups by country ----
+  const D2 = g2.LEIP_DATA;
+  const list = sb2.document.getElementById('port-list').innerHTML;
+  const heads = (list.match(/<div class="port-country">[\s\S]*?<b>([^<]+)<\/b>/g) || [])
+    .map(s => s.replace(/[\s\S]*<b>/, '').replace('</b>', ''));
+  const want = [...new Set(D2.ports.map(p => p.country))];
+  check(`one heading per country, ${want.length} of them, none empty and none repeated`,
+    heads.length === want.length && new Set(heads).size === heads.length &&
+    want.every(c => heads.includes(c)), heads.join(', '));
+  check('the headings are the DERIVED country, not the pack region',
+    heads.includes('Italy') && heads.includes('France') &&
+    !heads.some(h => /\(|Sardegna|Siciliy|Corsica|Nothern/.test(h)),
+    heads.join(', '));
+  check('every one of the 44 ports is under exactly one heading',
+    (list.match(/class="port-chip"/g) || []).length === D2.ports.length);
+  check('the headings run in the DATA-block order, not alphabetically',
+    heads.filter(h => D2.countryOrder.includes(h)).join() ===
+      D2.countryOrder.filter(c => heads.includes(c)).join(), heads.join(', '));
+  {
+    // Alphabetical WITHIN each group.
+    const groups = list.split('<div class="port-group">').slice(1);
+    const unsorted = groups.map((grp) => {
+      const names = (grp.match(/data-port="([^"]+)"/g) || []).map(s => s.slice(11, -1));
+      return names.join() === names.slice().sort().join() ? null : names[0];
+    }).filter(Boolean);
+    check('ports run alphabetically inside each country', unsorted.length === 0, unsorted.join(', '));
+  }
+
+  // ---- selecting, dropping and reordering ----
+  const A2 = g2.LEIP_APP;
+  A2.clearRoute();
+  A2.togglePort('Nice'); A2.togglePort('Monaco'); A2.togglePort('Cannes');
+  check('a chip adds the port', A2.getState().inputs.route.join() === 'Nice,Monaco,Cannes');
+  A2.togglePort('Monaco');
+  check('the same chip again drops it', A2.getState().inputs.route.join() === 'Nice,Cannes');
+  A2.pickPort('Nice');                       // a repeat, as only the chart can make
+  A2.dropPort('Nice');
+  check('dropping a repeated port takes the MOST RECENT instance',
+    A2.getState().inputs.route.join() === 'Nice,Cannes');
+  A2.clearRoute();
+  ['Nice', 'Monaco', 'Cannes', 'Antibes'].forEach((n) => A2.pickPort(n));
+  A2.reorderRoute(0, 2);
+  check('a stop drags to a new position and the rest keep their order',
+    A2.getState().inputs.route.join() === 'Monaco,Cannes,Nice,Antibes',
+    A2.getState().inputs.route.join());
+  A2.reorderRoute(3, 0);
+  check('and it can be dragged back to the front',
+    A2.getState().inputs.route.join() === 'Antibes,Monaco,Cannes,Nice');
+  {
+    const before = A2.getState().inputs.route.join();
+    A2.reorderRoute(0, 9); A2.reorderRoute(-1, 0); A2.reorderRoute(2, 2);
+    check('an out-of-range or no-op drag changes nothing',
+      A2.getState().inputs.route.join() === before);
+  }
+  // Reordering is a real re-timing of the week, not a relabelling: the same
+  // ports in a different order sail a different distance.
+  {
+    const a = g2.LEIP_ENGINE.simulate({ route: ['Athens', 'Nice', 'Corfu'], speed: 'slow', nights: 4, activities: {} });
+    const b = g2.LEIP_ENGINE.simulate({ route: ['Nice', 'Corfu', 'Athens'], speed: 'slow', nights: 4, activities: {} });
+    check(`order changes the week (${a.coveredNm.toFixed(0)} nm vs ${b.coveredNm.toFixed(0)} nm)`,
+      Math.abs(a.coveredNm - b.coveredNm) > 1);
+  }
+
+  // ---- activities: one selected style, and a way to clear them ----
+  // NOTE ON WHAT THIS CAN SEE. The tiles' selected class is applied to live
+  // nodes by refreshPlanning, and this sandbox's element stub does not
+  // model querySelector, so innerHTML here never shows it. What is checked
+  // here is the contract either side of that gap — the markup the tiles are
+  // built with, the state the API holds, and the CSS rule that renders it.
+  // That the class actually lands is checked in the browser, by the
+  // activities-selected shot in tools/shots.mjs.
+  const onTiles = sb2.document.getElementById('activity-list').innerHTML;
+  check('every tile is built unselected and says so for screen readers',
+    (onTiles.match(/class="act-tile"/g) || []).length === D2.activities.length &&
+    (onTiles.match(/aria-pressed="false"/g) || []).length === D2.activities.length);
+  A2.setActivity('A02', 1); A2.setActivity('A07', 1);
+  check('selecting activities holds them in state',
+    Object.keys(A2.getState().inputs.activities).sort().join() === 'A02,A07');
+  A2.setActivity('A02', 0);
+  check('pressing a selected activity deselects it',
+    !A2.getState().inputs.activities.A02 && !!A2.getState().inputs.activities.A07);
+  A2.clearActivities();
+  check('clear all empties the selection',
+    Object.keys(A2.getState().inputs.activities).length === 0);
+  check('the clear-all button exists and the icons carry their tone class',
+    html.includes('id="btn-clear-acts"') && /class="t-\w+"/.test(onTiles));
+  // One selected style across the panel: the same declaration serves the
+  // speed toggle, the port chips and the activity tiles.
+  {
+    const rule = html.slice(html.indexOf('#speed-toggle button.on, #plan #speed-toggle button.on,'));
+    const decl = rule.slice(0, rule.indexOf('}'));
+    check('speed, ports and activities share one dark-navy selected rule',
+      decl.includes('.port-chip.on') && decl.includes('.act-tile.on') &&
+      decl.includes('background: var(--ink-fixed)') && decl.includes('color: var(--paper)'));
+  }
 }
 
 // ================================================================ playback HUD

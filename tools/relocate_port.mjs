@@ -135,7 +135,12 @@ for (const p of pack.ports) {
     port: p.port, gcWas, gcNow, rWas, rNow, packRatio: rp,
     routerWas: rWas / gcWas,
     navWas: rp * gcWas,
-    ratioNew: +(rp * gcWas * (rNow / rWas) / gcNow).toFixed(3)
+    // Floored at 1: a correction below 1 says the sea route is shorter
+    // than the great circle, which is not a thing. It can fall out of the
+    // arithmetic on a leg the pack already scored as near-straight (an
+    // Atlantic run with a ratio of 1.03 has no room for the rescale's
+    // approximation error), and the engine asserts >= 1 for good reason.
+    ratioNew: Math.max(1, +(rp * gcWas * (rNow / rWas) / gcNow).toFixed(3))
   });
 }
 
@@ -146,6 +151,11 @@ console.log(`router vs pack at the old position: median x${bias[bias.length >> 1
   `range x${bias[0].toFixed(3)}-${bias[bias.length - 1].toFixed(3)} over ${bias.length} legs ` +
   `(a consistent bias, and it cancels in the before/after ratio)`);
 
+const floored = rows.filter((r) => r.ratioNew === 1 && r.packRatio > 1);
+if (floored.length) {
+  console.log(`floored at 1.000 (near-straight legs, see the comment): ` +
+    floored.map((r) => r.port).join(', '));
+}
 const moved = rows.map((r) => r.ratioNew / r.packRatio).sort((a, b) => a - b);
 console.log(`corrections move: median x${moved[moved.length >> 1].toFixed(3)}, ` +
   `range x${moved[0].toFixed(3)}-${moved[moved.length - 1].toFixed(3)}`);
