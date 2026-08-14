@@ -476,6 +476,18 @@ globalThis.LEIP_THEME = {
     yachtHull: '#F7F4ED',      // matte white, no gloss
     yachtTeak: '#C9A876',      // fine teak deck line
     foam: '#FFFFFF',           // crisp geometric foam strokes
+    // The port monuments. Its OWN palette entry, not a reuse of any
+    // existing one: built in the hull white they were near-invisible
+    // against the pale daytime land, which is the whole reason this
+    // exists. Three tones so the buildings stay sculptural rather than
+    // becoming terracotta silhouettes — flat-shaded Lambert then lights
+    // each face on top of these, so the sun still models them.
+    //
+    // Nothing here says anything about the port's ENERGY. Green/blue/grey/
+    // brown belongs to the marker dot and the label, and a building that
+    // changed colour with the grid it plugs into would be reading the
+    // scoreboard out loud while the player is meant to be picking blind.
+    monument: { lit: '#C96F4A', mid: '#B05A38', shade: '#8F4529' },
     // three tones per mass: lit (highland step) / mid (coastal land) / shade
     massTones: { lit: 1.05, mid: 0.93, shade: 0.78 },
     seaDeep: 0.92,             // sea-field edge darkening multiplier
@@ -546,9 +558,12 @@ globalThis.LEIP_THEME = {
         // than a simulation. Scales width, opacity and life.
         fastScale: 1.28
       },
-      // A soft crescent of foam at the stem while under way. Parented to
-      // the hull, so it turns with her; hidden the moment she stops.
-      bowWave: { w: 0.62, l: 0.30, x: 0.44, y: 0.006, opacity: 0.42 },
+      // NO BOW WAVE. There was one — a foam plate at the stem, meant as a
+      // soft crescent — but a PlaneGeometry is a rectangle, and at chart
+      // scale it read as exactly what it was: a small pale box sitting
+      // ahead of the bow. The V wake astern already says "under way", and
+      // says it in the drawn geometric language the visual direction asks
+      // for. Removed rather than restyled.
       smoke: { size: 0.178, y: 0.356 },
       waterlineY: 0.022,     // x length: how high the hull floats
       // At anchor she breathes on the swell instead of freezing. Amplitudes
@@ -591,7 +606,24 @@ globalThis.LEIP_THEME = {
                    [2.1, 2], [-2.1, 2], [2.1, -2], [-2.1, -2], [0, 4], [0, -4]],
       padPx: 4, rosePadWorld: 26, relayoutPx: 6,
       monumentPad: 1.1,           // the marker footprint type must clear
-      font: '600 %spx Saira SemiCondensed, sans-serif'
+      font: '600 %spx Saira SemiCondensed, sans-serif',
+      // CHIP. Every port name sits in a dark box with light type — one
+      // treatment for all forty-four, no per-port variation. The box is
+      // painted into the same plate canvas the bare text used, so the
+      // de-collision pass below is untouched: chips offset and drop
+      // exactly as the names did.
+      //
+      // The fill does NOT follow the day cycle. Scene ink is dark for
+      // three scenes of four and light for night, so a chip that tracked
+      // it would invert at dusk — and a name that changes from dark-on-
+      // light to light-on-dark mid-charter reads as a state change the
+      // game never meant. Fixed dark, fixed light type, and a hairline
+      // edge so the chip still separates from the night sea, which is
+      // close to it in value.
+      chip: {
+        fill: '#1B2A3D', text: '#F7F4ED', edge: 'rgba(247,244,237,0.5)',
+        padXPx: 22, padYPx: 13, edgePx: 2
+      }
     },
     // Bearing/distance callouts: the same plate machinery, set in the data
     // face and ranked below every port name, so a callout is what moves or
@@ -870,7 +902,13 @@ globalThis.LEIP_THEME = {
   chartCanvas: { w: 3600, h: 2400, marginDeg: 1.2 },   // ink layer texture (graticule, rose); 3:2, the frame's aspect
   // Passage-plot plane, fitted to the route. Element sizes are in WORLD
   // units so the plot reads the same at any route span.
-  routeCanvas: { px: 2048, marginWorld: 26, annotWorld: 4.4, dashWorld: [2.6, 2.0], tickWorld: 1.7, lineWorld: 0.3 },
+  // plannedInk: the dashed line and its waypoint ticks — the passage as
+  // PLANNED. White, and fixed rather than following the day cycle's ink:
+  // scene ink is a dark navy for three of the four scenes, which is what
+  // made the plot disappear into the animated sea. The volt trail that
+  // inks over it as she sails is untouched and stays the one accent.
+  routeCanvas: { px: 2048, marginWorld: 26, annotWorld: 4.4, dashWorld: [2.6, 2.0], tickWorld: 1.7, lineWorld: 0.3,
+                 plannedInk: '#FFFFFF' },
   playbackZoom: { spanFactor: 1.8, min: 100, max: 320 },
   // The fixed charted frame (spec: one frame, all ports visible at once).
   // boundsDeg is the rectangle the camera may never leave — the working
@@ -9452,14 +9490,38 @@ globalThis.LEIP_APP = (function () {
       if (!ctx || !ctx.clearRect) return;
       var W = cnv.width, H = cnv.height;
       ctx.clearRect(0, 0, W, H);
+      var chip = plate.chip;
       var size = plate.fontPx;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = ink;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = chip ? chip.text : ink;
       try { ctx.letterSpacing = plate.trackPx + 'px'; } catch (e) {}
+      // Fit the type first — the chip is drawn round whatever it settles
+      // at, so a long name gets a wider box rather than a clipped one.
+      var pad = chip ? chip.padXPx : 10;
+      var w = 0;
       for (var i = 0; i < 8; i++) {
         ctx.font = plate.font.replace('%s', size);
         var m = ctx.measureText ? ctx.measureText(text) : { width: 0 };
-        if (!m.width || m.width <= W - 20) break;
+        w = m.width || 0;
+        if (!w || w <= W - pad * 2) break;
         size -= 3;
+      }
+      if (chip && ctx.fillRect) {
+        // Hug the text rather than filling the plate: the plate is sized
+        // for the longest name there is, and a full-width box behind a
+        // short one would be a slab with a word floating in it.
+        var bw = Math.min(W - chip.edgePx, w + chip.padXPx * 2);
+        var bh = Math.min(H - chip.edgePx, size + chip.padYPx * 2);
+        var bx = (W - bw) / 2, by = (H - bh) / 2;
+        ctx.fillStyle = chip.fill;
+        ctx.fillRect(bx, by, bw, bh);
+        if (chip.edgePx > 0 && ctx.strokeRect) {
+          ctx.strokeStyle = chip.edge;
+          ctx.lineWidth = chip.edgePx;
+          ctx.strokeRect(bx + chip.edgePx / 2, by + chip.edgePx / 2,
+                         bw - chip.edgePx, bh - chip.edgePx);
+        }
+        ctx.fillStyle = chip.text;
       }
       ctx.fillText(text, W / 2, H / 2);
       try { ctx.letterSpacing = '0px'; } catch (e) {}
@@ -9660,7 +9722,9 @@ globalThis.LEIP_APP = (function () {
       });
       ctx.lineCap = 'butt';
       ctx.lineJoin = 'round';
-      ctx.strokeStyle = ink;
+      // The planned passage — dashes AND the waypoint ticks below, which
+      // are the same drawing — carries its own fixed ink, not the scene's.
+      ctx.strokeStyle = rc.plannedInk;
       ctx.lineWidth = rc.lineWorld * ppu;
       ctx.setLineDash(rc.dashWorld.map(function (d) { return d * ppu; }));
       legs.forEach(function (leg) {
@@ -9995,6 +10059,14 @@ globalThis.LEIP_APP = (function () {
     var hullMat = new THREE.MeshLambertMaterial({ color: T.world.yachtHull, flatShading: true });
     var teakMat = new THREE.MeshLambertMaterial({ color: T.world.yachtTeak, flatShading: true });
     var inkMat = new THREE.MeshLambertMaterial({ color: T.ink.onLight, flatShading: true });
+    // The monuments' three tones, as three materials rather than one
+    // colour: the sun models each face on top of these, so a building
+    // reads as built out of parts and not as a terracotta silhouette.
+    var mon3 = {
+      lit: new THREE.MeshLambertMaterial({ color: T.world.monument.lit, flatShading: true }),
+      mid: new THREE.MeshLambertMaterial({ color: T.world.monument.mid, flatShading: true }),
+      shade: new THREE.MeshLambertMaterial({ color: T.world.monument.shade, flatShading: true })
+    };
     var foamMat = new THREE.MeshBasicMaterial({ color: T.world.foam });
     var smokeMat = new THREE.MeshBasicMaterial({ color: T.dieselSmoke, transparent: true, opacity: 0.45 });
 
@@ -10057,24 +10129,33 @@ globalThis.LEIP_APP = (function () {
       }
       // Monument.
       var mon = new THREE.Group();
+      // Terracotta, in three tones, uniformly across all four monument
+      // types: mid for the mass, lit for what catches the sun, shade for
+      // caps and the pieces that sit back.
       if (port.monument === 'lighthouse') {
-        var tw = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.95, 4.6, 8), hullMat);
+        var tw = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.95, 4.6, 8), mon3.mid);
         tw.position.y = 2.3;
-        var cap = new THREE.Mesh(new THREE.ConeGeometry(1.0, 1.1, 8), inkMat);
+        var cap = new THREE.Mesh(new THREE.ConeGeometry(1.0, 1.1, 8), mon3.shade);
         cap.position.y = 5.1;
-        mon.add(tw); mon.add(cap);
+        var lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.82, 0.6, 8), mon3.lit);
+        lamp.position.y = 4.5;
+        mon.add(tw); mon.add(lamp); mon.add(cap);
       } else if (port.monument === 'citadel') {
-        var keep = new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.2, 3.4), hullMat);
+        var keep = new THREE.Mesh(new THREE.BoxGeometry(3.4, 2.2, 3.4), mon3.mid);
         keep.position.y = 1.1;
-        mon.add(keep);
+        var plinth = new THREE.Mesh(new THREE.BoxGeometry(4.0, 0.5, 4.0), mon3.shade);
+        plinth.position.y = 0.25;
+        mon.add(plinth); mon.add(keep);
         for (var ci = 0; ci < 3; ci++) {
-          var cren = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.7), hullMat);
+          var cren = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.7), mon3.lit);
           cren.position.set(-1.1 + ci * 1.1, 2.6, -1.1);
           mon.add(cren);
         }
       } else if (port.monument === 'towers') {
+        // Three towers, three tones — the tallest catches the light.
+        var tone = [mon3.shade, mon3.mid, mon3.lit];
         for (var ti = 0; ti < 3; ti++) {
-          var twr = new THREE.Mesh(new THREE.BoxGeometry(1.1, 3 + ti * 1.6, 1.1), hullMat);
+          var twr = new THREE.Mesh(new THREE.BoxGeometry(1.1, 3 + ti * 1.6, 1.1), tone[ti]);
           twr.position.set(-1.5 + ti * 1.5, (3 + ti * 1.6) / 2, (ti % 2) * 1.2 - 0.6);
           mon.add(twr);
         }
@@ -10085,9 +10166,13 @@ globalThis.LEIP_APP = (function () {
           new THREE.MeshBasicMaterial({ color: T.scenes.day.sea }));
         crater.position.y = 0.95;
         mon.add(rim); mon.add(crater);
-        var chapel = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 0.9), hullMat);
+        // The rim and the crater are landscape, not building, so they keep
+        // the land and sea tones; only the chapel is a monument.
+        var chapel = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.7, 0.9), mon3.lit);
         chapel.position.set(R * 0.45, 1.9, 0);
-        mon.add(chapel);
+        var chapelBase = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.3, 1.2), mon3.shade);
+        chapelBase.position.set(R * 0.45, 1.5, 0);
+        mon.add(chapelBase); mon.add(chapel);
       }
       mon.position.y = grp.children.length > 2 ? 4.2 : 3.05;
       grp.add(mon);
@@ -10126,14 +10211,11 @@ globalThis.LEIP_APP = (function () {
       sun: sun, sunO: sunO, amb: amb, ambO: ambO,
       sea: sea, landMat: landMat, reliefMat: reliefMat, hitMeshes: hitMeshes,
       yacht: yacht, foamMat: foamMat, smokeMat: smokeMat, hullMat: hullMat,
-      wake: [], smoke: [], wakeClock: 0, smokeClock: 0, bowWave: null, idleHeading: 0,
+      wake: [], smoke: [], wakeClock: 0, smokeClock: 0, idleHeading: 0,
       cam: { x: 0, z: 0, dist: 640, tx: 0, tz: 0, tdist: 640 },
       w: 800, h: 600,
       raycaster: new THREE.Raycaster(), ndc: new THREE.Vector2()
     };
-    // The bow wave is parented to the hull so it turns with her.
-    G.bowWave = buildBowWave();
-    yacht.add(G.bowWave);
     resize();
   }
 
@@ -10363,17 +10445,6 @@ globalThis.LEIP_APP = (function () {
 
   // A crescent of foam at the stem, parented to the hull so it turns with
   // her. Built once and shown only while under way.
-  function buildBowWave() {
-    var Y = T.world.yacht, L = Y.length, B = Y.bowWave;
-    var mesh = new THREE.Mesh(new THREE.PlaneGeometry(B.w * L, B.l * L), G.foamMat.clone());
-    mesh.material.transparent = true;
-    mesh.material.opacity = B.opacity;
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(B.x * L, B.y * L - T.world.yacht.waterlineY * L, 0);
-    mesh.renderOrder = T.world.order.wake;
-    mesh.visible = false;
-    return mesh;
-  }
   function updateStrokes(list, dt, rise) {
     for (var i = list.length - 1; i >= 0; i--) {
       var p = list[i];
@@ -11304,7 +11375,6 @@ globalThis.LEIP_APP = (function () {
         G.yacht.rotation.x = 0;
         G.idleHeading = heading;      // she lies as she arrived
       }
-      if (G.bowWave) G.bowWave.visible = !!yw.moving && !S.reducedMotion;
       G.cam.tx = yw.x; G.cam.tz = yw.z;   // follow the yacht; the player keeps zoom control
       clampCam();
       G.wakeClock += dt;

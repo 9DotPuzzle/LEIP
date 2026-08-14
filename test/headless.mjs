@@ -226,8 +226,15 @@ check('small viewports drop to a cheaper sea',
     Y.wake.astern > 0.5);
   check('a Hare leg leaves a stronger wake than a Tortoise one, gently',
     Y.wake.fastScale > 1 && Y.wake.fastScale < 1.5);
-  check('the bow wave sits forward of amidships, at the waterline',
-    Y.bowWave.x > 0 && Y.bowWave.opacity > 0 && Y.bowWave.opacity < 1);
+  // There is no bow wave any more, and this asserts its ABSENCE rather
+  // than being deleted. It was a PlaneGeometry — a rectangle — sold as a
+  // soft crescent, and at chart scale it read as a small pale box parked
+  // ahead of the bow. The V wake astern already says "under way". A token
+  // left behind would invite someone to wire it back up.
+  check('no bow wave: the box ahead of the stem is gone, wake and all else intact',
+    Y.bowWave === undefined && !!Y.wake && !!Y.idle);
+  check('and nothing still builds or shows one',
+    !/bowWave/.test(readHtml()));
   check('the idle bob is a breath, not a roll',
     Y.idle.heave < 0.02 && Y.idle.roll < 0.05 && Y.idle.pitch < 0.05 &&
     [Y.idle.heaveSec, Y.idle.rollSec, Y.idle.pitchSec, Y.idle.yawSec].every(p => p > 3));
@@ -237,6 +244,73 @@ check('small viewports drop to a cheaper sea',
   check('the idle periods do not share a short common multiple',
     new Set(per).size === 4 && per.every((a, i) => per.every((b, j) =>
       i === j || Math.abs(a / b - Math.round(a / b)) > 0.05)));
+}
+
+// ---- the visual fixes: planned line, label chips, monument palette ----
+{
+  const src = readHtml();
+  // The PLANNED passage carries its own fixed white ink; the volt trail
+  // that inks over it as she sails is untouched and stays the one accent.
+  const rc = T.routeCanvas;
+  check('the planned route line has its own ink, and it is white',
+    typeof rc.plannedInk === 'string' && /^#(f{3}|f{6})$/i.test(rc.plannedInk));
+  check('it does NOT follow the day cycle — that is what made it vanish',
+    rc.plannedInk !== T.ink.onLight && rc.plannedInk !== T.ink.onDark);
+  {
+    // Scoped to RoutePlot.draw — scene ink is still correct elsewhere
+    // (the graticule, the compass rose, the share card all flip with the
+    // day cycle and should). What must not happen is the PASSAGE PLOT
+    // taking it.
+    const body = src.slice(src.indexOf('// Each leg is a sea-lane polyline'),
+                           src.indexOf('// Bearing/distance callouts are NOT baked'));
+    check('the dashes are drawn in it, not in the scene ink handed to draw()',
+      /ctx\.strokeStyle = rc\.plannedInk;/.test(body) &&
+      !/ctx\.strokeStyle = ink;/.test(body));
+    const trail = src.slice(src.indexOf('if (sailedNm > 0) {'));
+    check('the volt trail is untouched and still the accent',
+      /ctx\.strokeStyle = T\.volt;/.test(trail) && T.volt === '#F5D90A');
+  }
+
+  // Port names are chips: one dark box with light type, for every port.
+  const chip = T.world.labelPlate.chip;
+  check('port labels are chips — a dark box with light type',
+    !!chip && typeof chip.fill === 'string' && typeof chip.text === 'string' &&
+    chip.padXPx > 0 && chip.padYPx > 0);
+  {
+    // "Dark box, light text" asserted as a real contrast, not as two
+    // strings that happen to differ.
+    const lum = (h) => {
+      const n = parseInt(h.slice(1), 16);
+      return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+    };
+    check(`the chip's type reads against its box (${lum(chip.fill).toFixed(2)} vs ${lum(chip.text).toFixed(2)})`,
+      lum(chip.text) - lum(chip.fill) > 0.5);
+  }
+  check('the chip is painted into the same plate the de-collision pass measures',
+    /var chip = plate\.chip;/.test(src) && /ctx\.fillRect\(bx, by, bw, bh\)/.test(src));
+  check('the collision system itself is untouched — same candidates, same drop rule',
+    T.world.labelPlate.candidates.length === 24 && T.world.labelPlate.padPx > 0);
+  check('callouts are NOT chipped — only port names are',
+    !T.world.calloutPlate.chip);
+
+  // The monuments own their palette; it is not a reuse and not the energy
+  // colour, which belongs to the marker and the label.
+  const mn = T.world.monument;
+  check('the monuments have their own three-tone palette entry',
+    !!mn && ['lit', 'mid', 'shade'].every(k => /^#[0-9a-f]{6}$/i.test(mn[k])));
+  check('it is a new token, not a repurposed one',
+    ![T.world.yachtHull, T.world.yachtTeak, T.world.foam, T.volt, T.dieselSmoke,
+      T.signalRed, T.ink.onLight, T.ink.onDark].includes(mn.lit));
+  check('the three tones actually descend',
+    parseInt(mn.lit.slice(1), 16) > parseInt(mn.mid.slice(1), 16) &&
+    parseInt(mn.mid.slice(1), 16) > parseInt(mn.shade.slice(1), 16));
+  check('and it says nothing about the port\'s energy — that stays on the label',
+    !/monument\.(lit|mid|shade)[\s\S]{0,200}energy/.test(src) &&
+    D.ports.every(p => typeof p.energy === 'string'));
+  check('no monument is still built in the hull white it disappeared in',
+    !/monument === '[a-z]+'[\s\S]*?hullMat/.test(
+      src.slice(src.indexOf("port.monument === 'lighthouse'"),
+                src.indexOf("mon.position.y ="))));
 }
 // The opening view is a STATED rectangle, not the bounding box of the port
 // list — or adding a port in the Channel would open the game on a
