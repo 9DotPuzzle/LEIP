@@ -288,6 +288,98 @@ check('small viewports drop to a cheaper sea',
   check('and the volt trail still takes its width from the ORIGINAL lineWorld',
     /ctx\.lineWidth = rc\.lineWorld \* ppu \* 1\.5;/.test(src));
 
+  // ---- the mobile layout, and the flag that was not a flag ----
+  {
+    const uk = T.flags.defs['United Kingdom'];
+    const kinds = uk.map((o) => o[0]);
+    check('the Union Flag has a saltire, not just an upright cross',
+      kinds.filter((k) => k === 'line').length === 4 &&
+      kinds.filter((k) => k === 'cross').length === 2, kinds.join(','));
+    check('its diagonals run corner to corner, both ways',
+      uk.some((o) => o[0] === 'line' && o[1] === 0 && o[2] === 0 && o[3] === 1 && o[4] === 1) &&
+      uk.some((o) => o[0] === 'line' && o[1] === 0 && o[2] === 1 && o[3] === 1 && o[4] === 0));
+    check('white under red on both the saltire and the cross',
+      uk.filter((o) => o[0] === 'line')[0][6] === 'white' &&
+      uk.filter((o) => o[0] === 'line')[2][6] === 'ukRed' &&
+      uk.filter((o) => o[0] === 'cross')[0][5] === 'white' &&
+      uk.filter((o) => o[0] === 'cross')[1][5] === 'ukRed');
+    check('a stroked diagonal overhangs the corners, so the flag is clipped',
+      /needsClip = true;/.test(src) && /clip-path="url\(#/.test(src));
+  }
+  {
+    // The HUD box sizes to its content. The old fixed width plus
+    // overflow:hidden is what sliced "7:00 PM" into "7:00 PI".
+    const css = src.slice(src.indexOf('#titleblock {'), src.indexOf('.tb-row {'));
+    check('the HUD box sizes to content, bounded by the viewport',
+      /width: max-content/.test(css) && /max-width: calc\(100vw/.test(css));
+    check('no HUD value is clipped by overflow any more',
+      !/\.tb-cell output \{[^}]*overflow: hidden/.test(src));
+    check('cells keep their content width — flex-basis auto, not the `flex: 1` shorthand',
+      /\.tb-cell \{ flex: 1 1 auto;/.test(src) &&
+      /#tb-mode-cell \{ flex-grow:/.test(src) && !/#tb-mode-cell \{ flex: /.test(src));
+    check('the leg, the one unbounded value, wraps rather than overflowing',
+      /#tb-leg-cell output \{[\s\S]*?white-space: normal;[\s\S]*?overflow-wrap: anywhere;/.test(src));
+  }
+  {
+    // The sheet layout: one breakpoint, known to both the CSS and the
+    // camera. If they drifted the camera would centre the world behind a
+    // panel that is not where it thinks it is.
+    const q = src.match(/@media \(max-width: (\d+)px\)/);
+    check(`the CSS breakpoint and T.ui.sheetBreakpointPx are the same number (${T.ui.sheetBreakpointPx})`,
+      !!q && Number(q[1]) === T.ui.sheetBreakpointPx, q && q[1]);
+    check('one helper answers which edge the panel covers, on both layouts',
+      /function panelInset\(\)/.test(src) && !/panelFrac/.test(src));
+    check('the sheet covers the BOTTOM, the sidebar the LEFT, and a minimised sheet neither',
+      /if \(S\.sheetMinimised\) return \{ left: 0, bottom: 0 \};/.test(src) &&
+      /return \{ left: 0, bottom: Math\.min\(0\.6, sheetPx \/ G\.h\) \};/.test(src));
+
+    const h = T.frame.homeDeg, m = T.frame.homeDegMobile, b = T.frame.boundsDeg;
+    const area = (r) => (r.maxLon - r.minLon) * (r.maxLat - r.minLat);
+    const held = (r) => D.ports.filter((p) =>
+      p.lon >= r.minLon && p.lon <= r.maxLon && p.lat >= r.minLat && p.lat <= r.maxLat).length;
+    check(`the phone opens on a far tighter rectangle than the desktop ` +
+      `(${area(m).toFixed(0)} vs ${area(h).toFixed(0)} sq deg)`,
+      area(m) < area(h) / 3);
+    // The real constraint is the PAN LIMIT — both opening rectangles have
+    // to sit inside it or the camera opens somewhere it may not go. The
+    // phone's box is NOT required to sit inside the desktop's: it is
+    // aimed at the densest cluster, which reaches a shade further north
+    // than the desktop rectangle's top edge.
+    check('both opening rectangles sit inside the pan limit',
+      [m, h].every((r) => r.minLon >= b.minLon && r.maxLon <= b.maxLon &&
+                          r.minLat >= b.minLat && r.maxLat <= b.maxLat));
+    // IT IS THE CLUSTER, and that is asserted rather than asserted-by-
+    // adjective: slide a box of exactly this size over the whole port
+    // field and none of them holds more ports. A rectangle can be small
+    // and still be aimed at empty water; this is what rules that out.
+    {
+      const w = m.maxLon - m.minLon, hh = m.maxLat - m.minLat;
+      let best = 0, bestAt = null;
+      for (let lon = b.minLon; lon <= b.maxLon - w; lon += 0.5) {
+        for (let lat = b.minLat; lat <= b.maxLat - hh; lat += 0.5) {
+          const n = held({ minLon: lon, maxLon: lon + w, minLat: lat, maxLat: lat + hh });
+          if (n > best) { best = n; bestAt = [lon.toFixed(1), lat.toFixed(1)]; }
+        }
+      }
+      check(`the phone's rectangle IS the densest cluster — it holds ${held(m)} ports, ` +
+        `against the best of ${best} a half-degree sweep of the whole field finds`,
+        held(m) >= best, `swept best ${best} at ${bestAt && bestAt.join(', ')}`);
+    }
+    check(`and it is denser than the desktop home it comes out of ` +
+      `(${(held(m) / area(m) * 100).toFixed(1)} vs ${(held(h) / area(h) * 100).toFixed(1)} ports per 100 sq deg)`,
+      held(m) / area(m) > held(h) / area(h));
+    check('the pan limit is UNCHANGED, so Lateral stays reachable from it',
+      D.ports.every((p) => p.lon >= b.minLon && p.lon <= b.maxLon &&
+                           p.lat >= b.minLat && p.lat <= b.maxLat));
+    check('the grip is the only thing that moves the sheet — not the map, not the panel body',
+      /var g = \$\('sheet-grip'\);\s*\n\s*if \(!g \|\| !g\.addEventListener\) return;/.test(src) &&
+      /g\.addEventListener\('pointerdown'/.test(src) &&
+      !/setSheetMinimised/.test(
+        src.slice(src.indexOf('function bindStageInput'), src.indexOf('function bindRouteDrag'))));
+    check('and coming back above the breakpoint cannot leave the panel hidden',
+      /if \(!isSheetLayout\(\) && S\.sheetMinimised\) setSheetMinimised\(false\);/.test(src));
+  }
+
   // THE CAMERA HOLDS THE WHOLE ROUTE. Asserted against the source here
   // because fitCamera needs a live scene; that it actually frames a route
   // reaching to Lateral is checked in the browser by tools/reach.mjs.

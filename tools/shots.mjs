@@ -395,6 +395,72 @@ const shots = {
   }
 };
 
+// ---------------------------------------------------------------- mobile
+// A phone viewport, so the bottom-sheet layout is the one under test. The
+// shots below are the only ones that use it; everything else stays on the
+// desktop viewport so the two layouts are never confused for each other.
+const PHONE = { width: 390, height: 844, deviceScaleFactor: 3, isMobile: true,
+                hasTouch: true };
+const phoneShots = {
+  // The corrected Union Flag, beside the ports that carry it.
+  'm-uk-flag': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      A.setSheetMinimised(false);
+      const plan = document.getElementById('plan');
+      const el = plan.querySelector('[data-port="Gibraltar"]');
+      el.scrollIntoView({ block: 'center' });
+    });
+    await settle(page, 6);
+    return { clip: await page.locator('#plan').boundingBox() };
+  },
+  // The HUD carrying the worst case in the port list: the longest leg
+  // there is, a full time string and HYBRID mode.
+  'm-hud-long-leg': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      A.setSheetMinimised(true);
+      A.setSpeed('fast');
+      ['Saint-Jean-Cap-Ferrat', 'Lateral'].forEach((n) => A.pickPort(n));
+      A.simulate();
+      for (let i = 0; i < 400 && A.getState().phase === 'playback' &&
+                      !A.debugYacht().moving; i++) A.tick(0.25);
+      for (let i = 0; i < 60; i++) A.tick(0.25);
+      A.debugPause();
+    });
+    await settle(page, 8);
+    return {};
+  },
+  // What the game opens to on a phone: the dense Med cluster, ports big
+  // enough to tap.
+  'm-default-zoom': async (page) => {
+    await settle(page, 14);
+    return {};
+  },
+  'm-sheet-expanded': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      A.setSheetMinimised(false);
+      ['Monaco', 'Calvi'].forEach((n) => A.pickPort(n));
+    });
+    await settle(page, 12);
+    return {};
+  },
+  // Fully minimised: the chart has the whole screen and only the grip is
+  // left, clear of the title block in the opposite corner.
+  'm-sheet-minimised': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      ['Monaco', 'Calvi'].forEach((n) => A.pickPort(n));
+      A.setSheetMinimised(true);
+    });
+    await settle(page, 14);
+    return {};
+  }
+};
+Object.assign(shots, phoneShots);
+const isPhoneShot = (name) => Object.prototype.hasOwnProperty.call(phoneShots, name);
+
 let stageClip = null;
 const THREE_SRC = readFileSync(join(ROOT, 'node_modules/three/build/three.min.js'), 'utf8');
 
@@ -411,7 +477,11 @@ const browser = await chromium.launch({
 });
 for (const name of names) {
   if (!shots[name]) { console.error(`no shot named ${name}`); continue; }
-  const page = await browser.newPage({ viewport: VIEW, deviceScaleFactor: 2 });
+  const page = await browser.newPage(isPhoneShot(name)
+    ? { viewport: { width: PHONE.width, height: PHONE.height },
+        deviceScaleFactor: PHONE.deviceScaleFactor,
+        isMobile: PHONE.isMobile, hasTouch: PHONE.hasTouch }
+    : { viewport: VIEW, deviceScaleFactor: 2 });
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });

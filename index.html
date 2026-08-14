@@ -232,8 +232,16 @@ input[type=range] { width: 100%; accent-color: var(--ink-fixed); }
 #stage { width: 100%; height: 100%; display: block; touch-action: none; }
 
 /* The title block — one corner panel, engineering-drawing language. */
+/* THE BOX SIZES TO ITS CONTENT, bounded by the viewport. It used to be a
+   fixed --tb-w with overflow:hidden on every value, so anything longer
+   than its share was silently sliced — "7:00 PM" became "7:00 PI" and
+   "ATHENS > LATERAL" became "ATHENS > LATERA". max-content makes the box
+   as wide as its widest row genuinely needs; max-width stops it walking
+   off the screen; and the leg, the one value with no upper bound on its
+   length, wraps rather than growing past that. */
 #titleblock {
-  position: absolute; right: 14px; bottom: 14px; width: var(--tb-w);
+  position: absolute; right: 14px; bottom: 14px;
+  width: max-content; min-width: var(--tb-w); max-width: calc(100vw - 28px);
   background: var(--paper); color: var(--ink-fixed);
   border: var(--tb-rule) solid var(--ink-fixed);
 }
@@ -241,21 +249,32 @@ input[type=range] { width: 100%; accent-color: var(--ink-fixed); }
 .tb-row:last-child { border-bottom: none; }
 .tb-brand { padding: 5px 9px; font-weight: 600; letter-spacing: 0.42em; font-size: 13px; }
 .tb-brand em { font-style: normal; font-weight: 400; font-size: 9px; letter-spacing: var(--label-tracking); opacity: 0.65; margin-left: 6px; }
-.tb-cell { flex: 1; padding: 4px 8px 6px; border-right: var(--tb-cell-rule) solid var(--ink-fixed); min-width: 0; }
+/* flex-BASIS stays auto. The old shorthand `flex: 1` means `1 1 0%`,
+   which throws the content width away before distributing — which is why
+   equal-looking cells cropped unequal content. Growth ratios below are
+   applied as flex-grow alone, so every cell starts at what it needs. */
+.tb-cell { flex: 1 1 auto; padding: 4px 8px 6px; border-right: var(--tb-cell-rule) solid var(--ink-fixed); min-width: 0; }
 .tb-cell:last-child { border-right: none; }
 .tb-cell label { display: block; font-size: var(--tb-label-px); letter-spacing: var(--label-tracking); text-transform: uppercase; opacity: 0.7; }
-.tb-cell output { display: block; font-family: var(--font-data); font-size: var(--tb-value-px); white-space: nowrap; overflow: hidden; }
+.tb-cell output { display: block; font-family: var(--font-data); font-size: var(--tb-value-px); white-space: nowrap; }
 #tb-battwrap { position: relative; height: 7px; border: var(--hairline) solid var(--ink-fixed); margin-top: 3px; }
 #tb-battbar { position: absolute; inset: 0 auto 0 0; width: 100%; background: var(--volt); }
-#tb-leg-cell output { font-size: calc(var(--tb-value-px) * 0.72); }
+/* The leg is the only value with no bound on its length — the worst case
+   in the port list is "SAINT-JEAN-CAP-FERRAT > LATERAL". It wraps instead
+   of pushing the box past the viewport, which is the stated fallback:
+   grow to fit, never overflow, wrap if even the full width is not enough. */
+#tb-leg-cell output {
+  font-size: calc(var(--tb-value-px) * 0.72);
+  white-space: normal; overflow-wrap: anywhere; line-height: 1.18;
+}
 /* Four values of very different widths share the status row: ANCHOR and
    the clock are the long ones, DAY the short one. Equal quarters clipped
    both, so each cell gets the share its content needs, and the two data
    values set one step down to buy the margin back. */
-#tb-mode-cell { flex: 1.18; }
-#tb-speed-cell { flex: 1.22; }   /* "11.2 KTS" is the widest reading here */
-#tb-day-cell { flex: 0.58; }
-#tb-clock-cell { flex: 1.12; }
+#tb-mode-cell { flex-grow: 1.18; }
+#tb-speed-cell { flex-grow: 1.22; }   /* "11.2 KTS" is the widest reading here */
+#tb-day-cell { flex-grow: 0.58; }
+#tb-clock-cell { flex-grow: 1.12; }
 #tb-mode, #tb-speed, #tb-clock { font-size: calc(var(--tb-value-px) * 0.8); letter-spacing: 0; }
 #tb-dots { display: flex; gap: 9px; padding: 7px 9px; justify-content: center; }
 .tb-dot { width: calc(var(--dot-r) * 2px); height: calc(var(--dot-r) * 2px); border-radius: 50%; border: var(--hairline) solid var(--ink-fixed); }
@@ -326,12 +345,66 @@ table.board td.num { font-family: var(--font-data); }
 .callout span { display: block; font-size: 11.5px; text-transform: none; letter-spacing: 0; opacity: 0.8; margin-top: 2px; }
 #dots-count { text-align: center; font-family: var(--font-data); font-size: 13px; margin-top: 10px; }
 
+/* The grip is a desktop no-op: the sidebar does not collapse. */
+#sheet-grip { display: none; }
+
 @media (max-width: 760px) {
   #plan {
     width: 100%; left: 0; right: 0; top: auto; bottom: 0; height: var(--sheet-max-h);
     border-right: none; border-top: var(--rule) solid var(--glass-edge);
+    padding-top: 0;
+    transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1);
+    will-change: transform;
   }
-  #titleblock { right: 8px; bottom: 8px; width: min(var(--tb-w), 62vw); }
+  /* MINIMISED: the sheet slides out of the way entirely, leaving only the
+     grip strip. The map is already inset:0 behind it, so this uncovers a
+     genuinely full-screen chart rather than resizing anything. */
+  body.sheet-min #plan {
+    transform: translateY(calc(100% - var(--grip-h)));
+    background: none; border-top: none;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    box-shadow: none; overflow: hidden;
+  }
+  body.sheet-min #plan > section, body.sheet-min #plan > #actions { visibility: hidden; }
+
+  /* The grip sits at the LEFT of the sheet's top edge. Centred, it would
+     sit under the title block once the sheet is down — the HUD is bottom
+     right — and full width it would band across the chart. A pill on the
+     left clears both and stays a comfortable tap target. */
+  /* #plan button sets a glass fill on every button in the panel and, being
+     an id plus a type selector, out-specifies a bare #sheet-grip. The grip
+     is chrome rather than a panel control — it has to read against open
+     water once the sheet is down — so it is qualified to win. */
+  /* Sticky at the sheet's top edge, and FULL WIDTH while the sheet is up,
+     so the port list scrolls underneath an opaque bar rather than under a
+     floating pill that hides whichever chip it happens to be over. It
+     collapses to a left-hand pill once minimised — full width down there
+     would band across the chart and run under the title block, which sits
+     in the opposite corner precisely so the two never meet. */
+  #plan #sheet-grip, #sheet-grip {
+    display: flex; align-items: center; gap: 8px;
+    position: sticky; top: 0; z-index: 2; margin: 0 0 10px 0; width: 100%;
+    height: var(--grip-h); padding: 0 14px;
+    background: var(--paper); color: var(--ink-fixed);
+    border: var(--rule) solid var(--ink-fixed);
+    -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
+    font-size: 10px; letter-spacing: var(--label-tracking);
+    touch-action: none; cursor: grab;
+  }
+  #plan #sheet-grip:hover { background: var(--paper); color: var(--ink-fixed); }
+  #sheet-grip i {
+    display: block; width: 26px; height: 3px; background: currentColor; opacity: 0.55;
+  }
+  #sheet-grip em { font-style: normal; font-weight: 600; }
+  body.sheet-min #plan #sheet-grip {
+    cursor: pointer; visibility: visible; width: auto; margin-right: auto;
+  }
+  /* Dragging: the sheet follows the finger, so the transition is off for
+     the duration or it would lag behind it. */
+  body.sheet-dragging #plan { transition: none; }
+  /* On a phone the box may need most of the width; it must still never
+     exceed it. min-width is dropped so a narrow screen can shrink it. */
+  #titleblock { right: 8px; bottom: 8px; min-width: 0; max-width: calc(100vw - 16px); }
   #brand span { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -357,6 +430,12 @@ table.board td.num { font-family: var(--font-data); }
   </header>
   <main>
     <aside id="plan">
+      <!-- The grip. Mobile only, and the ONLY swipe target that moves the
+           sheet — dragging the map must never collapse it. It is also the
+           tab left peeking when the sheet is down, so the way out and the
+           way back are the same object in the same place. -->
+      <button id="sheet-grip" aria-expanded="true" aria-controls="plan"
+              aria-label="Minimise the planning panel"><i></i><em>PLAN</em></button>
       <section>
         <h3>Route</h3>
         <p class="hint">Pick a starting port, then destinations — on the chart or below. The pick order is the route, and you can drag the stops to reorder them. Pick a listed port again to drop it; repeats are allowed — press + on a chosen stop to add it again. The final pick is the recharge port.</p>
@@ -787,6 +866,13 @@ globalThis.LEIP_THEME = {
     paper: '#F5F2EA',          // chart-margin paper: data sheets and the title block
     panelWidthPx: 420,
     sheetMaxVh: 52,            // mobile bottom-sheet height
+    // The one breakpoint. Below it the planning panel is a bottom SHEET
+    // rather than a left sidebar, and that changes which edge of the
+    // stage is covered — which the camera has to know, or it centres the
+    // world behind the panel. The CSS media query must carry the same
+    // number; a headless check compares the two so they cannot drift.
+    sheetBreakpointPx: 760,
+    sheetGripPx: 34,           // the grip strip, and the tab left peeking when minimised
     labelTrackingEm: 0.14,
     // LIQUID GLASS — a deliberate, scoped override of the visual
     // direction's no-glass rule: interactive controls only (the planning
@@ -837,9 +923,20 @@ globalThis.LEIP_THEME = {
                 ['circle', 0.44, 0.5, 0.17, 'dzGreen'], ['circle', 0.56, 0.5, 0.08, 'tnRed']],
       Morocco: [['rect', 0, 0, 1, 1, 'maRed'], ['circle', 0.5, 0.5, 0.2, 'maGreen'],
                 ['circle', 0.5, 0.5, 0.12, 'maRed']],
+      // The Union Flag needs the SALTIRE, which is why 'line' exists: with
+      // only upright crosses this rendered as a white-and-red cross on
+      // blue — a plausible-looking flag that is not the United Kingdom's.
+      // Drawn in order: field, white saltire, red saltire, white cross,
+      // red cross. The red saltire's counterchange (its offset within the
+      // white one) is deliberately NOT reproduced — the chip is 17 px
+      // wide and the offset would land inside a single pixel.
       'United Kingdom': [['rect', 0, 0, 1, 1, 'ukBlue'],
-                         ['cross', 0.5, 0.5, 0.5, 0.30, 'white'],
-                         ['cross', 0.5, 0.5, 0.5, 0.16, 'ukRed']]
+                         ['line', 0, 0, 1, 1, 0.30, 'white'],
+                         ['line', 0, 1, 1, 0, 0.30, 'white'],
+                         ['line', 0, 0, 1, 1, 0.13, 'ukRed'],
+                         ['line', 0, 1, 1, 0, 0.13, 'ukRed'],
+                         ['cross', 0.5, 0.5, 0.5, 0.34, 'white'],
+                         ['cross', 0.5, 0.5, 0.5, 0.20, 'ukRed']]
     },
     widthPx: 17
   },
@@ -938,7 +1035,17 @@ globalThis.LEIP_THEME = {
     // reached the Atlantic and the Channel — so the opening view the game
     // has today is preserved EXACTLY, and stays put when far-flung ports
     // are added rather than zooming out to swallow them.
-    homeDeg: { minLon: 1.44, maxLon: 28.94, minLat: 36.12, maxLat: 45.44 }
+    homeDeg: { minLon: 1.44, maxLon: 28.94, minLat: 36.12, maxLat: 45.44 },
+    // MOBILE HOME. The desktop rectangle above spans Barcelona to the
+    // Aegean, which on a phone held sideways is a continent with the ports
+    // as specks — untappable, and nothing to aim at. So the sheet layout
+    // opens on the DENSE cluster instead: the Ligurian and Tyrrhenian
+    // basins with Corsica and Sardinia, which holds 22 of the 44 ports.
+    // Not eyeballed — a headless check slides a box of this exact size
+    // over the whole port field and confirms none holds more, so this is
+    // the cluster rather than merely a small rectangle. Everything else is one pinch away; the pan limit is unchanged,
+    // so Lateral and the Atlantic stay reachable exactly as before.
+    homeDegMobile: { minLon: 3.8, maxLon: 14.8, minLat: 39.2, maxLat: 45.6 }
   },
 
   shareCard: { w: 1080, h: 1920, dotSpreadPx: 72, dotRadiusPx: 13 }   // story format, canvas-rendered
@@ -9087,7 +9194,8 @@ globalThis.LEIP_APP = (function () {
     webgl: false,
     reducedMotion: false,
     inkDark: false,
-    lastFitKey: null              // the port SET the camera is framed on
+    lastFitKey: null,             // the port SET the camera is framed on
+    sheetMinimised: false         // mobile: the planning sheet swiped away
   };
   // v3: the 0-50 base rescale. Anything saved under v2 was scored on the
   // old 0-1000 board and would misread against new scores, so it is left
@@ -9164,6 +9272,7 @@ globalThis.LEIP_APP = (function () {
     st.setProperty('--dot9-r', String(T.hud.diamondDotRadiusPx));
     st.setProperty('--panel-w', T.ui.panelWidthPx + 'px');
     st.setProperty('--sheet-max-h', T.ui.sheetMaxVh + 'vh');
+    st.setProperty('--grip-h', T.ui.sheetGripPx + 'px');
     st.setProperty('--label-tracking', T.ui.labelTrackingEm + 'em');
     updateSceneVars(tintAt(currentSimHour()));
   }
@@ -10273,6 +10382,26 @@ globalThis.LEIP_APP = (function () {
     return box;
   }
 
+  // WHICH EDGE OF THE STAGE THE PANEL COVERS. Desktop: a sidebar down the
+  // left. Mobile: a sheet across the bottom — and nothing at all once the
+  // player has minimised it. Everything that reasons about the safe area
+  // asks here, so the camera cannot end up centring the world behind the
+  // panel on one layout while getting it right on the other. Fractions of
+  // the stage, 0..0.6.
+  function panelInset() {
+    if (!G || !(G.w > 0) || !(G.h > 0)) return { left: 0, bottom: 0 };
+    if (isSheetLayout()) {
+      if (S.sheetMinimised) return { left: 0, bottom: 0 };
+      var sheetPx = G.h * T.ui.sheetMaxVh / 100;
+      return { left: 0, bottom: Math.min(0.6, sheetPx / G.h) };
+    }
+    return { left: Math.min(0.6, T.ui.panelWidthPx / G.w), bottom: 0 };
+  }
+  function isSheetLayout() {
+    try { return (globalThis.innerWidth || 1200) <= T.ui.sheetBreakpointPx; }
+    catch (e) { return false; }
+  }
+
   // Hard bounds on pan and zoom-out: the visible ground rectangle must stay
   // inside PROJ.rect, the fixed charted frame. The player can go anywhere
   // within it and nowhere outside — no teal void, no plate edge, ever.
@@ -10285,9 +10414,9 @@ globalThis.LEIP_APP = (function () {
     // The widest view whose footprint still fits the frame in both axes.
     // A hair under the exact fit, so the limit distance still satisfies the
     // centre clamp rather than tipping into the degenerate branch below.
-    var panelFrac = G.w > 0 ? Math.min(0.6, T.ui.panelWidthPx / G.w) : 0;
-    var maxDist = Math.min((f.maxX - f.minX) / (bw * (1 - panelFrac)),
-                           (f.maxZ - f.minZ) / bh) * 0.999;
+    var inset = panelInset();
+    var maxDist = Math.min((f.maxX - f.minX) / (bw * (1 - inset.left)),
+                           (f.maxZ - f.minZ) / (bh * (1 - inset.bottom))) * 0.999;
     maxDist = Math.min(maxDist, T.frame.maxDist);
     var lim = function (d) { return Math.max(T.frame.minDist, Math.min(maxDist, d)); };
     G.cam.tdist = lim(G.cam.tdist);
@@ -10302,12 +10431,14 @@ globalThis.LEIP_APP = (function () {
     // western edge may sit behind it: that strip is occluded, never seen as
     // void, and allowing it is what lets the whole basin fit the SAFE area
     // (panel excluded) at full zoom-out rather than the raw viewport.
-    var panelWorld = (G.w > 0 ? Math.min(0.6, T.ui.panelWidthPx / G.w) : 0) * bw * G.cam.tdist;
+    var panelWorld = inset.left * bw * G.cam.tdist;
+    var sheetWorld = inset.bottom * bh * G.cam.tdist;
     G.cam.tx = clampAxis(G.cam.tx, G.cam.tdist, f.minX - panelWorld, f.maxX, box.minX, box.maxX);
-    G.cam.tz = clampAxis(G.cam.tz, G.cam.tdist, f.minZ, f.maxZ, box.minZ, box.maxZ);
+    G.cam.tz = clampAxis(G.cam.tz, G.cam.tdist, f.minZ, f.maxZ + sheetWorld, box.minZ, box.maxZ);
     if (now) {
-      G.cam.x = clampAxis(G.cam.x, G.cam.dist, f.minX - panelWorld, f.maxX, box.minX, box.maxX);
-      G.cam.z = clampAxis(G.cam.z, G.cam.dist, f.minZ, f.maxZ, box.minZ, box.maxZ);
+      var pw = inset.left * bw * G.cam.dist, sw = inset.bottom * bh * G.cam.dist;
+      G.cam.x = clampAxis(G.cam.x, G.cam.dist, f.minX - pw, f.maxX, box.minX, box.maxX);
+      G.cam.z = clampAxis(G.cam.z, G.cam.dist, f.minZ, f.maxZ + sw, box.minZ, box.maxZ);
     }
   }
 
@@ -10320,7 +10451,8 @@ globalThis.LEIP_APP = (function () {
     if (names && names.length) {
       pts = names.map(function (n) { return PROJ.portPos(n); });
     } else {
-      var h = T.frame.homeDeg;
+      var h = (isSheetLayout() && T.frame.homeDegMobile) ? T.frame.homeDegMobile
+                                                          : T.frame.homeDeg;
       pts = [PROJ.pos(h.minLat, h.minLon), PROJ.pos(h.maxLat, h.maxLon)];
     }
     var minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
@@ -10342,9 +10474,9 @@ globalThis.LEIP_APP = (function () {
     // until the ports' projected box centres on the SAFE area (the stage
     // minus the panel and the title block). A few passes settle the tilt's
     // mild nonlinearity.
-    var panelFrac = G.w > 0 ? Math.min(0.6, T.ui.panelWidthPx / G.w) : 0;
-    var left = -1 + 2 * panelFrac + f.marginNdc, right = 1 - f.marginNdc;
-    var top = 1 - f.marginNdc, bottom = -1 + f.marginNdc;
+    var inset = panelInset();
+    var left = -1 + 2 * inset.left + f.marginNdc, right = 1 - f.marginNdc;
+    var top = 1 - f.marginNdc, bottom = -1 + 2 * inset.bottom + f.marginNdc;
     var safeCx = (left + right) / 2, safeCy = (top + bottom) / 2;
     var probe = new THREE.PerspectiveCamera(G.camera.fov, G.camera.aspect, 0.5, 9000);
     var look = { x: cx, z: cz };
@@ -10648,10 +10780,12 @@ globalThis.LEIP_APP = (function () {
 
   // ------------------------------------------------------------ planning UI
   // Country flag as inline SVG from the THEME tokens, 3:2.
+  var flagClipSeq = 0;
   function flagSvg(country) {
     var f = T.flags, ops = f.defs[country];
     if (!ops) return '';
     var P = f.palette, W = 1, H = 0.667, parts = [];
+    var needsClip = false;
     function col(k) { return P[k] || k; }
     ops.forEach(function (op) {
       var kind = op[0], i, n;
@@ -10672,14 +10806,29 @@ globalThis.LEIP_APP = (function () {
           '" width="' + op[4] * W + '" height="' + op[3] * H * 2 + '" fill="' + col(op[5]) + '"/>');
         parts.push('<rect x="' + (op[1] * W - op[3] * W) + '" y="' + (op[2] * H - op[4] * H / 2) +
           '" width="' + op[3] * W * 2 + '" height="' + op[4] * H + '" fill="' + col(op[5]) + '"/>');
+      } else if (kind === 'line') {
+        // Corner-to-corner strokes for saltires. A stroked line overhangs
+        // the corners it starts and ends at, so any flag using one gets a
+        // clip rect — see below.
+        needsClip = true;
+        parts.push('<line x1="' + op[1] * W + '" y1="' + op[2] * H +
+          '" x2="' + op[3] * W + '" y2="' + op[4] * H +
+          '" stroke="' + col(op[6]) + '" stroke-width="' + op[5] * H + '"/>');
       } else if (kind === 'frame') {
         parts.push('<rect x="' + op[1] * W / 2 + '" y="' + op[1] * H / 2 + '" width="' + (W - op[1] * W) +
           '" height="' + (H - op[1] * H) + '" fill="none" stroke="' + col(op[2]) +
           '" stroke-width="' + op[1] * H + '"/>');
       }
     });
+    var body = parts.join('');
+    var defs = '';
+    if (needsClip) {
+      var id = 'fc' + (++flagClipSeq);
+      defs = '<clipPath id="' + id + '"><rect x="0" y="0" width="1" height="0.667"/></clipPath>';
+      body = '<g clip-path="url(#' + id + ')">' + body + '</g>';
+    }
     return '<svg class="flag" viewBox="0 0 1 0.667" role="img" aria-label="' + esc(country) + '">' +
-      parts.join('') + '</svg>';
+      defs + body + '</svg>';
   }
 
   // Ports grouped under one heading per COUNTRY. The grouping key is the
@@ -10865,6 +11014,79 @@ globalThis.LEIP_APP = (function () {
     }
     strip.addEventListener('pointerup', end);
     strip.addEventListener('pointercancel', end);
+  }
+
+  // ---------------------------------------------------------- the sheet
+  // Mobile only: the planning panel is a bottom sheet the player can swipe
+  // away to get the whole screen back, and swipe up to bring back. The
+  // grip is the only pointer target — the map must never collapse the
+  // sheet by accident, which is the whole reason this is not bound to the
+  // panel body or the stage.
+  function setSheetMinimised(yes) {
+    var was = S.sheetMinimised;
+    S.sheetMinimised = !!yes;
+    if (doc && doc.body && doc.body.classList) {
+      doc.body.classList[S.sheetMinimised ? 'add' : 'remove']('sheet-min');
+    }
+    var g = $('sheet-grip');
+    if (g && g.setAttribute) {
+      g.setAttribute('aria-expanded', S.sheetMinimised ? 'false' : 'true');
+      g.setAttribute('aria-label',
+        S.sheetMinimised ? 'Restore the planning panel' : 'Minimise the planning panel');
+    }
+    // The sheet covers the bottom of the stage when it is up and nothing
+    // when it is down, so the camera's safe area just changed under it.
+    if (was !== S.sheetMinimised && G) {
+      S.lastFitKey = null;
+      clampCam(true);
+    }
+  }
+  function bindSheetGrip() {
+    var g = $('sheet-grip');
+    if (!g || !g.addEventListener) return;
+    var drag = null;
+    var TAP_PX = 6, THROW_PX = 48;
+    g.addEventListener('pointerdown', function (ev) {
+      if (!isSheetLayout()) return;
+      drag = { y0: ev.clientY, dy: 0, id: ev.pointerId };
+      if (g.setPointerCapture) { try { g.setPointerCapture(ev.pointerId); } catch (e) {} }
+      if (doc && doc.body && doc.body.classList) doc.body.classList.add('sheet-dragging');
+      if (ev.preventDefault) ev.preventDefault();
+    });
+    g.addEventListener('pointermove', function (ev) {
+      if (!drag || ev.pointerId !== drag.id) return;
+      drag.dy = ev.clientY - drag.y0;
+      var plan = $('plan');
+      if (!plan || !plan.style) return;
+      // Follow the finger, but only in the direction that has anywhere to
+      // go: an expanded sheet can be pulled down, a minimised one up.
+      var travel = plan.offsetHeight - T.ui.sheetGripPx;
+      var base = S.sheetMinimised ? travel : 0;
+      var y = Math.max(0, Math.min(travel, base + drag.dy));
+      plan.style.transform = 'translateY(' + y + 'px)';
+    });
+    function end(ev) {
+      if (!drag || (ev && ev.pointerId !== drag.id)) return;
+      var dy = drag.dy;
+      drag = null;
+      var plan = $('plan');
+      if (plan && plan.style) plan.style.transform = '';
+      if (doc && doc.body && doc.body.classList) doc.body.classList.remove('sheet-dragging');
+      // A tap toggles; a throw goes the way it was thrown; anything short
+      // of a throw springs back to where it started.
+      if (Math.abs(dy) <= TAP_PX) setSheetMinimised(!S.sheetMinimised);
+      else if (dy >= THROW_PX) setSheetMinimised(true);
+      else if (dy <= -THROW_PX) setSheetMinimised(false);
+    }
+    g.addEventListener('pointerup', end);
+    g.addEventListener('pointercancel', end);
+    // The sheet only exists below the breakpoint; coming back above it the
+    // panel must not be left hidden by a class nobody can now clear.
+    if (typeof addEventListener === 'function') {
+      addEventListener('resize', function () {
+        if (!isSheetLayout() && S.sheetMinimised) setSheetMinimised(false);
+      });
+    }
   }
 
   function refreshPlanning() {
@@ -11502,6 +11724,7 @@ globalThis.LEIP_APP = (function () {
       on('btn-info', 'click', function () { API.showLanding(true); });
       on('btn-landing-go', 'click', function () { API.showLanding(false); });
       bindRouteDrag($('route-strip'));
+      bindSheetGrip();
       if (typeof addEventListener === 'function') addEventListener('resize', resize);
       bindStageInput();
       fitCamera(null);
@@ -11704,6 +11927,14 @@ globalThis.LEIP_APP = (function () {
     // ⓘ in the header brings it back at any point.
     showLanding: function (yes) { show('landing', yes !== false); },
 
+    // Mobile bottom sheet: minimise to hand the whole screen to the chart,
+    // restore to plan again. A no-op on the desktop sidebar.
+    setSheetMinimised: function (yes) {
+      if (!isSheetLayout()) return false;
+      setSheetMinimised(yes !== false);
+      return S.sheetMinimised;
+    },
+
     renderShareCard: function (cnv) {
       if (!S.sim) return null;
       return renderShareCard(cnv);
@@ -11797,14 +12028,14 @@ globalThis.LEIP_APP = (function () {
     // planning panel and the title block) at the current view.
     debugSafeArea: function () {
       if (!G) return null;
-      var panelFrac = G.w > 0 ? Math.min(0.6, T.ui.panelWidthPx / G.w) : 0;
-      var left = -1 + 2 * panelFrac, m = T.frame.marginNdc;
+      var inset = panelInset();
+      var left = -1 + 2 * inset.left, bot = -1 + 2 * inset.bottom, m = T.frame.marginNdc;
       G.camera.updateMatrixWorld(); G.camera.updateProjectionMatrix();
       var outside = [];
       D.ports.forEach(function (p) {
         var w = PROJ.portPos(p.name);
         var v = new THREE.Vector3(w.x, 0, w.z).project(G.camera);
-        if (!(v.x > left && v.x < 1 - m && v.y > -1 + m && v.y < 1 - m)) outside.push(p.name);
+        if (!(v.x > left && v.x < 1 - m && v.y > bot + m && v.y < 1 - m)) outside.push(p.name);
       });
       return { total: D.ports.length, outside: outside,
                solved: G.fitSolved, cam: { x: G.cam.x, z: G.cam.z, dist: G.cam.dist } };
