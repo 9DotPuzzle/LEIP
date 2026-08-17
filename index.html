@@ -67,7 +67,7 @@ button:disabled:hover { background: none; color: var(--ink); }
 
 #app { display: flex; flex-direction: column; height: 100%; }
 #topbar {
-  display: flex; align-items: baseline; gap: 14px; padding: 10px 16px;
+  display: flex; align-items: center; gap: 14px; padding: 10px 16px;
   background: var(--paper); border-bottom: var(--rule) solid var(--ink-fixed);
   color: var(--ink-fixed);
 }
@@ -77,13 +77,19 @@ button:disabled:hover { background: none; color: var(--ink); }
 #topbar button:hover { background: var(--ink-fixed); color: var(--paper); }
 /* The info button opens the run of buttons, so it carries the auto margin
    that used to sit on every one of them. */
-/* The header row is baseline-aligned, which is right for the wordmark and
-   the two text buttons but puts this one — a short square with no text
-   baseline of its own — visibly high. It centres against the tall buttons
-   instead, and keeps its compact square rather than stretching to their
-   height. */
-#btn-info { margin-left: auto; padding: 5px 7px; line-height: 0; align-self: center; }
-#btn-info svg { width: 16px; height: 16px; display: block; }
+/* The three header buttons are ONE ROW: same top edge, same bottom edge.
+   align-self:stretch gives every button the row's height, which the
+   tallest of them sets — HIGH SCORES, which wraps to two lines on a
+   phone — so the info button matches them exactly instead of sitting
+   short and low. It stays narrow; only the height is shared. Baseline
+   alignment used to do this job and could not: a square with no text in
+   it has no baseline to align. */
+#topbar button { align-self: stretch; }
+#btn-info {
+  margin-left: auto; padding: 0 10px; line-height: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+#btn-info svg { width: 17px; height: 17px; display: block; }
 
 /* The stage fills the frame; the planning panel floats over it so the
    liquid-glass frost has the world to refract. */
@@ -364,28 +370,23 @@ table.board td.num { font-family: var(--font-data); }
   /* MINIMISED: the sheet slides out of the way entirely, leaving only the
      grip strip. The map is already inset:0 behind it, so this uncovers a
      genuinely full-screen chart rather than resizing anything. */
+  /* Minimised, the sheet leaves ENTIRELY. It used to stop short so its
+     grip could peek as the restore tab, which is what left a bar of panel
+     chrome sitting across the bottom of the chart next to the title
+     block. The restore control lives in the cluster now, so the sheet has
+     no reason to stay. */
   body.sheet-min #plan {
-    transform: translateY(calc(100% - var(--grip-h)));
-    background: none; border-top: none;
-    -webkit-backdrop-filter: none; backdrop-filter: none;
-    box-shadow: none; overflow: hidden;
+    transform: translateY(100%);
+    box-shadow: none;
   }
-  body.sheet-min #plan > section, body.sheet-min #plan > #actions { visibility: hidden; }
 
-  /* The grip sits at the LEFT of the sheet's top edge. Centred, it would
-     sit under the title block once the sheet is down — the HUD is bottom
-     right — and full width it would band across the chart. A pill on the
-     left clears both and stays a comfortable tap target. */
-  /* #plan button sets a glass fill on every button in the panel and, being
-     an id plus a type selector, out-specifies a bare #sheet-grip. The grip
-     is chrome rather than a panel control — it has to read against open
-     water once the sheet is down — so it is qualified to win. */
-  /* Sticky at the sheet's top edge, and FULL WIDTH while the sheet is up,
-     so the port list scrolls underneath an opaque bar rather than under a
-     floating pill that hides whichever chip it happens to be over. It
-     collapses to a left-hand pill once minimised — full width down there
-     would band across the chart and run under the title block, which sits
-     in the opposite corner precisely so the two never meet. */
+  /* THE PLAN BAR — the sheet's top strip, and the drag target. Sticky and
+     full width, so the port list scrolls beneath an opaque bar rather
+     than under a floating pill that hides whichever chip it is over, and
+     so there is a generous strip to grab anywhere along.
+     #plan button sets a glass fill on every button in the panel and, being
+     an id plus a type selector, out-specifies a bare #sheet-grip — the bar
+     is chrome rather than a panel control, so it is qualified to win. */
   #plan #sheet-grip, #sheet-grip {
     display: flex; align-items: center; gap: 8px;
     position: sticky; top: 0; z-index: 2; margin: 0 0 10px 0; width: 100%;
@@ -401,9 +402,7 @@ table.board td.num { font-family: var(--font-data); }
     display: block; width: 26px; height: 3px; background: currentColor; opacity: 0.55;
   }
   #sheet-grip em { font-style: normal; font-weight: 600; }
-  body.sheet-min #plan #sheet-grip {
-    cursor: pointer; visibility: visible; width: auto; margin-right: auto;
-  }
+
   /* The minimised control cluster: stacked above the grip at the bottom
      LEFT, which is the one corner that is free. The title block owns the
      bottom right, and a row across the full width would cross the chart
@@ -414,17 +413,37 @@ table.board td.num { font-family: var(--font-data); }
      HUD's top edge, offset by its MEASURED height so it still clears when
      the diesel row appears mid-charter, with the grip below it at the
      screen edge. */
+  /* ITS OWN ZONE, above the title block. The HUD is sized to its
+     worst-case content, which on a phone is most of the width — there is
+     no corner left to share — so the cluster stacks on the block's top
+     edge, offset by its MEASURED height so it still clears when the diesel
+     row appears mid-charter. `align-items: stretch` in a column is what
+     makes the three buttons one width: they size to the widest of them,
+     which is SIMULATE CHARTER, rather than each to its own text. */
   body.sheet-min #mini-actions {
-    display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
-    position: absolute; left: 14px; bottom: calc(var(--hud-h, 200px) + 16px);
-    z-index: 5; max-width: 62vw;
+    display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+    position: absolute; left: 14px; width: max-content;
+    bottom: calc(var(--hud-h, 200px) + 16px);
+    z-index: 5; max-width: calc(100vw - 28px);
   }
+  /* One style for all three. The panel's glass treatment does not apply
+     out here over open water, and a half-transparent button beside an
+     opaque one is what made these read as two different kinds of control. */
   body.sheet-min #mini-actions button {
-    background: var(--paper); color: var(--ink-fixed);
+    background: var(--paper); color: var(--ink-fixed); opacity: 1;
     border: var(--rule) solid var(--ink-fixed);
-    padding: 9px 13px; font-size: 11px; white-space: nowrap;
+    -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
+    padding: 11px 14px; font-size: 11px; white-space: nowrap; text-align: center;
   }
-  body.sheet-min #mini-actions button:disabled { opacity: 0.45; }
+  body.sheet-min #mini-actions button:disabled { opacity: 0.42; }
+  /* The restore control reads as the handle it replaces: same width as the
+     pair above it, with the grab bar drawn into it. */
+  body.sheet-min #btn-mini-plan {
+    display: flex; align-items: center; justify-content: center; gap: 9px;
+  }
+  body.sheet-min #btn-mini-plan::before {
+    content: ''; width: 26px; height: 3px; background: currentColor; opacity: 0.55;
+  }
   /* Dragging: the sheet follows the finger, so the transition is off for
      the duration or it would lag behind it. */
   body.sheet-dragging #plan { transition: none; }
@@ -528,9 +547,17 @@ table.board td.num { font-family: var(--font-data); }
            they call API.spin() and API.simulate(), the same entry points
            the panel's own buttons call, and mirror their disabled state.
            They sit OUTSIDE #plan because #plan is what slides away. -->
+      <!-- Mobile, minimised only: ONE cluster, not three loose elements.
+           The two actions a player still wants from the full-map view,
+           plus the control that brings the sheet back — same width, same
+           style, one gap between them. They call API.spin(), API.simulate()
+           and API.setSheetMinimised(false): the same entry points the panel
+           uses, not a second implementation. Outside #plan, because #plan
+           is what slides away. -->
       <div id="mini-actions" class="hidden">
         <button id="btn-mini-spin">Random spin</button>
         <button id="btn-mini-sim" disabled>Simulate charter</button>
+        <button id="btn-mini-plan" aria-controls="plan" aria-expanded="false">Plan</button>
       </div>
       <button id="btn-skip" class="hidden">Skip</button>
       <div id="webgl-fallback" class="hidden">
@@ -9710,6 +9737,25 @@ globalThis.LEIP_APP = (function () {
     // hidden for this view — a dropped name reads better than two names on
     // top of each other, and it comes back as soon as the view opens up.
     lastCam: null,
+    // On-screen chrome that names must avoid, in stage pixels.
+    chromeBoxes: function () {
+      var out = [];
+      if (!doc) return out;
+      var stage = $('stage-wrap');
+      if (!stage || !stage.getBoundingClientRect) return out;
+      var sr = stage.getBoundingClientRect();
+      if (!(sr.width > 0)) return out;
+      ['titleblock', 'mini-actions'].forEach(function (id) {
+        var el = $(id);
+        if (!el || !el.getBoundingClientRect) return;
+        if (el.classList && el.classList.contains('hidden')) return;
+        var r = el.getBoundingClientRect();
+        if (!(r.width > 0) || !(r.height > 0)) return;
+        out.push({ x0: r.left - sr.left, x1: r.right - sr.left,
+                   y0: r.top - sr.top, y1: r.bottom - sr.top });
+      });
+      return out;
+    },
     layout: function () {
       if (!G || !G.camera || !Labels.items.length) return;
       var lp = T.world.labelPlate;
@@ -9736,6 +9782,13 @@ globalThis.LEIP_APP = (function () {
       var rose = Labels.project(roseW.x, roseW.z, lp.rosePadWorld * 2, lp.rosePadWorld * 2, cam, w, h);
 
       var placed = rose ? [rose] : [];
+      // The UI over the chart cannot step aside either. The title block
+      // and, on a folded sheet, the control cluster are seeded as occupied
+      // so names route around them instead of rendering underneath — the
+      // same treatment the compass rose has always had. Their rectangles
+      // are read from the DOM and put into stage space; the labels'
+      // screen-space boxes are already in it.
+      Labels.chromeBoxes().forEach(function (b) { placed.push(b); });
       // The monuments are sculpture, not type: they cannot step aside, so
       // they are seeded as occupied before anything is placed. Names and
       // callouts both route around them.
@@ -11118,6 +11171,9 @@ globalThis.LEIP_APP = (function () {
     show('mini-actions', S.sheetMinimised);
     syncMiniActions();
     publishHudHeight();
+    // The chrome the names route around just changed, and the camera did
+    // not — which is the one thing the relayout guard watches. Force it.
+    Labels.lastCam = null;
     // The box just grew or shrank, but the VIEW does not move: minimising
     // reveals more sea around what the player was already looking at,
     // rather than re-centring or re-fitting under them. Only the clamp
@@ -11134,42 +11190,64 @@ globalThis.LEIP_APP = (function () {
     if (mini && sim) mini.disabled = !!sim.disabled;
     if (spin) spin.disabled = S.phase !== 'planning';
   }
+  // THE PLAN BAR IS THE DRAG TARGET. The sheet tracks the finger in real
+  // time and, on release, SNAPS to whichever state it is nearest — by
+  // position, or by velocity if the gesture was a flick, so a quick short
+  // throw collapses rather than springing back. Bound to the bar alone:
+  // the map's own pointer handling is untouched, so panning the chart can
+  // never move the sheet.
   function bindSheetGrip() {
     var g = $('sheet-grip');
     if (!g || !g.addEventListener) return;
     var drag = null;
-    var TAP_PX = 6, THROW_PX = 48;
+    var TAP_PX = 6;              // below this it was a tap, not a drag
+    var FLICK_PX_PER_MS = 0.45;  // a throw, whatever distance it covered
+    function travelPx() {
+      var plan = $('plan');
+      return plan && plan.offsetHeight > 0 ? plan.offsetHeight : 400;
+    }
     g.addEventListener('pointerdown', function (ev) {
       if (!isSheetLayout()) return;
-      drag = { y0: ev.clientY, dy: 0, id: ev.pointerId };
+      // Never swallow a tap meant for something else sitting on the bar.
+      var t = ev.target;
+      if (t && t.closest && t !== g && t.closest('button') !== g) return;
+      var now = (Date.now ? Date.now() : +new Date());
+      drag = { y0: ev.clientY, dy: 0, id: ev.pointerId, t0: now, lastY: ev.clientY, lastT: now, v: 0 };
       if (g.setPointerCapture) { try { g.setPointerCapture(ev.pointerId); } catch (e) {} }
       if (doc && doc.body && doc.body.classList) doc.body.classList.add('sheet-dragging');
       if (ev.preventDefault) ev.preventDefault();
     });
     g.addEventListener('pointermove', function (ev) {
       if (!drag || ev.pointerId !== drag.id) return;
+      var now = (Date.now ? Date.now() : +new Date());
+      var dt = now - drag.lastT;
+      if (dt > 0) drag.v = (ev.clientY - drag.lastY) / dt;   // px per ms, + is down
+      drag.lastY = ev.clientY; drag.lastT = now;
       drag.dy = ev.clientY - drag.y0;
       var plan = $('plan');
       if (!plan || !plan.style) return;
-      // Follow the finger, but only in the direction that has anywhere to
-      // go: an expanded sheet can be pulled down, a minimised one up.
-      var travel = plan.offsetHeight - T.ui.sheetGripPx;
+      // Follow the finger, bounded by the two states: an expanded sheet
+      // can be pulled down, a minimised one up, neither past the other.
+      var travel = travelPx();
       var base = S.sheetMinimised ? travel : 0;
-      var y = Math.max(0, Math.min(travel, base + drag.dy));
-      plan.style.transform = 'translateY(' + y + 'px)';
+      plan.style.transform =
+        'translateY(' + Math.max(0, Math.min(travel, base + drag.dy)) + 'px)';
     });
     function end(ev) {
       if (!drag || (ev && ev.pointerId !== drag.id)) return;
-      var dy = drag.dy;
+      var dy = drag.dy, v = drag.v, travel = travelPx();
+      var base = S.sheetMinimised ? travel : 0;
+      var at = Math.max(0, Math.min(travel, base + dy));
       drag = null;
       var plan = $('plan');
       if (plan && plan.style) plan.style.transform = '';
       if (doc && doc.body && doc.body.classList) doc.body.classList.remove('sheet-dragging');
-      // A tap toggles; a throw goes the way it was thrown; anything short
-      // of a throw springs back to where it started.
-      if (Math.abs(dy) <= TAP_PX) setSheetMinimised(!S.sheetMinimised);
-      else if (dy >= THROW_PX) setSheetMinimised(true);
-      else if (dy <= -THROW_PX) setSheetMinimised(false);
+      if (Math.abs(dy) <= TAP_PX) { setSheetMinimised(!S.sheetMinimised); return; }
+      // A flick wins over position: it is a statement of intent, and
+      // demanding half the sheet's travel from it would ignore it.
+      if (v >= FLICK_PX_PER_MS) setSheetMinimised(true);
+      else if (v <= -FLICK_PX_PER_MS) setSheetMinimised(false);
+      else setSheetMinimised(at > travel / 2);      // otherwise: nearest state
     }
     g.addEventListener('pointerup', end);
     g.addEventListener('pointercancel', end);
@@ -11865,6 +11943,7 @@ globalThis.LEIP_APP = (function () {
       on('btn-clear-acts', 'click', function () { API.clearActivities(); });
       on('btn-mini-spin', 'click', function () { API.spin(); });
       on('btn-mini-sim', 'click', function () { API.simulate(); });
+      on('btn-mini-plan', 'click', function () { API.setSheetMinimised(false); });
       on('btn-info', 'click', function () { API.showLanding(true); });
       on('btn-landing-go', 'click', function () { API.showLanding(false); });
       bindRouteDrag($('route-strip'));

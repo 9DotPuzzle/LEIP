@@ -483,8 +483,27 @@ const phoneShots = {
     await settle(page, 14);
     return {};
   },
-  // The header, where the info button used to sit high against the two
-  // tall buttons beside it.
+  // The sheet caught HALF WAY DOWN, mid-gesture: pointer down on the PLAN
+  // bar, moved, and not yet released, so the sheet is following the finger
+  // and has not snapped to either state.
+  'm-sheet-dragging': async (page) => {
+    const bar = await page.locator('#sheet-grip').boundingBox();
+    await page.mouse.move(bar.x + bar.width / 2, bar.y + bar.height / 2);
+    await page.mouse.down();
+    // Several small steps rather than one jump: a real gesture, and slow
+    // enough that the release would settle by position rather than flick.
+    for (let i = 1; i <= 6; i++) {
+      await page.mouse.move(bar.x + bar.width / 2, bar.y + bar.height / 2 + i * 28);
+      await page.waitForTimeout(40);
+    }
+    await settle(page, 4);
+    const shot = {};                      // full frame, pointer still down
+    await page.screenshot({ path: 'shots/m-sheet-dragging.png' });
+    await page.mouse.up();
+    return shot;
+  },
+  // The header, where the info button used to sit short and low against
+  // the two tall buttons beside it.
   'm-header': async (page) => {
     await settle(page, 4);
     return { clip: await page.locator('#topbar').boundingBox() };

@@ -306,14 +306,15 @@ check('small viewports drop to a cheaper sea',
     check('a stroked diagonal overhangs the corners, so the flag is clipped',
       /needsClip = true;/.test(src) && /clip-path="url\(#/.test(src));
   }
-  // The header row is baseline-aligned, which puts a short square button
-  // with no text baseline of its own visibly high against the two tall ones.
-  check('the header info button is centred against its neighbours, not baselined',
-    /#btn-info \{[^}]*align-self: center/.test(src) &&
-    /#topbar \{[^}]*align-items: baseline/.test(src));
-  check('and it keeps its compact square rather than stretching to their height',
-    !/#btn-info \{[^}]*align-self: stretch/.test(src) &&
-    !/#btn-info \{[^}]*height: 100%/.test(src));
+  // The three header buttons are ONE ROW — same top edge, same bottom
+  // edge. Baseline alignment used to do this and could not: a square with
+  // no text in it has no baseline to align, so it sat short and low.
+  check('every header button takes the row height, so all three share their edges',
+    /#topbar button \{ align-self: stretch; \}/.test(src) &&
+    /#topbar \{[\s\S]{0,120}align-items: center/.test(src));
+  check('the info button matches their height and stays narrow',
+    /#btn-info \{[^}]*padding: 0 10px/.test(src) &&
+    !/#btn-info \{[^}]*align-self: center/.test(src));
   {
     // The HUD box sizes to its content. The old fixed width plus
     // overflow:hidden is what sliced "7:00 PM" into "7:00 PI".
@@ -422,6 +423,50 @@ check('small viewports drop to a cheaper sea',
     check('and they only exist in the minimised sheet — never on the desktop sidebar',
       /body\.sheet-min #mini-actions \{/.test(src) &&
       !/^#mini-actions \{/m.test(src));
+    // ONE CLUSTER, not three loose elements. The restore control moved in
+    // with the two actions; the sheet now leaves entirely rather than
+    // stopping short so its bar could peek as a tab beside the HUD.
+    check('the cluster holds all three controls — restore, spin, simulate',
+      /id="btn-mini-plan"/.test(src) && /id="btn-mini-spin"/.test(src) &&
+      /id="btn-mini-sim"/.test(src) &&
+      src.indexOf('id="btn-mini-plan"') > src.indexOf('id="mini-actions"') &&
+      src.indexOf('id="btn-mini-plan"') < src.indexOf('id="btn-skip"'));
+    check('a minimised sheet leaves ENTIRELY — no bar left peeking by the HUD',
+      /body\.sheet-min #plan \{\s*\n\s*transform: translateY\(100%\);/.test(src));
+    {
+      // Matched pair: one width, one style, one opacity. A column with
+      // align-items:stretch is what makes them size to the widest of them
+      // rather than each to its own text.
+      const rule = src.slice(src.indexOf('body.sheet-min #mini-actions {'));
+      const box = rule.slice(0, rule.indexOf('}'));
+      check('the cluster is a stretched column with one gap between its buttons',
+        /flex-direction: column/.test(box) && /align-items: stretch/.test(box) &&
+        /gap: \d+px/.test(box));
+      const btn = rule.slice(rule.indexOf('#mini-actions button {'));
+      const btnBox = btn.slice(0, btn.indexOf('}'));
+      check('and one style for all three — same fill, same border, full opacity',
+        /background: var\(--paper\)/.test(btnBox) && /opacity: 1/.test(btnBox) &&
+        /backdrop-filter: none/.test(btnBox));
+    }
+    // Names route around the chrome now, not under it.
+    check('the label pass treats the HUD and the cluster as occupied',
+      /Labels\.chromeBoxes\(\)\.forEach/.test(src) &&
+      /\['titleblock', 'mini-actions'\]/.test(src));
+    check('and folding the sheet forces a re-layout, since the camera did not move',
+      /Labels\.lastCam = null;/.test(
+        src.slice(src.indexOf('function setSheetMinimised'),
+                  src.indexOf('function syncMiniActions'))));
+    // The drag: real-time follow, then snap by velocity or by position.
+    check('the PLAN bar drags the sheet in real time',
+      /plan\.style\.transform =\s*\n?\s*'translateY\(' \+ Math\.max\(0, Math\.min\(travel, base \+ drag\.dy\)\)/.test(src));
+    check('a flick decides the state regardless of how far it travelled',
+      /if \(v >= FLICK_PX_PER_MS\) setSheetMinimised\(true\);/.test(src) &&
+      /else if \(v <= -FLICK_PX_PER_MS\) setSheetMinimised\(false\);/.test(src));
+    check('and a slow partial drag settles to whichever state it is nearest',
+      /else setSheetMinimised\(at > travel \/ 2\);/.test(src));
+    check('a tap still toggles, and taps on other controls in the bar pass through',
+      /if \(Math\.abs\(dy\) <= TAP_PX\) \{ setSheetMinimised\(!S\.sheetMinimised\); return; \}/.test(src) &&
+      /if \(t && t\.closest && t !== g && t\.closest\('button'\) !== g\) return;/.test(src));
     check('and coming back above the breakpoint cannot leave the panel hidden',
       /if \(!isSheetLayout\(\) && S\.sheetMinimised\) setSheetMinimised\(false\);/.test(src));
   }
