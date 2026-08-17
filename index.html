@@ -77,7 +77,12 @@ button:disabled:hover { background: none; color: var(--ink); }
 #topbar button:hover { background: var(--ink-fixed); color: var(--paper); }
 /* The info button opens the run of buttons, so it carries the auto margin
    that used to sit on every one of them. */
-#btn-info { margin-left: auto; padding: 5px 7px; line-height: 0; }
+/* The header row is baseline-aligned, which is right for the wordmark and
+   the two text buttons but puts this one — a short square with no text
+   baseline of its own — visibly high. It centres against the tall buttons
+   instead, and keeps its compact square rather than stretching to their
+   height. */
+#btn-info { margin-left: auto; padding: 5px 7px; line-height: 0; align-self: center; }
 #btn-info svg { width: 16px; height: 16px; display: block; }
 
 /* The stage fills the frame; the planning panel floats over it so the
@@ -399,6 +404,27 @@ table.board td.num { font-family: var(--font-data); }
   body.sheet-min #plan #sheet-grip {
     cursor: pointer; visibility: visible; width: auto; margin-right: auto;
   }
+  /* The minimised control cluster: stacked above the grip at the bottom
+     LEFT, which is the one corner that is free. The title block owns the
+     bottom right, and a row across the full width would cross the chart
+     and run under it. */
+  /* ABOVE the title block, not beside it. The HUD is now sized to its
+     worst-case content, which on a phone is most of the width — there is
+     no bottom-left corner left to share. So the cluster stacks on the
+     HUD's top edge, offset by its MEASURED height so it still clears when
+     the diesel row appears mid-charter, with the grip below it at the
+     screen edge. */
+  body.sheet-min #mini-actions {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+    position: absolute; left: 14px; bottom: calc(var(--hud-h, 200px) + 16px);
+    z-index: 5; max-width: 62vw;
+  }
+  body.sheet-min #mini-actions button {
+    background: var(--paper); color: var(--ink-fixed);
+    border: var(--rule) solid var(--ink-fixed);
+    padding: 9px 13px; font-size: 11px; white-space: nowrap;
+  }
+  body.sheet-min #mini-actions button:disabled { opacity: 0.45; }
   /* Dragging: the sheet follows the finger, so the transition is off for
      the duration or it would lag behind it. */
   body.sheet-dragging #plan { transition: none; }
@@ -496,6 +522,15 @@ table.board td.num { font-family: var(--font-data); }
           </div>
         </div>
         <div class="tb-row"><div id="tb-dots"></div></div>
+      </div>
+      <!-- Mobile, minimised only: the two actions a player still wants
+           from the full-map view. These are not a second implementation —
+           they call API.spin() and API.simulate(), the same entry points
+           the panel's own buttons call, and mirror their disabled state.
+           They sit OUTSIDE #plan because #plan is what slides away. -->
+      <div id="mini-actions" class="hidden">
+        <button id="btn-mini-spin">Random spin</button>
+        <button id="btn-mini-sim" disabled>Simulate charter</button>
       </div>
       <button id="btn-skip" class="hidden">Skip</button>
       <div id="webgl-fallback" class="hidden">
@@ -746,7 +781,24 @@ globalThis.LEIP_THEME = {
     panelWidthPx: 300,
     dotRadiusPx: 5,
     diamondDotRadiusPx: 13,     // achievements screen
-    diamondSpreadPct: 38        // dot spread across the diamond field
+    diamondSpreadPct: 38,       // dot spread across the diamond field
+    // THE BOX IS SIZED ONCE, TO ITS WORST CASE, AND HELD. Sizing to the
+    // live values means the frame twitches every time a reading changes
+    // length — ANCHOR to HYBRID, 9.4 to 11.6, a short leg to a long one —
+    // which is a data panel behaving like a progress bar. These are the
+    // widest strings the game can produce in each cell, measured at boot
+    // and again on resize, and the width that comes out is then fixed for
+    // the session. Real values fill reserved space; nothing reflows.
+    // The leg is the LONGEST ANY ROUTE CAN PRODUCE between two different
+    // ports, found by sweeping the port list — 38 characters, not the 31
+    // of the brief's example, which would have under-reserved by seven and
+    // let a real route wrap where it did not need to. The one string that
+    // beats it is a port to ITSELF (45), which a repeat can produce; that
+    // wraps, and the WIDTH still does not move, which is the requirement.
+    widest: {
+      mode: 'HYBRID', speed: '11.6 KTS', day: '3/7', clock: '7:00 PM',
+      leg: "PORT D'ANDRATX > SAINT-JEAN-CAP-FERRAT", batt: '100%'
+    }
   },
 
   lines: { hairlinePx: 1, rulePx: 1.5, routePx: 1.75 },
@@ -1036,16 +1088,24 @@ globalThis.LEIP_THEME = {
     // has today is preserved EXACTLY, and stays put when far-flung ports
     // are added rather than zooming out to swallow them.
     homeDeg: { minLon: 1.44, maxLon: 28.94, minLat: 36.12, maxLat: 45.44 },
-    // MOBILE HOME. The desktop rectangle above spans Barcelona to the
-    // Aegean, which on a phone held sideways is a continent with the ports
-    // as specks — untappable, and nothing to aim at. So the sheet layout
-    // opens on the DENSE cluster instead: the Ligurian and Tyrrhenian
-    // basins with Corsica and Sardinia, which holds 22 of the 44 ports.
-    // Not eyeballed — a headless check slides a box of this exact size
-    // over the whole port field and confirms none holds more, so this is
-    // the cluster rather than merely a small rectangle. Everything else is one pinch away; the pan limit is unchanged,
-    // so Lateral and the Atlantic stay reachable exactly as before.
-    homeDegMobile: { minLon: 3.8, maxLon: 14.8, minLat: 39.2, maxLat: 45.6 }
+    // MOBILE HOME — the WHOLE Mediterranean cluster, so the phone opens on
+    // the sea area the game is about and the player pinches in from there.
+    //
+    // An earlier version of this was a tight box around the densest 22
+    // ports, on the reasoning that the basin would render the ports as
+    // specks. That was treating the symptom: the real fault was that the
+    // fit was computed against the WRONG BOX — the whole stage rather than
+    // the strip above the sheet — so every framing came out over-zoomed
+    // and the tight rectangle was over-zoomed on top of it. panelInset now
+    // measures the real box, and the rectangle can go back to meaning what
+    // it says.
+    //
+    // It is stated rather than derived, like homeDeg, but it is checked:
+    // a headless test asserts it contains every one of the 41 ports in the
+    // Mediterranean (all but Lateral, Casablanca and Gibraltar, which are
+    // Atlantic). The pan limit is unchanged, so those three stay reachable
+    // exactly as before.
+    homeDegMobile: { minLon: 1.2, maxLon: 29.2, minLat: 35.6, maxLat: 45.8 }
   },
 
   shareCard: { w: 1080, h: 1920, dotSpreadPx: 72, dotRadiusPx: 13 }   // story format, canvas-rendered
@@ -9195,7 +9255,8 @@ globalThis.LEIP_APP = (function () {
     reducedMotion: false,
     inkDark: false,
     lastFitKey: null,             // the port SET the camera is framed on
-    sheetMinimised: false         // mobile: the planning sheet swiped away
+    sheetMinimised: false,        // mobile: the planning sheet swiped away
+    hudH: 0                       // last published title-block height, px
   };
   // v3: the 0-50 base rescale. Anything saved under v2 was scored on the
   // old 0-1000 board and would misread against new scores, so it is left
@@ -10353,6 +10414,10 @@ globalThis.LEIP_APP = (function () {
     G.camera.aspect = w / h;
     G.camera.updateProjectionMatrix();
     footCache.box = null;          // the footprint is aspect-dependent
+    // The cap on the HUD's reserved width is the viewport, so re-measure
+    // when that changes — and only then. Within a session the width is
+    // pinned and live values never move it.
+    lockTitleBlockWidth();
     clampCam(true);
   }
 
@@ -10388,14 +10453,30 @@ globalThis.LEIP_APP = (function () {
   // asks here, so the camera cannot end up centring the world behind the
   // panel on one layout while getting it right on the other. Fractions of
   // the stage, 0..0.6.
+  // MEASURED, not inferred. The first version of this computed the covered
+  // fraction from the THEME tokens — sheetMaxVh over the stage height —
+  // and was wrong on every phone: sheetMaxVh is 52% of the VIEWPORT, the
+  // stage is the viewport minus the header, and 52% of one is 57% of the
+  // other. Five points of error is a third of the visible strip's height,
+  // and the default view came out badly over-zoomed. The panel's own
+  // rectangle is the ground truth, so ask it.
+  var MAX_INSET = 0.7;          // always leave a usable strip of chart
   function panelInset() {
     if (!G || !(G.w > 0) || !(G.h > 0)) return { left: 0, bottom: 0 };
-    if (isSheetLayout()) {
-      if (S.sheetMinimised) return { left: 0, bottom: 0 };
-      var sheetPx = G.h * T.ui.sheetMaxVh / 100;
-      return { left: 0, bottom: Math.min(0.6, sheetPx / G.h) };
+    if (isSheetLayout() && S.sheetMinimised) return { left: 0, bottom: 0 };
+    var stage = $('stage-wrap'), plan = $('plan');
+    if (stage && plan && stage.getBoundingClientRect && plan.getBoundingClientRect) {
+      var sr = stage.getBoundingClientRect(), pr = plan.getBoundingClientRect();
+      if (sr.width > 0 && sr.height > 0 && pr.width > 0 && pr.height > 0) {
+        return isSheetLayout()
+          ? { left: 0, bottom: Math.max(0, Math.min(MAX_INSET, (sr.bottom - pr.top) / sr.height)) }
+          : { left: Math.max(0, Math.min(MAX_INSET, (pr.right - sr.left) / sr.width)), bottom: 0 };
+      }
     }
-    return { left: Math.min(0.6, T.ui.panelWidthPx / G.w), bottom: 0 };
+    // No DOM to measure (the headless harness): fall back to the tokens.
+    return isSheetLayout()
+      ? { left: 0, bottom: Math.min(MAX_INSET, T.ui.sheetMaxVh / 100) }
+      : { left: Math.min(MAX_INSET, T.ui.panelWidthPx / G.w), bottom: 0 };
   }
   function isSheetLayout() {
     try { return (globalThis.innerWidth || 1200) <= T.ui.sheetBreakpointPx; }
@@ -11034,12 +11115,24 @@ globalThis.LEIP_APP = (function () {
       g.setAttribute('aria-label',
         S.sheetMinimised ? 'Restore the planning panel' : 'Minimise the planning panel');
     }
-    // The sheet covers the bottom of the stage when it is up and nothing
-    // when it is down, so the camera's safe area just changed under it.
-    if (was !== S.sheetMinimised && G) {
-      S.lastFitKey = null;
-      clampCam(true);
-    }
+    show('mini-actions', S.sheetMinimised);
+    syncMiniActions();
+    publishHudHeight();
+    // The box just grew or shrank, but the VIEW does not move: minimising
+    // reveals more sea around what the player was already looking at,
+    // rather than re-centring or re-fitting under them. Only the clamp
+    // runs, and only because the bounds themselves changed. lastFitKey is
+    // deliberately left alone — resetting it would make the next
+    // unrelated input re-solve the framing and jump the camera.
+    if (was !== S.sheetMinimised && G) clampCam(true);
+  }
+  // The minimised cluster mirrors the panel's own buttons: same actions,
+  // same enabled/disabled rule, read from the same state. Nothing about
+  // spinning or simulating is decided here.
+  function syncMiniActions() {
+    var sim = $('btn-sim'), mini = $('btn-mini-sim'), spin = $('btn-mini-spin');
+    if (mini && sim) mini.disabled = !!sim.disabled;
+    if (spin) spin.disabled = S.phase !== 'planning';
   }
   function bindSheetGrip() {
     var g = $('sheet-grip');
@@ -11159,6 +11252,7 @@ globalThis.LEIP_APP = (function () {
     }
     var ca = $('btn-clear-acts');
     if (ca) ca.disabled = Object.keys(S.inputs.activities).length === 0 || S.phase !== 'planning';
+    syncMiniActions();
     RoutePlot.fit(S.inputs.route);
     // THE CAMERA HOLDS THE WHOLE ROUTE, not the latest pick. fitCamera
     // solves for the widest view that still centres every stop in the safe
@@ -11183,6 +11277,52 @@ globalThis.LEIP_APP = (function () {
   }
 
   // ------------------------------------------------------------ title block
+  // Measure the box once against the widest content it can ever hold, then
+  // pin that width for the session so live values never reflow the frame.
+  // Capped at the viewport: on a phone too narrow for the worst case the
+  // width still stops at the screen edge and the leg — the only value with
+  // no bound on its length — wraps inside it. The WIDTH does not move
+  // either way; that is the whole point.
+  function lockTitleBlockWidth() {
+    var tb = $('titleblock');
+    if (!tb || !tb.style || !tb.getBoundingClientRect) return;
+    var w = T.hud.widest;
+    var cells = [['tb-mode', w.mode], ['tb-speed', w.speed], ['tb-day', w.day],
+                 ['tb-clock', w.clock], ['tb-leg', w.leg], ['tb-batt', w.batt]];
+    var had = cells.map(function (c) {
+      var el = $(c[0]);
+      return el ? { el: el, was: el.textContent } : null;
+    });
+    cells.forEach(function (c) { setText(c[0], c[1]); });
+    // Measure unpinned, with the leg on one line: the natural width of the
+    // worst case is what is being reserved.
+    tb.style.width = '';
+    var leg = $('tb-leg');
+    var legWs = leg && leg.style ? leg.style.whiteSpace : null;
+    if (leg && leg.style) leg.style.whiteSpace = 'nowrap';
+    var want = tb.getBoundingClientRect().width;
+    if (leg && leg.style) leg.style.whiteSpace = legWs || '';
+    // The cap is the viewport less the margin the stylesheet keeps.
+    var vw = 0;
+    try { vw = globalThis.innerWidth || 0; } catch (e) {}
+    var margin = isSheetLayout() ? 16 : 28;
+    var cap = vw > 0 ? vw - margin : want;
+    if (want > 0) tb.style.width = Math.min(want, cap) + 'px';
+    had.forEach(function (h) { if (h) h.el.textContent = h.was; });
+    publishHudHeight();
+  }
+  // The minimised control cluster sits on the title block's top edge, so
+  // it needs the block's height. Published as a CSS variable rather than
+  // read per frame: it only changes when the layout does, or when the
+  // diesel row appears part-way through a charter.
+  function publishHudHeight() {
+    var tb = $('titleblock');
+    if (!tb || !tb.getBoundingClientRect || !doc || !doc.documentElement) return;
+    var st = doc.documentElement.style;
+    if (!st || !st.setProperty) return;
+    var h = Math.round(tb.getBoundingClientRect().height);
+    if (h > 0 && h !== S.hudH) { S.hudH = h; st.setProperty('--hud-h', h + 'px'); }
+  }
   function renderDots() {
     var el = $('tb-dots');
     if (!el) return;
@@ -11205,6 +11345,7 @@ globalThis.LEIP_APP = (function () {
       // reason to know the reserve is there.
       var woken = S.sim.dieselStartH !== null && t >= S.sim.dieselStartH;
       show('tb-dieselrow', woken);
+      publishHudHeight();          // the block just grew a row
       if (woken) {
         var used = dieselUsedAt(t), res = S.sim.dieselReserveMwh;
         var leftPct = Math.max(0, Math.min(100, (res - used) / res * 100));
@@ -11230,6 +11371,7 @@ globalThis.LEIP_APP = (function () {
       setText('tb-clock', S.phase === 'results' ? clockAt(D.time.charterHours) : '—');
       // Hidden in planning and on a battery-only week, at every phase.
       show('tb-dieselrow', S.phase === 'results' && !!S.sim && S.sim.dieselMwh > 0);
+      publishHudHeight();
       if (S.phase === 'results' && S.sim && S.sim.dieselMwh > 0) {
         var lp = Math.max(0, Math.min(100, S.sim.dieselReserveLeftMwh / S.sim.dieselReserveMwh * 100));
         setText('tb-dieselpct', fmt(lp) + '%');
@@ -11721,6 +11863,8 @@ globalThis.LEIP_APP = (function () {
       on('btn-achievements', 'click', function () { API.openDots(); });
       on('tb-dots', 'click', function () { API.openDots(); });
       on('btn-clear-acts', 'click', function () { API.clearActivities(); });
+      on('btn-mini-spin', 'click', function () { API.spin(); });
+      on('btn-mini-sim', 'click', function () { API.simulate(); });
       on('btn-info', 'click', function () { API.showLanding(true); });
       on('btn-landing-go', 'click', function () { API.showLanding(false); });
       bindRouteDrag($('route-strip'));

@@ -448,6 +448,32 @@ const phoneShots = {
   },
   // Fully minimised: the chart has the whole screen and only the grip is
   // left, clear of the title block in the opposite corner.
+  // The HUD's width, in two states that used to produce two widths:
+  // nothing picked (all dashes) and mid-charter (a long leg, HYBRID, a
+  // full clock). The shots are captioned with the measured width so the
+  // pair is checkable rather than merely comparable by eye.
+  'm-hud-empty': async (page) => {
+    const w = await page.evaluate(() =>
+      Math.round(document.getElementById('titleblock').getBoundingClientRect().width));
+    console.log(`    titleblock width, nothing picked: ${w}px`);
+    await settle(page, 6);
+    return { clip: await page.locator('#titleblock').boundingBox() };
+  },
+  'm-hud-running': async (page) => {
+    const w = await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      ['Port d\'Andratx', 'Saint-Jean-Cap-Ferrat'].forEach((n) => A.pickPort(n));
+      A.simulate();
+      for (let i = 0; i < 400 && A.getState().phase === 'playback' &&
+                      !A.debugYacht().moving; i++) A.tick(0.25);
+      for (let i = 0; i < 40; i++) A.tick(0.25);
+      A.debugPause();
+      return Math.round(document.getElementById('titleblock').getBoundingClientRect().width);
+    });
+    console.log(`    titleblock width, mid-charter:    ${w}px`);
+    await settle(page, 8);
+    return { clip: await page.locator('#titleblock').boundingBox() };
+  },
   'm-sheet-minimised': async (page) => {
     await page.evaluate(() => {
       const A = window.LEIP_APP;
@@ -456,6 +482,12 @@ const phoneShots = {
     });
     await settle(page, 14);
     return {};
+  },
+  // The header, where the info button used to sit high against the two
+  // tall buttons beside it.
+  'm-header': async (page) => {
+    await settle(page, 4);
+    return { clip: await page.locator('#topbar').boundingBox() };
   }
 };
 Object.assign(shots, phoneShots);

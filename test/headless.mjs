@@ -306,6 +306,14 @@ check('small viewports drop to a cheaper sea',
     check('a stroked diagonal overhangs the corners, so the flag is clipped',
       /needsClip = true;/.test(src) && /clip-path="url\(#/.test(src));
   }
+  // The header row is baseline-aligned, which puts a short square button
+  // with no text baseline of its own visibly high against the two tall ones.
+  check('the header info button is centred against its neighbours, not baselined',
+    /#btn-info \{[^}]*align-self: center/.test(src) &&
+    /#topbar \{[^}]*align-items: baseline/.test(src));
+  check('and it keeps its compact square rather than stretching to their height',
+    !/#btn-info \{[^}]*align-self: stretch/.test(src) &&
+    !/#btn-info \{[^}]*height: 100%/.test(src));
   {
     // The HUD box sizes to its content. The old fixed width plus
     // overflow:hidden is what sliced "7:00 PM" into "7:00 PI".
@@ -317,6 +325,37 @@ check('small viewports drop to a cheaper sea',
     check('cells keep their content width — flex-basis auto, not the `flex: 1` shorthand',
       /\.tb-cell \{ flex: 1 1 auto;/.test(src) &&
       /#tb-mode-cell \{ flex-grow:/.test(src) && !/#tb-mode-cell \{ flex: /.test(src));
+    // FIXED WIDTH FOR THE SESSION. Sizing to live values made the frame
+    // twitch every time a reading changed length; the box is measured once
+    // against the widest content the game can produce and pinned there.
+    const w = T.hud.widest;
+    check('the worst case is stated, not guessed at',
+      !!w && w.mode === 'HYBRID' && /KTS$/.test(w.speed) &&
+      /^\d\/7$/.test(w.day) && /(AM|PM)$/.test(w.clock));
+    {
+      // The reserved leg must cover every leg a route between two DIFFERENT
+      // ports can produce — swept from the port list rather than taken on
+      // trust. A port to itself is longer still and is allowed to wrap;
+      // what must not happen is the width moving.
+      let longest = '';
+      for (const a of D.ports) {
+        for (const b2 of D.ports) {
+          if (a.name === b2.name) continue;
+          const t = (a.name + ' > ' + b2.name).toUpperCase();
+          if (t.length > longest.length) longest = t;
+        }
+      }
+      check(`the reserved leg covers the longest a route can make (${longest.length} chars: ${longest})`,
+        w.leg.toUpperCase().length >= longest.length, `reserved ${w.leg.length}`);
+      check('MODE reserves for the widest word the HUD can show there',
+        w.mode.length >= 'ANCHOR'.length);
+    }
+    check('the box is measured once and pinned, and re-measured only on resize',
+      /function lockTitleBlockWidth\(\)/.test(src) &&
+      /tb\.style\.width = Math\.min\(want, cap\)/.test(src) &&
+      /lockTitleBlockWidth\(\);\n\s*clampCam\(true\);/.test(src));
+    check('and the pin is capped at the viewport, so a narrow phone never overflows',
+      /var cap = vw > 0 \? vw - margin : want;/.test(src));
     check('the leg, the one unbounded value, wraps rather than overflowing',
       /#tb-leg-cell output \{[\s\S]*?white-space: normal;[\s\S]*?overflow-wrap: anywhere;/.test(src));
   }
@@ -329,53 +368,60 @@ check('small viewports drop to a cheaper sea',
       !!q && Number(q[1]) === T.ui.sheetBreakpointPx, q && q[1]);
     check('one helper answers which edge the panel covers, on both layouts',
       /function panelInset\(\)/.test(src) && !/panelFrac/.test(src));
-    check('the sheet covers the BOTTOM, the sidebar the LEFT, and a minimised sheet neither',
-      /if \(S\.sheetMinimised\) return \{ left: 0, bottom: 0 \};/.test(src) &&
-      /return \{ left: 0, bottom: Math\.min\(0\.6, sheetPx \/ G\.h\) \};/.test(src));
+    // MEASURED, not inferred. sheetMaxVh is a fraction of the VIEWPORT and
+    // the stage is the viewport minus the header, so computing the covered
+    // fraction from the token was wrong by five points on every phone —
+    // a third of the visible strip — and over-zoomed every default view.
+    check('it measures the panel\'s real rectangle rather than inferring it',
+      /stage\.getBoundingClientRect/.test(src) &&
+      /\(sr\.bottom - pr\.top\) \/ sr\.height/.test(src) &&
+      /\(pr\.right - sr\.left\) \/ sr\.width/.test(src));
+    check('a minimised sheet covers nothing, so the box is the whole stage',
+      /if \(isSheetLayout\(\) && S\.sheetMinimised\) return \{ left: 0, bottom: 0 \};/.test(src));
+    check('and minimising does NOT re-fit or re-centre — it only re-clamps',
+      /if \(was !== S\.sheetMinimised && G\) clampCam\(true\);/.test(src) &&
+      !/S\.lastFitKey = null;[\s\S]{0,80}clampCam\(true\);/.test(src));
 
     const h = T.frame.homeDeg, m = T.frame.homeDegMobile, b = T.frame.boundsDeg;
-    const area = (r) => (r.maxLon - r.minLon) * (r.maxLat - r.minLat);
-    const held = (r) => D.ports.filter((p) =>
-      p.lon >= r.minLon && p.lon <= r.maxLon && p.lat >= r.minLat && p.lat <= r.maxLat).length;
-    check(`the phone opens on a far tighter rectangle than the desktop ` +
-      `(${area(m).toFixed(0)} vs ${area(h).toFixed(0)} sq deg)`,
-      area(m) < area(h) / 3);
-    // The real constraint is the PAN LIMIT — both opening rectangles have
-    // to sit inside it or the camera opens somewhere it may not go. The
-    // phone's box is NOT required to sit inside the desktop's: it is
-    // aimed at the densest cluster, which reaches a shade further north
-    // than the desktop rectangle's top edge.
+    const inRect = (p, r) => p.lon >= r.minLon && p.lon <= r.maxLon &&
+                             p.lat >= r.minLat && p.lat <= r.maxLat;
     check('both opening rectangles sit inside the pan limit',
       [m, h].every((r) => r.minLon >= b.minLon && r.maxLon <= b.maxLon &&
                           r.minLat >= b.minLat && r.maxLat <= b.maxLat));
-    // IT IS THE CLUSTER, and that is asserted rather than asserted-by-
-    // adjective: slide a box of exactly this size over the whole port
-    // field and none of them holds more ports. A rectangle can be small
-    // and still be aimed at empty water; this is what rules that out.
+    // The phone opens on the WHOLE Mediterranean cluster. "Whole" is
+    // checked against the port list rather than asserted: every port that
+    // is in the Mediterranean at all must be inside it. The three that are
+    // not are Atlantic, and are reachable by pan exactly as before.
     {
-      const w = m.maxLon - m.minLon, hh = m.maxLat - m.minLat;
-      let best = 0, bestAt = null;
-      for (let lon = b.minLon; lon <= b.maxLon - w; lon += 0.5) {
-        for (let lat = b.minLat; lat <= b.maxLat - hh; lat += 0.5) {
-          const n = held({ minLon: lon, maxLon: lon + w, minLat: lat, maxLat: lat + hh });
-          if (n > best) { best = n; bestAt = [lon.toFixed(1), lat.toFixed(1)]; }
-        }
-      }
-      check(`the phone's rectangle IS the densest cluster — it holds ${held(m)} ports, ` +
-        `against the best of ${best} a half-degree sweep of the whole field finds`,
-        held(m) >= best, `swept best ${best} at ${bestAt && bestAt.join(', ')}`);
+      const atlantic = ['Lateral', 'Casablanca', 'Gibraltar'];
+      const med = D.ports.filter((p) => !atlantic.includes(p.name));
+      const missed = med.filter((p) => !inRect(p, m)).map((p) => p.name);
+      check(`the phone opens on the whole Mediterranean cluster — all ${med.length} Med ports in frame`,
+        missed.length === 0, missed.join(', '));
+      check('the three Atlantic ports are the only ones outside it, and still in the pan limit',
+        atlantic.every((n) => {
+          const p = D.ports.find((q) => q.name === n);
+          return !inRect(p, m) && inRect(p, b);
+        }));
     }
-    check(`and it is denser than the desktop home it comes out of ` +
-      `(${(held(m) / area(m) * 100).toFixed(1)} vs ${(held(h) / area(h) * 100).toFixed(1)} ports per 100 sq deg)`,
-      held(m) / area(m) > held(h) / area(h));
-    check('the pan limit is UNCHANGED, so Lateral stays reachable from it',
-      D.ports.every((p) => p.lon >= b.minLon && p.lon <= b.maxLon &&
-                           p.lat >= b.minLat && p.lat <= b.maxLat));
     check('the grip is the only thing that moves the sheet — not the map, not the panel body',
       /var g = \$\('sheet-grip'\);\s*\n\s*if \(!g \|\| !g\.addEventListener\) return;/.test(src) &&
       /g\.addEventListener\('pointerdown'/.test(src) &&
       !/setSheetMinimised/.test(
         src.slice(src.indexOf('function bindStageInput'), src.indexOf('function bindRouteDrag'))));
+    // The minimised cluster is a MIRROR, not a second implementation.
+    check('the minimised actions call the same API entry points as the panel buttons',
+      /on\('btn-mini-spin', 'click', function \(\) \{ API\.spin\(\); \}\);/.test(src) &&
+      /on\('btn-mini-sim', 'click', function \(\) \{ API\.simulate\(\); \}\);/.test(src) &&
+      /on\('btn-spin', 'click', function \(\) \{ API\.spin\(\); \}\);/.test(src) &&
+      /on\('btn-sim', 'click', function \(\) \{ API\.simulate\(\); \}\);/.test(src));
+    check('and they take their disabled state FROM the panel button, not their own copy of the rule',
+      /mini\.disabled = !!sim\.disabled;/.test(src));
+    check('they live outside the sheet, since the sheet is what slides away',
+      src.indexOf('id="mini-actions"') > src.indexOf('</aside>'));
+    check('and they only exist in the minimised sheet — never on the desktop sidebar',
+      /body\.sheet-min #mini-actions \{/.test(src) &&
+      !/^#mini-actions \{/m.test(src));
     check('and coming back above the breakpoint cannot leave the panel hidden',
       /if \(!isSheetLayout\(\) && S\.sheetMinimised\) setSheetMinimised\(false\);/.test(src));
   }
