@@ -679,10 +679,19 @@ globalThis.LEIP_THEME = {
     // can bloom. The pin bobs, gently and slowly, and holds still under
     // reduced motion; the ring never moves at all.
     selectMark: {
-      ring: { inner: 1.30, outer: 1.62, segments: 40, y: 0.5 },   // x isletRadius
+      // No ground ring. It was drawn flat on the water at a fixed height
+      // while the monument sits on a sculpted islet, so on any port whose
+      // island rises under it the ring cut through the terrain instead of
+      // resting on it. Recolouring the building says the same thing
+      // without inventing a surface for it to lie on.
       pin: { r: 1.15, h: 2.6, y: 12.4, bobAmp: 0.9, bobSec: 3.8 },
       opacity: 0.96
     },
+    // The SAME monument, in volt. Three tones, because the buildings are
+    // flat-shaded lit objects and a single fill would flatten them into
+    // silhouettes exactly where the eye is being asked to look. Mid is
+    // volt itself; lit and shade are the step either side of it.
+    monumentSelected: { lit: '#FFE83A', mid: '#F5D90A', shade: '#C2A800' },
     // three tones per mass: lit (highland step) / mid (coastal land) / shade
     massTones: { lit: 1.05, mid: 0.93, shade: 0.78 },
     seaDeep: 0.92,             // sea-field edge darkening multiplier
@@ -10365,6 +10374,14 @@ globalThis.LEIP_APP = (function () {
       mid: new THREE.MeshLambertMaterial({ color: T.world.monument.mid, flatShading: true }),
       shade: new THREE.MeshLambertMaterial({ color: T.world.monument.shade, flatShading: true })
     };
+    // The selected set, tone for tone. Same material class and the same
+    // flatShading, so a selected building is lit by the same sun in the
+    // same way — only its palette changes.
+    var monSel3 = {
+      lit: new THREE.MeshLambertMaterial({ color: T.world.monumentSelected.lit, flatShading: true }),
+      mid: new THREE.MeshLambertMaterial({ color: T.world.monumentSelected.mid, flatShading: true }),
+      shade: new THREE.MeshLambertMaterial({ color: T.world.monumentSelected.shade, flatShading: true })
+    };
     var foamMat = new THREE.MeshBasicMaterial({ color: T.world.foam });
     var smokeMat = new THREE.MeshBasicMaterial({ color: T.dieselSmoke, transparent: true, opacity: 0.45 });
 
@@ -10414,16 +10431,10 @@ globalThis.LEIP_APP = (function () {
     // read as the same crisp volt at every time of day — the mark is
     // chart ink, not part of the modelled world.
     var SM = T.world.selectMark;
-    // The islet radius the ring is sized against — declared here rather
-    // than relying on the `var R` further down, which hoists as undefined
-    // and made the geometry NaN.
-    var markR = T.world.isletRadius;
     var markMat = new THREE.MeshBasicMaterial({
       color: T.volt, transparent: true, opacity: SM.opacity,
       depthWrite: false, depthTest: false, side: THREE.DoubleSide
     });
-    var ringGeo = new THREE.RingGeometry(markR * SM.ring.inner, markR * SM.ring.outer,
-                                         SM.ring.segments);
     var pinGeo = new THREE.ConeGeometry(SM.pin.r, SM.pin.h, 6);
     var marks = [];
 
@@ -10501,21 +10512,33 @@ globalThis.LEIP_APP = (function () {
       // geometric foam" now lives where it belongs: the shore bevel that
       // runs along the real coastline, and the yacht's wake.
 
-      // The selection mark, one per port, hidden until the port is picked.
+      // The selection mark: a pin above the monument, hidden until picked.
       var mark = new THREE.Group();
-      var ring = new THREE.Mesh(ringGeo, markMat);
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.y = SM.ring.y;
       var pin = new THREE.Mesh(pinGeo, markMat);
       pin.rotation.x = Math.PI;                    // tip down, at the port
       pin.position.y = SM.pin.y;
-      mark.add(ring); mark.add(pin);
+      mark.add(pin);
       // Above the callouts but below the name plates: the mark should sit
       // over the terrain and the monument, and under the type.
       mark.renderOrder = T.world.order.callout;
       mark.visible = false;
       grp.add(mark);
-      marks.push({ port: port.name, group: mark, pin: pin });
+
+      // Which of this monument's parts wear which tone. Read back off the
+      // meshes by material identity rather than tracked as they are built,
+      // so the four monument types stay free to assign tones however they
+      // like and nothing here has to know their shapes. Anything on a
+      // material that is not one of the three — the caldera's rim and its
+      // crater — is landscape, not building, and is left alone.
+      var parts = [];
+      mon.traverse(function (o) {
+        if (!o.material) return;
+        var tone = o.material === mon3.lit ? 'lit'
+                 : o.material === mon3.mid ? 'mid'
+                 : o.material === mon3.shade ? 'shade' : null;
+        if (tone) parts.push({ mesh: o, tone: tone });
+      });
+      marks.push({ port: port.name, group: mark, pin: pin, parts: parts });
 
       var hit = new THREE.Mesh(new THREE.CylinderGeometry(R * 2, R * 2, 10, 8),
         new THREE.MeshBasicMaterial({ visible: false }));
@@ -10543,7 +10566,7 @@ globalThis.LEIP_APP = (function () {
       renderer: renderer, scene: scene, overlay: overlay, camera: camera,
       sun: sun, sunO: sunO, amb: amb, ambO: ambO,
       sea: sea, landMat: landMat, reliefMat: reliefMat, hitMeshes: hitMeshes,
-      marks: marks, markT: 0,
+      marks: marks, markT: 0, mon3: mon3, monSel3: monSel3,
       yacht: yacht, foamMat: foamMat, smokeMat: smokeMat, hullMat: hullMat,
       wake: [], smoke: [], wakeClock: 0, smokeClock: 0, idleHeading: 0,
       cam: { x: 0, z: 0, dist: 640, tx: 0, tz: 0, tdist: 640 },
@@ -11206,7 +11229,17 @@ globalThis.LEIP_APP = (function () {
     var inRoute = {};
     (S.inputs.route || []).forEach(function (n) { inRoute[n] = true; });
     for (var i = 0; i < G.marks.length; i++) {
-      G.marks[i].group.visible = !!inRoute[G.marks[i].port];
+      var m = G.marks[i], on = !!inRoute[m.port];
+      m.group.visible = on;
+      // The building itself turns volt, tone for tone — the same geometry
+      // lit by the same sun, in the other palette. Swapping the material
+      // rather than tinting one keeps the three-tone modelling intact; a
+      // single flat fill would turn the monument into a silhouette exactly
+      // where the eye is being asked to look.
+      var set = on ? G.monSel3 : G.mon3;
+      for (var p = 0; p < m.parts.length; p++) {
+        m.parts[p].mesh.material = set[m.parts[p].tone];
+      }
     }
   }
 

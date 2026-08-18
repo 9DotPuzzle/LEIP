@@ -501,21 +501,14 @@ section('Map legibility — no port rings, callouts in the collision pass');
   // compass rings. Foam survives on the coastline bevel and in the wake,
   // which is what the visual direction actually describes.
   //
-  // There IS a ring again, and it is deliberately not that: volt rather
-  // than white, and drawn only for the ports in the current route, so it
-  // is a selection mark rather than decoration on all forty-four. The
-  // check keeps the original intent — no permanent ring — rather than
-  // banning the primitive.
-  {
-    const ringLines = chartBlock.split('\n').filter((l) => /RingGeometry/.test(l));
-    check('the only ring is the selection mark, and it is volt, not white',
-      ringLines.length === 1 && /SM\.ring/.test(ringLines[0]) &&
-      /color: T\.volt/.test(chartBlock),
-      ringLines.join(' | '));
-    check('and it is hidden until its port is picked',
-      /mark\.visible = false;/.test(chartBlock) &&
-      /G\.marks\[i\]\.group\.visible = !!inRoute/.test(readHtml()));
-  }
+  // A volt selection ring was tried here and removed again: it was drawn
+  // flat on the water at a fixed height while the monument sits on a
+  // sculpted islet, so on any port whose island rises under it the ring
+  // cut through the terrain rather than resting on it. The selection now
+  // recolours the building and hangs a pin above it, neither of which
+  // needs a surface to lie on. So the original rule stands unqualified.
+  check('no ring is built around a port marker',
+    !/RingGeometry/.test(chartBlock));
   check('foam still exists for the coastline bevel and the wake',
     typeof T5.world.foam === 'string' &&
     typeof T5.terrain.bevelSize === 'number' && T5.terrain.bevelSize > 0);

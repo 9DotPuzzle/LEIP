@@ -246,54 +246,63 @@ check('small viewports drop to a cheaper sea',
       i === j || Math.abs(a / b - Math.round(a / b)) > 0.05)));
 }
 
-// ---- the selection mark: volt, crisp, and above the terrain ----
+// ---- selection: the building turns volt, and a pin hangs over it ----
 {
   const src2 = readHtml();
   const M = T.world.selectMark;
-  // It replaced a soft white halo, which had almost no contrast against
-  // the pale daytime land — exactly where a marker is hardest to see is
-  // where it disappeared. Volt is the colour nothing else on the chart
-  // uses except the sailed trail these ports are strung along.
-  check('the mark is volt, and BOTH parts share the one volt material',
-    !!M && M.opacity > 0.8 &&
-    /var markMat = new THREE\.MeshBasicMaterial\(\{\s*\n\s*color: T\.volt,/.test(src2) &&
-    /new THREE\.Mesh\(ringGeo, markMat\)/.test(src2) &&
-    /new THREE\.Mesh\(pinGeo, markMat\)/.test(src2));
-  check('the soft white halo is gone, not layered underneath it',
+  const V = T.world.monumentSelected;
+  // A soft white halo came first and had almost no contrast against the
+  // pale daytime land. A volt ground ring came second and cut through the
+  // islets it was meant to rest on. What survives needs no surface: the
+  // building itself, and a pin in the air above it.
+  check('neither the halo nor the ground ring survives',
     !/selectHalo/.test(src2) && !/haloTex/.test(src2) &&
-    !/createRadialGradient/.test(src2));
-  check('two parts: a ring at the monument\'s foot and a pin above it',
-    !!M.ring && !!M.pin && M.pin.y > M.ring.y * 10 &&
-    /new THREE\.RingGeometry\(markR \* SM\.ring\.inner/.test(src2) &&
+    !/createRadialGradient/.test(src2) && !/RingGeometry/.test(src2) &&
+    M.ring === undefined);
+  check('the pin remains, tip-down and clear of the tallest monument',
+    !!M.pin && /pin\.rotation\.x = Math\.PI;/.test(src2) && M.pin.y >= 11 &&
     /new THREE\.ConeGeometry\(SM\.pin\.r, SM\.pin\.h, 6\)/.test(src2));
-  check('the pin hangs tip-down over the port, clear of the tallest monument',
-    /pin\.rotation\.x = Math\.PI;/.test(src2) && M.pin.y >= 11);
-  // FLAT. Additive blending is what makes a glow bloom, which the visual
-  // direction bans, and MeshBasic keeps the mark the same crisp volt at
-  // every time of day rather than being modelled by the sun.
-  check('flat and unlit — nothing additive anywhere in the world',
+  check('and it is volt, flat and unlit — nothing additive anywhere',
     !/AdditiveBlending/.test(src2) &&
-    /var markMat = new THREE\.MeshBasicMaterial\(\{/.test(src2));
-  check('and it draws over the terrain and the monument, under the type',
-    /mark\.renderOrder = T\.world\.order\.callout;/.test(src2) &&
-    T.world.order.callout < T.world.order.label);
-  // Clarity over motion: the ring never moves, the pin bobs shallowly.
-  check(`only the pin moves, gently (${M.pin.bobAmp} over ${M.pin.bobSec}s)`,
-    M.pin.bobAmp < M.pin.h && M.pin.bobSec >= 3 &&
-    /mk\.pin\.position\.y = SMK\.pin\.y \+ dy;/.test(src2) &&
-    !/ring\.position\.y = /.test(src2.slice(src2.indexOf('G.marks && G.marks.length'))));
-  check('reduced motion holds the pin at its rest height',
-    /if \(!S\.reducedMotion\) \{[\s\S]{0,220}dy = Math\.sin/.test(src2));
+    /var markMat = new THREE\.MeshBasicMaterial\(\{\s*\n\s*color: T\.volt,/.test(src2));
+
+  // THE BUILDING, IN THE OTHER PALETTE. Three tones, not a flat fill: the
+  // monuments are flat-shaded lit objects and one colour would turn them
+  // into silhouettes exactly where the eye is being sent.
+  check('the selected palette is three tones, like the terracotta one it swaps for',
+    !!V && ['lit', 'mid', 'shade'].every((k) => /^#[0-9a-f]{6}$/i.test(V[k])) &&
+    Object.keys(T.world.monument).join() === Object.keys(V).join());
+  check('its tones descend, and its mid IS volt',
+    parseInt(V.lit.slice(1), 16) > parseInt(V.mid.slice(1), 16) &&
+    parseInt(V.mid.slice(1), 16) > parseInt(V.shade.slice(1), 16) &&
+    V.mid.toUpperCase() === T.volt.toUpperCase());
+  check('the selected set is built the same way as the unselected one',
+    /var monSel3 = \{[\s\S]{0,400}flatShading: true \}\)[\s\S]{0,80}\};/.test(src2) &&
+    (src2.match(/MeshLambertMaterial\(\{ color: T\.world\.monumentSelected\./g) || []).length === 3);
+  check('selection swaps the material tone for tone, rather than tinting one',
+    /m\.parts\[p\]\.mesh\.material = set\[m\.parts\[p\]\.tone\];/.test(src2) &&
+    /var set = on \? G\.monSel3 : G\.mon3;/.test(src2));
+  check('the parts are found by material identity, so the four monument types stay free',
+    /o\.material === mon3\.lit \? 'lit'/.test(src2) &&
+    /: o\.material === mon3\.shade \? 'shade' : null;/.test(src2));
+  check('and landscape is left alone — the caldera\'s rim and crater are not building',
+    /if \(tone\) parts\.push/.test(src2));
+
   // Membership, not order: the list carries the numbering.
-  check('the mark tracks route membership only — a repeat looks the same as one pick',
+  check('it tracks route membership only — a repeat looks the same as one pick',
     /function syncHalos\(\)/.test(src2) &&
-    /G\.marks\[i\]\.group\.visible = !!inRoute\[G\.marks\[i\]\.port\];/.test(src2));
+    /m\.group\.visible = on;/.test(src2));
   check('and it is re-synced on every route change',
     /syncHalos\(\);/.test(src2.slice(src2.indexOf('function refreshPlanning'),
                                      src2.indexOf('RoutePlot.fit(S.inputs.route);'))));
-  check('one material and one pair of geometries serve all forty-four',
+  check(`only the pin moves, gently (${M.pin.bobAmp} over ${M.pin.bobSec}s)`,
+    M.pin.bobAmp < M.pin.h && M.pin.bobSec >= 3 &&
+    /mk\.pin\.position\.y = SMK\.pin\.y \+ dy;/.test(src2));
+  check('reduced motion holds the pin at its rest height',
+    /if \(!S\.reducedMotion\) \{[\s\S]{0,220}dy = Math\.sin/.test(src2));
+  check('one material and one geometry serve all forty-four pins',
     (src2.match(/var markMat = /g) || []).length === 1 &&
-    (src2.match(/var ringGeo = /g) || []).length === 1);
+    (src2.match(/var pinGeo = /g) || []).length === 1);
 }
 
 // ---- the visual fixes: planned line, label chips, monument palette ----
