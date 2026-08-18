@@ -655,6 +655,25 @@ globalThis.LEIP_THEME = {
     // changed colour with the grid it plugs into would be reading the
     // scoreboard out loud while the player is meant to be picking blind.
     monument: { lit: '#C96F4A', mid: '#B05A38', shade: '#8F4529' },
+    // SELECTION HALO. A port in the route wears a soft white aura on the
+    // chart, so the plan reads at a glance instead of only in the list.
+    // White because that is the planning line's colour — the halo and the
+    // dashed passage are the same statement about the same thing.
+    //
+    // FLAT, not a bloom. It is a painted radial falloff on a disc, drawn
+    // with ordinary alpha blending; additive blending is what makes a
+    // glow bloom, and the visual direction bans it. The pulse is slow and
+    // shallow on purpose — a breath, not a blink — and reduced motion
+    // holds it at the midpoint rather than stopping it somewhere dim.
+    selectHalo: {
+      colour: '#FFFFFF',
+      radius: 3.1,             // x isletRadius
+      px: 256,                 // texture size for the painted falloff
+      core: 0.30,              // solid heart of the disc, as a fraction of r
+      minAlpha: 0.16, maxAlpha: 0.34,
+      periodSec: 4.6,          // one full breath
+      y: 0.55                  // sits on the water, under the monument
+    },
     // three tones per mass: lit (highland step) / mid (coastal land) / shade
     massTones: { lit: 1.05, mid: 0.93, shade: 0.78 },
     seaDeep: 0.92,             // sea-field edge darkening multiplier
@@ -10380,6 +10399,34 @@ globalThis.LEIP_APP = (function () {
     RoutePlot.init(overlay);
     Labels.init(overlay);
 
+    // The halo's texture: a painted radial falloff, made once and shared
+    // by all forty-four. A canvas gradient rather than a shader, so what
+    // is on screen is a flat disc with soft edges under normal alpha
+    // blending — no additive pass, nothing that can bloom.
+    var haloTex = (function () {
+      var H = T.world.selectHalo;
+      if (!doc || !doc.createElement) return null;
+      var c = doc.createElement('canvas');
+      c.width = c.height = H.px;
+      var x;
+      try { x = c.getContext('2d'); } catch (e) { return null; }
+      if (!x || !x.createRadialGradient) return null;
+      var m = H.px / 2;
+      var g2 = x.createRadialGradient(m, m, m * H.core, m, m, m);
+      g2.addColorStop(0, H.colour);
+      // Two stops rather than one: a straight linear ramp reads as a hard
+      // ring at its own edge, and the eye finds that before it finds the
+      // port.
+      g2.addColorStop(0.55, 'rgba(255,255,255,0.42)');
+      g2.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = g2;
+      x.fillRect(0, 0, H.px, H.px);
+      var t = new THREE.CanvasTexture(c);
+      t.anisotropy = 2;
+      return t;
+    })();
+    var halos = [];
+
     // One sculptural landmark per port.
     var hitMeshes = [];
     var R = T.world.isletRadius;
@@ -10454,6 +10501,21 @@ globalThis.LEIP_APP = (function () {
       // geometric foam" now lives where it belongs: the shore bevel that
       // runs along the real coastline, and the yacht's wake.
 
+      // The selection halo, one per port, hidden until the port is picked.
+      if (haloTex) {
+        var HS = T.world.selectHalo, hr = R * HS.radius;
+        var halo = new THREE.Mesh(new THREE.PlaneGeometry(hr * 2, hr * 2),
+          new THREE.MeshBasicMaterial({ map: haloTex, transparent: true,
+                                        depthWrite: false, depthTest: false,
+                                        opacity: HS.minAlpha }));
+        halo.rotation.x = -Math.PI / 2;
+        halo.position.y = HS.y;
+        halo.renderOrder = T.world.order.marker;   // under the monument
+        halo.visible = false;
+        grp.add(halo);
+        halos.push({ port: port.name, mesh: halo });
+      }
+
       var hit = new THREE.Mesh(new THREE.CylinderGeometry(R * 2, R * 2, 10, 8),
         new THREE.MeshBasicMaterial({ visible: false }));
       hit.userData = { portName: port.name };
@@ -10480,6 +10542,7 @@ globalThis.LEIP_APP = (function () {
       renderer: renderer, scene: scene, overlay: overlay, camera: camera,
       sun: sun, sunO: sunO, amb: amb, ambO: ambO,
       sea: sea, landMat: landMat, reliefMat: reliefMat, hitMeshes: hitMeshes,
+      halos: halos, haloT: 0,
       yacht: yacht, foamMat: foamMat, smokeMat: smokeMat, hullMat: hullMat,
       wake: [], smoke: [], wakeClock: 0, smokeClock: 0, idleHeading: 0,
       cam: { x: 0, z: 0, dist: 640, tx: 0, tz: 0, tdist: 640 },
@@ -11133,6 +11196,19 @@ globalThis.LEIP_APP = (function () {
       })(tiles[i]);
     }
   }
+  // A port in the route glows; one that is not, does not. Membership only
+  // — a port picked three times looks the same as a port picked once,
+  // because the ORDER is the list's job and a number on the chart would
+  // be a second, competing account of the route.
+  function syncHalos() {
+    if (!G || !G.halos) return;
+    var inRoute = {};
+    (S.inputs.route || []).forEach(function (n) { inRoute[n] = true; });
+    for (var i = 0; i < G.halos.length; i++) {
+      G.halos[i].mesh.visible = !!inRoute[G.halos[i].port];
+    }
+  }
+
   // ---------------------------------------------------------- reordering
   // Dragging a stop rewrites S.inputs.route as it moves, so the chart, the
   // numbering and everything downstream of the route follow the finger
@@ -11400,6 +11476,7 @@ globalThis.LEIP_APP = (function () {
     if (ca) ca.disabled = Object.keys(S.inputs.activities).length === 0 || S.phase !== 'planning';
     syncActionBar();
     syncHudVisibility();
+    syncHalos();
     RoutePlot.fit(S.inputs.route);
     // THE CAMERA HOLDS THE WHOLE ROUTE, not the latest pick. fitCamera
     // solves for the widest view that still centres every stop in the safe
@@ -11893,6 +11970,29 @@ globalThis.LEIP_APP = (function () {
 
     updateStrokes(G.wake, dt, 0);
     updateStrokes(G.smoke, dt, 5.5);
+
+    // The halos breathe: one slow sine across the whole set, so the
+    // selected ports pulse together rather than shimmering against each
+    // other. Reduced motion holds them at the midpoint — still visible,
+    // just not moving; stopping at the trough would have quietly turned
+    // the feature off for anyone who asked for less movement.
+    if (G.halos && G.halos.length) {
+      var HS = T.world.selectHalo;
+      var a;
+      if (S.reducedMotion) a = (HS.minAlpha + HS.maxAlpha) / 2;
+      else {
+        G.haloT = (G.haloT + dt) % HS.periodSec;
+        var ph = G.haloT / HS.periodSec * Math.PI * 2;
+        // (1 - cos)/2 rather than a raw sine: it eases at BOTH ends, so
+        // the breath settles at full and at empty instead of sweeping
+        // through them.
+        a = HS.minAlpha + (HS.maxAlpha - HS.minAlpha) * (1 - Math.cos(ph)) / 2;
+      }
+      for (var hi = 0; hi < G.halos.length; hi++) {
+        var hm = G.halos[hi].mesh;
+        if (hm.visible) hm.material.opacity = a;
+      }
+    }
 
     var c = G.cam, k = Math.min(1, dt * 2.5);
     c.x += (c.tx - c.x) * k; c.z += (c.tz - c.z) * k; c.dist += (c.tdist - c.dist) * k;

@@ -149,6 +149,17 @@ const shots = {
     await settle(page, 6);
     return { clip: await page.locator('#plan').boundingBox() };
   },
+  // Several ports picked, so the white selection halos read against the
+  // sea. Paused mid-breath rather than at either end of the pulse.
+  'selected-halos': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      ['Ajaccio', 'Bonifacio', 'Calvi', 'Porto Cervo', 'Olbia'].forEach((n) => A.pickPort(n));
+      A.debugView({ focus: ['Ajaccio', 'Bonifacio', 'Calvi', 'Porto Cervo', 'Olbia'], zoom: 230 });
+    });
+    await settle(page, 34);
+    return { clip: stageClip };
+  },
   // The camera holding a route that crosses the map. Picked one at a time,
   // settling between, exactly as a player builds it.
   'route-fits-lateral': async (page) => {

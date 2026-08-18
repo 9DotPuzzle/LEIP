@@ -246,6 +246,40 @@ check('small viewports drop to a cheaper sea',
       i === j || Math.abs(a / b - Math.round(a / b)) > 0.05)));
 }
 
+// ---- the selection halo: white, flat, and breathing ----
+{
+  const src2 = readHtml();
+  const H = T.world.selectHalo;
+  check('a selected port wears a halo in the planning line\'s own white',
+    !!H && H.colour === T.routeCanvas.plannedInk && H.colour === '#FFFFFF');
+  check('it is a painted radial falloff, not a shader',
+    /createRadialGradient/.test(src2) && /new THREE\.CanvasTexture\(c\)/.test(src2));
+  // FLAT, not a bloom. Additive blending is what makes a glow bloom, and
+  // the visual direction bans it — so the halo must be an ordinary
+  // alpha-blended plane and nothing in the world may ask for more.
+  check('and it blends normally — nothing additive anywhere in the world',
+    !/AdditiveBlending/.test(src2));
+  check('it sits under the monument, on the water',
+    H.y > 0 && H.y < 1 && /halo\.renderOrder = T\.world\.order\.marker;/.test(src2));
+  // A breath, not a blink: shallow, slow, and eased at both ends.
+  check(`the pulse is shallow (${H.minAlpha}-${H.maxAlpha}) and slow (${H.periodSec}s)`,
+    H.maxAlpha - H.minAlpha <= 0.25 && H.minAlpha > 0 && H.maxAlpha < 0.6 &&
+    H.periodSec >= 3);
+  check('and eases at both ends of the breath, not through them',
+    /\(1 - Math\.cos\(ph\)\) \/ 2/.test(src2));
+  check('reduced motion holds it at the MIDPOINT, so it stays visible',
+    /if \(S\.reducedMotion\) a = \(HS\.minAlpha \+ HS\.maxAlpha\) \/ 2;/.test(src2));
+  // Membership, not order: the list carries the numbering.
+  check('the halo tracks route membership only — a repeat looks the same as one pick',
+    /function syncHalos\(\)/.test(src2) &&
+    /G\.halos\[i\]\.mesh\.visible = !!inRoute\[G\.halos\[i\]\.port\];/.test(src2));
+  check('and it is re-synced on every route change',
+    /syncHalos\(\);/.test(src2.slice(src2.indexOf('function refreshPlanning'),
+                                     src2.indexOf('RoutePlot.fit(S.inputs.route);'))));
+  check('one texture serves all forty-four, built once',
+    (src2.match(/var haloTex = \(function \(\) \{/g) || []).length === 1);
+}
+
 // ---- the visual fixes: planned line, label chips, monument palette ----
 {
   const src = readHtml();
