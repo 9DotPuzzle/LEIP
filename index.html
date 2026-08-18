@@ -356,27 +356,51 @@ table.board td.num { font-family: var(--font-data); }
 .callout span { display: block; font-size: 11.5px; text-transform: none; letter-spacing: 0; opacity: 0.8; margin-top: 2px; }
 #dots-count { text-align: center; font-family: var(--font-data); font-size: 13px; margin-top: 10px; }
 
-/* The grip is a desktop no-op: the sidebar does not collapse. */
+/* Desktop no-ops: the sidebar does not collapse and there is no bottom bar. */
 #sheet-grip { display: none; }
+#action-bar { display: none; }
 
 @media (max-width: 760px) {
+  /* THREE STACKED LAYERS over the map: the header at the top, the plan
+     sheet sliding in the middle, and the action bar pinned at the bottom.
+     The BAR is the anchor — everything else is positioned against its
+     height, so the two controls a player needs most never move, whatever
+     the sheet is doing. */
+  #action-bar {
+    display: flex; gap: 8px; align-items: stretch;
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 8;
+    height: var(--bar-h); padding: 7px 10px;
+    background: var(--paper); border-top: var(--rule) solid var(--ink-fixed);
+  }
+  /* A MATCHED PAIR: flex:1 1 0 gives them the same width whatever their
+     labels say, and one rule gives them one style. The panel's glass
+     treatment does not reach out here. */
+  #action-bar button {
+    flex: 1 1 0; min-width: 0;
+    background: var(--paper); color: var(--ink-fixed); opacity: 1;
+    border: var(--rule) solid var(--ink-fixed);
+    -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
+    padding: 0 8px; font-size: 11px; white-space: nowrap; text-align: center;
+  }
+  #action-bar button:disabled { opacity: 0.42; }
+  #btn-bar-sim { border-width: calc(var(--rule) * 1.5); font-weight: 600; }
+
+  /* The sheet slides in the space ABOVE the bar — never over it. */
   #plan {
-    width: 100%; left: 0; right: 0; top: auto; bottom: 0; height: var(--sheet-max-h);
+    width: 100%; left: 0; right: 0; top: auto; bottom: var(--bar-h);
+    height: var(--sheet-max-h);
     border-right: none; border-top: var(--rule) solid var(--glass-edge);
     padding-top: 0;
     transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1);
     will-change: transform;
   }
-  /* MINIMISED: the sheet slides out of the way entirely, leaving only the
-     grip strip. The map is already inset:0 behind it, so this uncovers a
-     genuinely full-screen chart rather than resizing anything. */
-  /* Minimised, the sheet leaves ENTIRELY. It used to stop short so its
-     grip could peek as the restore tab, which is what left a bar of panel
-     chrome sitting across the bottom of the chart next to the title
-     block. The restore control lives in the cluster now, so the sheet has
-     no reason to stay. */
+  /* MINIMISED: down until only its PLAN bar shows, resting directly on
+     the action bar. The bar is its own restore handle — drag it up or tap
+     it — which is why there is no longer a separate floating control for
+     that. Everything below the grip translates behind the action bar,
+     which is opaque and sits above it in the stacking order. */
   body.sheet-min #plan {
-    transform: translateY(100%);
+    transform: translateY(calc(100% - var(--grip-h)));
     box-shadow: none;
   }
 
@@ -403,53 +427,21 @@ table.board td.num { font-family: var(--font-data); }
   }
   #sheet-grip em { font-style: normal; font-weight: 600; }
 
-  /* The minimised control cluster: stacked above the grip at the bottom
-     LEFT, which is the one corner that is free. The title block owns the
-     bottom right, and a row across the full width would cross the chart
-     and run under it. */
-  /* ABOVE the title block, not beside it. The HUD is now sized to its
-     worst-case content, which on a phone is most of the width — there is
-     no bottom-left corner left to share. So the cluster stacks on the
-     HUD's top edge, offset by its MEASURED height so it still clears when
-     the diesel row appears mid-charter, with the grip below it at the
-     screen edge. */
-  /* ITS OWN ZONE, above the title block. The HUD is sized to its
-     worst-case content, which on a phone is most of the width — there is
-     no corner left to share — so the cluster stacks on the block's top
-     edge, offset by its MEASURED height so it still clears when the diesel
-     row appears mid-charter. `align-items: stretch` in a column is what
-     makes the three buttons one width: they size to the widest of them,
-     which is SIMULATE CHARTER, rather than each to its own text. */
-  body.sheet-min #mini-actions {
-    display: flex; flex-direction: column; align-items: stretch; gap: 8px;
-    position: absolute; left: 14px; width: max-content;
-    bottom: calc(var(--hud-h, 200px) + 16px);
-    z-index: 5; max-width: calc(100vw - 28px);
-  }
-  /* One style for all three. The panel's glass treatment does not apply
-     out here over open water, and a half-transparent button beside an
-     opaque one is what made these read as two different kinds of control. */
-  body.sheet-min #mini-actions button {
-    background: var(--paper); color: var(--ink-fixed); opacity: 1;
-    border: var(--rule) solid var(--ink-fixed);
-    -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
-    padding: 11px 14px; font-size: 11px; white-space: nowrap; text-align: center;
-  }
-  body.sheet-min #mini-actions button:disabled { opacity: 0.42; }
-  /* The restore control reads as the handle it replaces: same width as the
-     pair above it, with the grab bar drawn into it. */
-  body.sheet-min #btn-mini-plan {
-    display: flex; align-items: center; justify-content: center; gap: 9px;
-  }
-  body.sheet-min #btn-mini-plan::before {
-    content: ''; width: 26px; height: 3px; background: currentColor; opacity: 0.55;
-  }
+  /* The panel's own Spin / Simulate pair is the bar's job now; leaving
+     both would put the same two controls on screen twice. */
+  #actions { display: none; }
+
   /* Dragging: the sheet follows the finger, so the transition is off for
      the duration or it would lag behind it. */
   body.sheet-dragging #plan { transition: none; }
-  /* On a phone the box may need most of the width; it must still never
-     exceed it. min-width is dropped so a narrow screen can shrink it. */
-  #titleblock { right: 8px; bottom: 8px; min-width: 0; max-width: calc(100vw - 16px); }
+  /* The HUD sits ABOVE the action bar, and only exists while the charter
+     is running — see hudVisible(). min-width is dropped so a narrow screen
+     can shrink it; the fixed-width behaviour is unchanged, it is simply
+     capped lower. */
+  #titleblock {
+    right: 8px; bottom: calc(var(--bar-h) + 8px);
+    min-width: 0; max-width: calc(100vw - 16px);
+  }
   #brand span { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -547,17 +539,16 @@ table.board td.num { font-family: var(--font-data); }
            they call API.spin() and API.simulate(), the same entry points
            the panel's own buttons call, and mirror their disabled state.
            They sit OUTSIDE #plan because #plan is what slides away. -->
-      <!-- Mobile, minimised only: ONE cluster, not three loose elements.
-           The two actions a player still wants from the full-map view,
-           plus the control that brings the sheet back — same width, same
-           style, one gap between them. They call API.spin(), API.simulate()
-           and API.setSheetMinimised(false): the same entry points the panel
-           uses, not a second implementation. Outside #plan, because #plan
-           is what slides away. -->
-      <div id="mini-actions" class="hidden">
-        <button id="btn-mini-spin">Random spin</button>
-        <button id="btn-mini-sim" disabled>Simulate charter</button>
-        <button id="btn-mini-plan" aria-controls="plan" aria-expanded="false">Plan</button>
+      <!-- THE FIXED ACTION BAR (mobile). Pinned to the bottom edge at all
+           times: the sheet slides above it, the HUD sits above it, and the
+           map's box is measured down to it. It is the thing everything
+           else lays out against, so a player can spin or run the charter
+           from any state without hunting for a control that has moved.
+           These call API.spin() and API.simulate() — the same entry points
+           the panel's own buttons call, not a second implementation. -->
+      <div id="action-bar">
+        <button id="btn-bar-spin">Spin</button>
+        <button id="btn-bar-sim" disabled>Simulate charter</button>
       </div>
       <button id="btn-skip" class="hidden">Skip</button>
       <div id="webgl-fallback" class="hidden">
@@ -951,7 +942,8 @@ globalThis.LEIP_THEME = {
     // world behind the panel. The CSS media query must carry the same
     // number; a headless check compares the two so they cannot drift.
     sheetBreakpointPx: 760,
-    sheetGripPx: 34,           // the grip strip, and the tab left peeking when minimised
+    sheetGripPx: 34,           // the sheet's PLAN bar: drag target and, minimised, its rest height
+    actionBarPx: 56,           // the fixed bottom bar everything else anchors to
     labelTrackingEm: 0.14,
     // LIQUID GLASS — a deliberate, scoped override of the visual
     // direction's no-glass rule: interactive controls only (the planning
@@ -9361,6 +9353,7 @@ globalThis.LEIP_APP = (function () {
     st.setProperty('--panel-w', T.ui.panelWidthPx + 'px');
     st.setProperty('--sheet-max-h', T.ui.sheetMaxVh + 'vh');
     st.setProperty('--grip-h', T.ui.sheetGripPx + 'px');
+    st.setProperty('--bar-h', T.ui.actionBarPx + 'px');
     st.setProperty('--label-tracking', T.ui.labelTrackingEm + 'em');
     updateSceneVars(tintAt(currentSimHour()));
   }
@@ -9745,7 +9738,7 @@ globalThis.LEIP_APP = (function () {
       if (!stage || !stage.getBoundingClientRect) return out;
       var sr = stage.getBoundingClientRect();
       if (!(sr.width > 0)) return out;
-      ['titleblock', 'mini-actions'].forEach(function (id) {
+      ['titleblock', 'action-bar'].forEach(function (id) {
         var el = $(id);
         if (!el || !el.getBoundingClientRect) return;
         if (el.classList && el.classList.contains('hidden')) return;
@@ -11168,8 +11161,7 @@ globalThis.LEIP_APP = (function () {
       g.setAttribute('aria-label',
         S.sheetMinimised ? 'Restore the planning panel' : 'Minimise the planning panel');
     }
-    show('mini-actions', S.sheetMinimised);
-    syncMiniActions();
+    syncActionBar();
     publishHudHeight();
     // The chrome the names route around just changed, and the camera did
     // not — which is the one thing the relayout guard watches. Force it.
@@ -11182,13 +11174,27 @@ globalThis.LEIP_APP = (function () {
     // unrelated input re-solve the framing and jump the camera.
     if (was !== S.sheetMinimised && G) clampCam(true);
   }
-  // The minimised cluster mirrors the panel's own buttons: same actions,
-  // same enabled/disabled rule, read from the same state. Nothing about
+  // The action bar mirrors the panel's own buttons: same actions, same
+  // enabled/disabled rule, read from the same state. Nothing about
   // spinning or simulating is decided here.
-  function syncMiniActions() {
-    var sim = $('btn-sim'), mini = $('btn-mini-sim'), spin = $('btn-mini-spin');
-    if (mini && sim) mini.disabled = !!sim.disabled;
-    if (spin) spin.disabled = S.phase !== 'planning';
+  // ONE RULE, both buttons. Reading the panel button's .disabled worked
+  // only while refreshPlanning was the only thing that changed it — during
+  // playback nothing calls refreshPlanning, so the bar sat holding a stale
+  // answer and offered SIMULATE CHARTER in the middle of a charter.
+  function canSimulate() { return S.phase === 'planning' && S.inputs.route.length >= 1; }
+  function syncActionBar() {
+    var ok = canSimulate(), planning = S.phase === 'planning';
+    [$('btn-sim'), $('btn-bar-sim')].forEach(function (b) { if (b) b.disabled = !ok; });
+    [$('btn-spin'), $('btn-bar-spin')].forEach(function (b) { if (b) b.disabled = !planning; });
+  }
+  // The HUD is telemetry, and there is none until the charter runs. On the
+  // phone it is hidden while planning — a block of dashes taking the width
+  // of the screen above the action bar, saying nothing — and appears for
+  // the run. The desktop sidebar layout is untouched: it has the room, and
+  // the title block is part of its drawing-office furniture.
+  function syncHudVisibility() {
+    if (!isSheetLayout()) { show('titleblock', true); return; }
+    show('titleblock', S.phase === 'playback');
   }
   // THE PLAN BAR IS THE DRAG TARGET. The sheet tracks the finger in real
   // time and, on release, SNAPS to whichever state it is nearest — by
@@ -11305,8 +11311,7 @@ globalThis.LEIP_APP = (function () {
     // distance stay on the chart, where navigation belongs.
     var sum = $('route-summary');
     if (sum) sum.textContent = S.inputs.route.length ? S.inputs.route.length + ' PICKS' : '';
-    var sim = $('btn-sim');
-    if (sim) sim.disabled = S.inputs.route.length < 1 || S.phase !== 'planning';
+
     var st = $('speed-toggle');
     if (st && st.querySelectorAll) {
       var btns = st.querySelectorAll('button[data-speed]');
@@ -11330,7 +11335,8 @@ globalThis.LEIP_APP = (function () {
     }
     var ca = $('btn-clear-acts');
     if (ca) ca.disabled = Object.keys(S.inputs.activities).length === 0 || S.phase !== 'planning';
-    syncMiniActions();
+    syncActionBar();
+    syncHudVisibility();
     RoutePlot.fit(S.inputs.route);
     // THE CAMERA HOLDS THE WHOLE ROUTE, not the latest pick. fitCamera
     // solves for the widest view that still centres every stop in the safe
@@ -11941,9 +11947,8 @@ globalThis.LEIP_APP = (function () {
       on('btn-achievements', 'click', function () { API.openDots(); });
       on('tb-dots', 'click', function () { API.openDots(); });
       on('btn-clear-acts', 'click', function () { API.clearActivities(); });
-      on('btn-mini-spin', 'click', function () { API.spin(); });
-      on('btn-mini-sim', 'click', function () { API.simulate(); });
-      on('btn-mini-plan', 'click', function () { API.setSheetMinimised(false); });
+      on('btn-bar-spin', 'click', function () { API.spin(); });
+      on('btn-bar-sim', 'click', function () { API.simulate(); });
       on('btn-info', 'click', function () { API.showLanding(true); });
       on('btn-landing-go', 'click', function () { API.showLanding(false); });
       bindRouteDrag($('route-strip'));
@@ -12044,6 +12049,7 @@ globalThis.LEIP_APP = (function () {
       S.savedThisCharter = false; S.savedRank = -1;
       if (S.webgl) {
         S.phase = 'playback';
+        syncHudVisibility(); syncActionBar();
         var plan = $('plan');
         if (plan && plan.classList) plan.classList.add('hidden');
         show('btn-skip', true);
@@ -12056,6 +12062,7 @@ globalThis.LEIP_APP = (function () {
         updatePlayback(0);
       } else {
         S.phase = 'results';
+        syncHudVisibility(); syncActionBar();
         showResults();
       }
       return S.sim;
@@ -12076,6 +12083,7 @@ globalThis.LEIP_APP = (function () {
         updatePlayback(dt);
         if (S.playT >= D.time.charterHours) {
           S.phase = 'results';
+        syncHudVisibility(); syncActionBar();
           show('btn-skip', false);
           showResults();
         }
@@ -12088,6 +12096,7 @@ globalThis.LEIP_APP = (function () {
       S.playT = D.time.charterHours;
       updatePlayback(0);
       S.phase = 'results';
+      syncHudVisibility(); syncActionBar();
       show('btn-skip', false);
       requestChart();
       showResults();
@@ -12097,6 +12106,7 @@ globalThis.LEIP_APP = (function () {
       show('results', false);
       show('btn-skip', false);
       S.phase = 'planning';
+      syncHudVisibility(); syncActionBar();
       S.sim = null; S.pending = [];
       var plan = $('plan');
       if (plan && plan.classList) plan.classList.remove('hidden');

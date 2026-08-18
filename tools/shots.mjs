@@ -437,6 +437,43 @@ const phoneShots = {
     await settle(page, 14);
     return {};
   },
+  // (a) Planning, sheet minimised: map + the PLAN sheet resting on the
+  // fixed action bar, and NO stats HUD — there is no telemetry yet.
+  'm-plan-minimised': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      ['Monaco', 'Calvi'].forEach((n) => A.pickPort(n));
+      A.setSheetMinimised(true);
+    });
+    await settle(page, 14);
+    return {};
+  },
+  // (b) Planning, sheet expanded: the list slid up over the map, buttons
+  // still pinned at the bottom.
+  'm-plan-expanded': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      A.setSheetMinimised(false);
+      ['Monaco', 'Calvi'].forEach((n) => A.pickPort(n));
+    });
+    await settle(page, 12);
+    return {};
+  },
+  // (c) Simulation: the HUD appears above the bar with live telemetry.
+  'm-simulating': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      A.setSpeed('fast');
+      ['Monaco', 'Calvi'].forEach((n) => A.pickPort(n));
+      A.simulate();
+      for (let i = 0; i < 400 && A.getState().phase === 'playback' &&
+                      !A.debugYacht().moving; i++) A.tick(0.25);
+      for (let i = 0; i < 50; i++) A.tick(0.25);
+      A.debugPause();
+    });
+    await settle(page, 10);
+    return {};
+  },
   'm-sheet-expanded': async (page) => {
     await page.evaluate(() => {
       const A = window.LEIP_APP;
@@ -446,8 +483,6 @@ const phoneShots = {
     await settle(page, 12);
     return {};
   },
-  // Fully minimised: the chart has the whole screen and only the grip is
-  // left, clear of the title block in the opposite corner.
   // The HUD's width, in two states that used to produce two widths:
   // nothing picked (all dashes) and mid-charter (a long leg, HYBRID, a
   // full clock). The shots are captioned with the measured width so the

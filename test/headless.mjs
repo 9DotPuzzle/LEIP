@@ -410,52 +410,58 @@ check('small viewports drop to a cheaper sea',
       /g\.addEventListener\('pointerdown'/.test(src) &&
       !/setSheetMinimised/.test(
         src.slice(src.indexOf('function bindStageInput'), src.indexOf('function bindRouteDrag'))));
-    // The minimised cluster is a MIRROR, not a second implementation.
-    check('the minimised actions call the same API entry points as the panel buttons',
-      /on\('btn-mini-spin', 'click', function \(\) \{ API\.spin\(\); \}\);/.test(src) &&
-      /on\('btn-mini-sim', 'click', function \(\) \{ API\.simulate\(\); \}\);/.test(src) &&
+    // THE FIXED ACTION BAR is a MIRROR, not a second implementation, and
+    // it is the thing the rest of the mobile layout anchors against.
+    check('the bar calls the same API entry points as the panel buttons',
+      /on\('btn-bar-spin', 'click', function \(\) \{ API\.spin\(\); \}\);/.test(src) &&
+      /on\('btn-bar-sim', 'click', function \(\) \{ API\.simulate\(\); \}\);/.test(src) &&
       /on\('btn-spin', 'click', function \(\) \{ API\.spin\(\); \}\);/.test(src) &&
       /on\('btn-sim', 'click', function \(\) \{ API\.simulate\(\); \}\);/.test(src));
-    check('and they take their disabled state FROM the panel button, not their own copy of the rule',
-      /mini\.disabled = !!sim\.disabled;/.test(src));
-    check('they live outside the sheet, since the sheet is what slides away',
-      src.indexOf('id="mini-actions"') > src.indexOf('</aside>'));
-    check('and they only exist in the minimised sheet — never on the desktop sidebar',
-      /body\.sheet-min #mini-actions \{/.test(src) &&
-      !/^#mini-actions \{/m.test(src));
-    // ONE CLUSTER, not three loose elements. The restore control moved in
-    // with the two actions; the sheet now leaves entirely rather than
-    // stopping short so its bar could peek as a tab beside the HUD.
-    check('the cluster holds all three controls — restore, spin, simulate',
-      /id="btn-mini-plan"/.test(src) && /id="btn-mini-spin"/.test(src) &&
-      /id="btn-mini-sim"/.test(src) &&
-      src.indexOf('id="btn-mini-plan"') > src.indexOf('id="mini-actions"') &&
-      src.indexOf('id="btn-mini-plan"') < src.indexOf('id="btn-skip"'));
-    check('a minimised sheet leaves ENTIRELY — no bar left peeking by the HUD',
-      /body\.sheet-min #plan \{\s*\n\s*transform: translateY\(100%\);/.test(src));
-    {
-      // Matched pair: one width, one style, one opacity. A column with
-      // align-items:stretch is what makes them size to the widest of them
-      // rather than each to its own text.
-      const rule = src.slice(src.indexOf('body.sheet-min #mini-actions {'));
-      const box = rule.slice(0, rule.indexOf('}'));
-      check('the cluster is a stretched column with one gap between its buttons',
-        /flex-direction: column/.test(box) && /align-items: stretch/.test(box) &&
-        /gap: \d+px/.test(box));
-      const btn = rule.slice(rule.indexOf('#mini-actions button {'));
-      const btnBox = btn.slice(0, btn.indexOf('}'));
-      check('and one style for all three — same fill, same border, full opacity',
-        /background: var\(--paper\)/.test(btnBox) && /opacity: 1/.test(btnBox) &&
-        /backdrop-filter: none/.test(btnBox));
-    }
-    // Names route around the chrome now, not under it.
-    check('the label pass treats the HUD and the cluster as occupied',
+    // ONE RULE for both copies of the pair, not the bar mirroring the
+    // panel button's .disabled — which only worked while refreshPlanning
+    // was the only thing that set it. During playback nothing calls
+    // refreshPlanning, so the bar held a stale answer and offered
+    // SIMULATE CHARTER in the middle of a charter.
+    check('one rule drives both Simulate buttons and both Spin buttons',
+      /function canSimulate\(\) \{ return S\.phase === 'planning' && S\.inputs\.route\.length >= 1; \}/.test(src) &&
+      /\[\$\('btn-sim'\), \$\('btn-bar-sim'\)\]\.forEach/.test(src) &&
+      /\[\$\('btn-spin'\), \$\('btn-bar-spin'\)\]\.forEach/.test(src));
+    check('and refreshPlanning no longer keeps a second copy of it',
+      !/sim\.disabled = S\.inputs\.route\.length < 1/.test(src));
+    check('it lives outside the sheet, since the sheet is what slides',
+      src.indexOf('id="action-bar"') > src.indexOf('</aside>'));
+    check('and it exists only on the phone — the desktop sidebar has no bottom bar',
+      /^#action-bar \{ display: none; \}$/m.test(src) &&
+      /@media \(max-width: 760px\)[\s\S]{0,1200}#action-bar \{\s*\n\s*display: flex;/.test(src));
+    check('the two are a matched pair — equal flex width, one style, full opacity',
+      /#action-bar button \{[\s\S]*?flex: 1 1 0;[\s\S]*?opacity: 1;[\s\S]*?\}/.test(src));
+    check('the panel\'s own copy of the pair is hidden, so neither appears twice',
+      /#actions \{ display: none; \}/.test(src));
+
+    // The bar is the ANCHOR: the sheet rests on it, the HUD sits above it.
+    check('the sheet slides in the space above the bar, never over it',
+      /#plan \{[\s\S]{0,240}bottom: var\(--bar-h\);/.test(src));
+    check('minimised, the sheet rests on the bar with only its PLAN strip showing',
+      /body\.sheet-min #plan \{\s*\n\s*transform: translateY\(calc\(100% - var\(--grip-h\)\)\);/.test(src));
+    check('and the HUD sits above the bar too',
+      /#titleblock \{[\s\S]{0,160}bottom: calc\(var\(--bar-h\) \+ 8px\);/.test(src));
+
+    // Telemetry only while there is telemetry.
+    check('the HUD is hidden while planning on a phone, and shown for the run',
+      /function syncHudVisibility\(\)/.test(src) &&
+      /if \(!isSheetLayout\(\)\) \{ show\('titleblock', true\); return; \}/.test(src) &&
+      /show\('titleblock', S\.phase === 'playback'\);/.test(src));
+    check('and every phase change re-evaluates it',
+      (src.match(/syncHudVisibility\(\); syncActionBar\(\);/g) || []).length >= 5);
+
+    // Names route around the chrome, not under it.
+    check('the label pass treats the HUD and the action bar as occupied',
       /Labels\.chromeBoxes\(\)\.forEach/.test(src) &&
-      /\['titleblock', 'mini-actions'\]/.test(src));
+      /\['titleblock', 'action-bar'\]/.test(src));
     check('and folding the sheet forces a re-layout, since the camera did not move',
       /Labels\.lastCam = null;/.test(
         src.slice(src.indexOf('function setSheetMinimised'),
-                  src.indexOf('function syncMiniActions'))));
+                  src.indexOf('function syncActionBar'))));
     // The drag: real-time follow, then snap by velocity or by position.
     check('the PLAN bar drags the sheet in real time',
       /plan\.style\.transform =\s*\n?\s*'translateY\(' \+ Math\.max\(0, Math\.min\(travel, base \+ drag\.dy\)\)/.test(src));
