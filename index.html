@@ -93,7 +93,14 @@ button:disabled:hover { background: none; color: var(--ink); }
 
 /* The stage fills the frame; the planning panel floats over it so the
    liquid-glass frost has the world to refract. */
-main { position: relative; flex: 1; min-height: 0; }
+/* overflow:hidden is what CONTAINS THE SHEET. Minimised, the panel is
+   translated down by most of its own height, so its box — and the port
+   list scrolling inside it — extends past the bottom of the layout. The
+   action bar is opaque and covers the part directly behind it, but below
+   that the content was escaping into whatever the browser leaves under a
+   100vh page, which is where the "No ports picked" line was showing up.
+   Clipping here bounds it; nothing else in main is allowed outside it. */
+main { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 #plan {
   position: absolute; left: 0; top: 0; bottom: 0; width: var(--panel-w);
   overflow-y: auto; padding: 14px; z-index: 4; color: var(--ink-fixed);
@@ -359,6 +366,7 @@ table.board td.num { font-family: var(--font-data); }
 /* Desktop no-ops: the sidebar does not collapse and there is no bottom bar. */
 #sheet-grip { display: none; }
 #action-bar { display: none; }
+#sheet-fade { display: none; }
 
 @media (max-width: 760px) {
   /* THREE STACKED LAYERS over the map: the header at the top, the plan
@@ -431,6 +439,28 @@ table.board td.num { font-family: var(--font-data); }
      both would put the same two controls on screen twice. */
   #actions { display: none; }
 
+  /* Scrolling stops at the sheet — it does not chain on to the page
+     behind, which is the other half of stopping content escaping. */
+  #plan { overscroll-behavior: contain; }
+
+  /* THE FADE. Sticky at the foot of the scrolling area, in the panel's own
+     frosted language: the glass tint ramped up to opaque, over a light
+     blur, so the list dissolves into the footer instead of ending on a
+     cut line. Its own height is cancelled by the negative margin, so it
+     costs the list nothing. */
+  #sheet-fade {
+    position: sticky; bottom: 0; z-index: 1; pointer-events: none;
+    height: var(--fade-h); margin-top: calc(var(--fade-h) * -1);
+    background: linear-gradient(to bottom,
+      rgba(245, 242, 234, 0) 0%,
+      rgba(245, 242, 234, 0.55) 55%,
+      rgba(245, 242, 234, 0.92) 100%);
+    -webkit-backdrop-filter: blur(calc(var(--glass-blur) / 3));
+    backdrop-filter: blur(calc(var(--glass-blur) / 3));
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 60%);
+    mask-image: linear-gradient(to bottom, transparent 0%, #000 60%);
+  }
+
   /* Dragging: the sheet follows the finger, so the transition is off for
      the duration or it would lag behind it. */
   body.sheet-dragging #plan { transition: none; }
@@ -498,6 +528,13 @@ table.board td.num { font-family: var(--font-data); }
         <div id="activity-list"></div>
         <div class="row"><button id="btn-clear-acts">Clear all activities</button></div>
       </section>
+      <!-- The soft lip at the foot of the list. Sticky, so it stays at the
+           bottom edge of the scrolling area and the content dissolves into
+           it on the way down rather than hard-cutting at the footer bar.
+           Negative margin so it overlays the last row instead of adding a
+           row of its own, and pointer-events:none so it never eats a tap
+           meant for what is under it. -->
+      <div id="sheet-fade" aria-hidden="true"></div>
       <section id="actions">
         <button id="btn-spin">Random spin</button>
         <button id="btn-sim" disabled>Simulate charter</button>
@@ -548,7 +585,7 @@ table.board td.num { font-family: var(--font-data); }
            the panel's own buttons call, not a second implementation. -->
       <div id="action-bar">
         <button id="btn-bar-spin">Spin</button>
-        <button id="btn-bar-sim" disabled>Simulate charter</button>
+        <button id="btn-bar-sim" data-act="simulate" disabled>Simulate charter</button>
       </div>
       <button id="btn-skip" class="hidden">Skip</button>
       <div id="webgl-fallback" class="hidden">
@@ -935,7 +972,8 @@ globalThis.LEIP_THEME = {
   ui: {                        // drawing-office chrome (paper margins, panel)
     paper: '#F5F2EA',          // chart-margin paper: data sheets and the title block
     panelWidthPx: 420,
-    sheetMaxVh: 52,            // mobile bottom-sheet height
+    sheetMaxVh: 62,            // mobile bottom-sheet height, expanded
+    sheetFadePx: 52,           // the soft lip the list dissolves into at its foot
     // The one breakpoint. Below it the planning panel is a bottom SHEET
     // rather than a left sidebar, and that changes which edge of the
     // stage is covered — which the camera has to know, or it centres the
@@ -9354,6 +9392,7 @@ globalThis.LEIP_APP = (function () {
     st.setProperty('--sheet-max-h', T.ui.sheetMaxVh + 'vh');
     st.setProperty('--grip-h', T.ui.sheetGripPx + 'px');
     st.setProperty('--bar-h', T.ui.actionBarPx + 'px');
+    st.setProperty('--fade-h', T.ui.sheetFadePx + 'px');
     st.setProperty('--label-tracking', T.ui.labelTrackingEm + 'em');
     updateSceneVars(tintAt(currentSimHour()));
   }
@@ -11182,9 +11221,31 @@ globalThis.LEIP_APP = (function () {
   // playback nothing calls refreshPlanning, so the bar sat holding a stale
   // answer and offered SIMULATE CHARTER in the middle of a charter.
   function canSimulate() { return S.phase === 'planning' && S.inputs.route.length >= 1; }
+  // The bar's primary control is never inert. While the charter runs it
+  // becomes STOP — the same action as the SKIP in the corner of the chart,
+  // which is the thing a player reaches for mid-run — and reverts when the
+  // run is over. One function decides the label, the action and the
+  // disabled state together, so they cannot drift apart.
+  function barPrimary() {
+    return S.phase === 'playback'
+      ? { act: 'skip', label: 'Stop', disabled: false }
+      : { act: 'simulate', label: 'Simulate charter', disabled: !canSimulate() };
+  }
   function syncActionBar() {
-    var ok = canSimulate(), planning = S.phase === 'planning';
-    [$('btn-sim'), $('btn-bar-sim')].forEach(function (b) { if (b) b.disabled = !ok; });
+    var planning = S.phase === 'planning';
+    var p = barPrimary();
+    var bar = $('btn-bar-sim');
+    if (bar) {
+      bar.disabled = p.disabled;
+      if (bar.getAttribute && bar.getAttribute('data-act') !== p.act) {
+        bar.setAttribute('data-act', p.act);
+        bar.textContent = p.label;
+      }
+    }
+    // The panel's own button never becomes STOP: the panel is not on
+    // screen during playback at all.
+    var sim = $('btn-sim');
+    if (sim) sim.disabled = !canSimulate();
     [$('btn-spin'), $('btn-bar-spin')].forEach(function (b) { if (b) b.disabled = !planning; });
   }
   // The HUD is telemetry, and there is none until the charter runs. On the
@@ -11948,7 +12009,14 @@ globalThis.LEIP_APP = (function () {
       on('tb-dots', 'click', function () { API.openDots(); });
       on('btn-clear-acts', 'click', function () { API.clearActivities(); });
       on('btn-bar-spin', 'click', function () { API.spin(); });
-      on('btn-bar-sim', 'click', function () { API.simulate(); });
+      on('btn-bar-sim', 'click', function () {
+        // Whatever the button currently IS — read from the same attribute
+        // syncActionBar sets, so the label and the action can never
+        // disagree about which one it is.
+        var b = $('btn-bar-sim');
+        if (b && b.getAttribute && b.getAttribute('data-act') === 'skip') API.skip();
+        else API.simulate();
+      });
       on('btn-info', 'click', function () { API.showLanding(true); });
       on('btn-landing-go', 'click', function () { API.showLanding(false); });
       bindRouteDrag($('route-strip'));

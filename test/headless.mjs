@@ -414,18 +414,30 @@ check('small viewports drop to a cheaper sea',
     // it is the thing the rest of the mobile layout anchors against.
     check('the bar calls the same API entry points as the panel buttons',
       /on\('btn-bar-spin', 'click', function \(\) \{ API\.spin\(\); \}\);/.test(src) &&
-      /on\('btn-bar-sim', 'click', function \(\) \{ API\.simulate\(\); \}\);/.test(src) &&
       /on\('btn-spin', 'click', function \(\) \{ API\.spin\(\); \}\);/.test(src) &&
-      /on\('btn-sim', 'click', function \(\) \{ API\.simulate\(\); \}\);/.test(src));
+      /on\('btn-sim', 'click', function \(\) \{ API\.simulate\(\); \}\);/.test(src) &&
+      /API\.skip\(\);\s*\n?\s*else API\.simulate\(\);/.test(src));
     // ONE RULE for both copies of the pair, not the bar mirroring the
     // panel button's .disabled — which only worked while refreshPlanning
     // was the only thing that set it. During playback nothing calls
     // refreshPlanning, so the bar held a stale answer and offered
     // SIMULATE CHARTER in the middle of a charter.
-    check('one rule drives both Simulate buttons and both Spin buttons',
+    check('one rule decides whether a charter can be started, for both buttons',
       /function canSimulate\(\) \{ return S\.phase === 'planning' && S\.inputs\.route\.length >= 1; \}/.test(src) &&
-      /\[\$\('btn-sim'\), \$\('btn-bar-sim'\)\]\.forEach/.test(src) &&
-      /\[\$\('btn-spin'\), \$\('btn-bar-spin'\)\]\.forEach/.test(src));
+      /\[\$\('btn-spin'\), \$\('btn-bar-spin'\)\]\.forEach/.test(src) &&
+      /if \(sim\) sim\.disabled = !canSimulate\(\);/.test(src));
+    // The bar's primary control is never inert: mid-run it becomes STOP,
+    // the same action as the SKIP on the chart. One function decides the
+    // label, the action and the disabled state together, and the click
+    // handler reads back the very attribute that function sets — so the
+    // label and what it does cannot drift apart.
+    check('the bar\'s primary becomes STOP during a run and reverts after it',
+      /function barPrimary\(\)/.test(src) &&
+      /S\.phase === 'playback'\s*\n?\s*\? \{ act: 'skip', label: 'Stop', disabled: false \}/.test(src) &&
+      /: \{ act: 'simulate', label: 'Simulate charter', disabled: !canSimulate\(\) \}/.test(src));
+    check('and the click reads the same attribute the sync writes',
+      /bar\.setAttribute\('data-act', p\.act\);/.test(src) &&
+      /b\.getAttribute\('data-act'\) === 'skip'/.test(src));
     check('and refreshPlanning no longer keeps a second copy of it',
       !/sim\.disabled = S\.inputs\.route\.length < 1/.test(src));
     check('it lives outside the sheet, since the sheet is what slides',
@@ -433,6 +445,22 @@ check('small viewports drop to a cheaper sea',
     check('and it exists only on the phone — the desktop sidebar has no bottom bar',
       /^#action-bar \{ display: none; \}$/m.test(src) &&
       /@media \(max-width: 760px\)[\s\S]{0,1200}#action-bar \{\s*\n\s*display: flex;/.test(src));
+    // The sheet is CONTAINED, and its list dissolves into the footer.
+    check('main clips, so a translated sheet cannot escape below the layout',
+      /^main \{[^}]*overflow: hidden;/m.test(src));
+    check('and the sheet does not chain its scroll on to the page behind',
+      /#plan \{ overscroll-behavior: contain; \}/.test(src));
+    check('a sticky frosted lip sits at the foot of the list, costing it no height',
+      /#sheet-fade \{[\s\S]*?position: sticky; bottom: 0;[\s\S]*?margin-top: calc\(var\(--fade-h\) \* -1\);[\s\S]*?\}/.test(src) &&
+      /#sheet-fade \{[\s\S]*?pointer-events: none;/.test(src));
+    check('the lip is the panel\'s own glass language, not a new colour',
+      /#sheet-fade \{[\s\S]*?backdrop-filter: blur\(calc\(var\(--glass-blur\) \/ 3\)\);/.test(src) &&
+      /rgba\(245, 242, 234,/.test(src));
+    check('and there is no lip on the desktop sidebar, which has no footer to fade into',
+      /^#sheet-fade \{ display: none; \}$/m.test(src));
+    check(`the expanded sheet is ${T.ui.sheetMaxVh}vh and still sits above the bar`,
+      T.ui.sheetMaxVh === 62 && /#plan \{[\s\S]{0,240}bottom: var\(--bar-h\);/.test(src));
+
     check('the two are a matched pair — equal flex width, one style, full opacity',
       /#action-bar button \{[\s\S]*?flex: 1 1 0;[\s\S]*?opacity: 1;[\s\S]*?\}/.test(src));
     check('the panel\'s own copy of the pair is hidden, so neither appears twice',
