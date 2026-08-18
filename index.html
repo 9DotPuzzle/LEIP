@@ -886,8 +886,17 @@ globalThis.LEIP_THEME = {
     // let a real route wrap where it did not need to. The one string that
     // beats it is a port to ITSELF (45), which a repeat can produce; that
     // wraps, and the WIDTH still does not move, which is the requirement.
+    // Each string is the WIDEST that cell can ever hold, taken from what
+    // the game can actually produce rather than from a plausible example:
+    //   mode   the propCurve's gameModes are ELECTRIC / HYBRID / BOOST,
+    //          plus ANCHOR at rest — ELECTRIC is the long one
+    //   speed  fmt(kts, 1) + ' KTS', and the curve tops out at 14 kts
+    //   clock  a TWO-digit hour with a meridiem, which is the case that
+    //          made the cell twitch on the hour every twelve hours
+    //   leg    the longest between two DIFFERENT ports, swept from the
+    //          port list; a port to itself is longer and wraps instead
     widest: {
-      mode: 'HYBRID', speed: '11.6 KTS', day: '3/7', clock: '7:00 PM',
+      mode: 'ELECTRIC', speed: '14.0 KTS', day: '3/7', clock: '12:46 PM',
       leg: "PORT D'ANDRATX > SAINT-JEAN-CAP-FERRAT", batt: '100%'
     }
   },
@@ -11559,8 +11568,13 @@ globalThis.LEIP_APP = (function () {
     });
     cells.forEach(function (c) { setText(c[0], c[1]); });
     // Measure unpinned, with the leg on one line: the natural width of the
-    // worst case is what is being reserved.
+    // worst case is what is being reserved. The cell pins from a previous
+    // pass have to come off first or this measures them, not the content.
     tb.style.width = '';
+    ['tb-mode-cell', 'tb-speed-cell', 'tb-day-cell', 'tb-clock-cell'].forEach(function (id) {
+      var el = $(id);
+      if (el && el.style) { el.style.flex = ''; el.style.width = ''; }
+    });
     var leg = $('tb-leg');
     var legWs = leg && leg.style ? leg.style.whiteSpace : null;
     if (leg && leg.style) leg.style.whiteSpace = 'nowrap';
@@ -11572,6 +11586,25 @@ globalThis.LEIP_APP = (function () {
     var margin = isSheetLayout() ? 16 : 28;
     var cap = vw > 0 ? vw - margin : want;
     if (want > 0) tb.style.width = Math.min(want, cap) + 'px';
+
+    // AND PIN THE CELLS. Pinning the BOX alone was not enough: the cells
+    // are flex items, so a longer reading simply took width from its
+    // neighbours and every boundary in the row moved instead. "9:05 AM"
+    // and "12:46 PM" are different widths, so the row re-flowed on the
+    // hour, twice a day, and on every speed and mode change besides.
+    //
+    // Measured HERE, with the worst-case strings still in place and the
+    // box already at its final width, so what is pinned is exactly what
+    // the browser laid out for the worst case — no arithmetic to get
+    // wrong, and the four widths sum to the row by construction.
+    // getBoundingClientRect rather than offsetWidth: sub-pixel, so the
+    // pinned widths cannot round down into a hairline gap at the end.
+    ['tb-mode-cell', 'tb-speed-cell', 'tb-day-cell', 'tb-clock-cell'].forEach(function (id) {
+      var el = $(id);
+      if (!el || !el.style || !el.getBoundingClientRect) return;
+      var cw = el.getBoundingClientRect().width;
+      if (cw > 0) { el.style.flex = '0 0 auto'; el.style.width = cw.toFixed(2) + 'px'; }
+    });
     had.forEach(function (h) { if (h) h.el.textContent = h.was; });
     publishHudHeight();
   }

@@ -482,6 +482,37 @@ const phoneShots = {
     await settle(page, 26);
     return {};
   },
+  // THE SAME HUD AT TWO CLOCK TIMES, one a single-digit AM hour and one a
+  // two-digit PM hour — the pair that used to be different widths. Both
+  // shots print the measured TIME cell and box widths, so the claim is
+  // checkable rather than a matter of squinting at two pictures.
+  ...(function () {
+    // charterStartHour is 8, so sim hour -> local (8 + h) % 24. 1.09 gives
+    // a SINGLE-digit 9:05 AM and 4.77 a TWO-digit 12:46 PM: the pair whose
+    // widths used to differ. Both carry non-zero minutes so nothing is
+    // proved by a run of identical characters.
+    const at = { 'm-hud-time-am': 1.09, 'm-hud-time-pm': 4.77 };
+    const out = {};
+    Object.keys(at).forEach((name) => {
+      out[name] = async (page) => {
+        const m = await page.evaluate((h) => {
+          const A = window.LEIP_APP;
+          ['Monaco', 'Calvi'].forEach((n) => A.pickPort(n));
+          A.simulate();
+          A.debugHour(h);
+          A.debugPause();
+          const cell = document.getElementById('tb-clock-cell').getBoundingClientRect();
+          const box = document.getElementById('titleblock').getBoundingClientRect();
+          return { clock: document.getElementById('tb-clock').textContent,
+                   cell: cell.width.toFixed(2), box: box.width.toFixed(2) };
+        }, at[name]);
+        console.log(`    ${m.clock.padEnd(9)} TIME cell ${m.cell}px, box ${m.box}px`);
+        await settle(page, 8);
+        return { clip: await page.locator('#titleblock').boundingBox() };
+      };
+    });
+    return out;
+  })(),
   // (c) Simulation: the HUD appears above the bar with live telemetry.
   'm-simulating': async (page) => {
     await page.evaluate(() => {

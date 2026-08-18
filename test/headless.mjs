@@ -390,8 +390,20 @@ check('small viewports drop to a cheaper sea',
     // against the widest content the game can produce and pinned there.
     const w = T.hud.widest;
     check('the worst case is stated, not guessed at',
-      !!w && w.mode === 'HYBRID' && /KTS$/.test(w.speed) &&
-      /^\d\/7$/.test(w.day) && /(AM|PM)$/.test(w.clock));
+      !!w && /KTS$/.test(w.speed) && /^\d\/7$/.test(w.day) && /(AM|PM)$/.test(w.clock));
+    // Each reserved string has to be the widest the GAME can produce, not
+    // a plausible-looking example. Both of these were short.
+    check(`MODE reserves for the longest mode the curve can name (${w.mode})`,
+      w.mode.length >= Math.max('ANCHOR'.length,
+        ...D.propCurve.map((p) => p.gameMode.length)), w.mode);
+    check(`SPEED reserves for the curve's top speed (${w.speed})`,
+      w.speed.length >= (Math.max(...D.propCurve.map((p) => p.kts)).toFixed(1) + ' KTS').length,
+      w.speed);
+    // The clock twitched on the hour, twice a day: a two-digit hour is
+    // wider than a one-digit hour, and the cell was sized to whichever it
+    // happened to be holding.
+    check(`TIME reserves for a TWO-digit hour (${w.clock})`,
+      /^\d\d:\d\d (AM|PM)$/.test(w.clock), w.clock);
     {
       // The reserved leg must cover every leg a route between two DIFFERENT
       // ports can produce — swept from the port list rather than taken on
@@ -410,6 +422,19 @@ check('small viewports drop to a cheaper sea',
       check('MODE reserves for the widest word the HUD can show there',
         w.mode.length >= 'ANCHOR'.length);
     }
+    // Pinning the BOX alone was not enough: the cells are flex items, so a
+    // longer reading took width from its neighbours and every boundary in
+    // the row moved instead. All four status cells are pinned too.
+    check('every status cell is pinned, not just the box around them',
+      /\['tb-mode-cell', 'tb-speed-cell', 'tb-day-cell', 'tb-clock-cell'\]/.test(src) &&
+      /el\.style\.flex = '0 0 auto'; el\.style\.width = cw\.toFixed\(2\) \+ 'px';/.test(src));
+    check('and the pins are measured with the worst case in place, at the final box width',
+      src.indexOf("tb.style.width = Math.min(want, cap)") <
+      src.indexOf("el.style.flex = '0 0 auto'"));
+    check('a re-measure clears the old pins first, or it would measure them',
+      (src.match(/if \(el && el\.style\) \{ el\.style\.flex = ''; el\.style\.width = ''; \}/g) || []).length === 1);
+    check('sub-pixel, so the pinned widths cannot round into a gap at the row end',
+      /getBoundingClientRect\(\)\.width;\s*\n\s*if \(cw > 0\)/.test(src));
     check('the box is measured once and pinned, and re-measured only on resize',
       /function lockTitleBlockWidth\(\)/.test(src) &&
       /tb\.style\.width = Math\.min\(want, cap\)/.test(src) &&
