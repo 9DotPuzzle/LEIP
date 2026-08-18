@@ -470,6 +470,18 @@ const phoneShots = {
     await settle(page, 12);
     return {};
   },
+  // Selected ports on a PALE stretch of land, which is where the soft
+  // white halo this replaces became invisible.
+  'm-selected-marks': async (page) => {
+    await page.evaluate(() => {
+      const A = window.LEIP_APP;
+      A.setSheetMinimised(true);
+      ['Ajaccio', 'Bonifacio', 'Porto Cervo', 'Olbia'].forEach((n) => A.pickPort(n));
+      A.debugView({ focus: ['Ajaccio', 'Bonifacio', 'Porto Cervo', 'Olbia'], zoom: 210 });
+    });
+    await settle(page, 26);
+    return {};
+  },
   // (c) Simulation: the HUD appears above the bar with live telemetry.
   'm-simulating': async (page) => {
     await page.evaluate(() => {

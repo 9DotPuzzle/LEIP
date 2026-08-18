@@ -439,6 +439,14 @@ table.board td.num { font-family: var(--font-data); }
      both would put the same two controls on screen twice. */
   #actions { display: none; }
 
+  /* WHILE A CHARTER RUNS the bar is one full-width SKIP. Spin has nothing
+     to do mid-charter and sat there greyed out; the chart's own Skip in
+     the top corner was the same action a thumb's width from the bar, at
+     the opposite end of the screen. One control, where the thumb already
+     is. The full width falls out of flex once its neighbour is gone. */
+  body.sim-run #btn-bar-spin { display: none; }
+  body.sim-run #btn-skip { display: none; }
+
   /* Scrolling stops at the sheet — it does not chain on to the page
      behind, which is the other half of stopping content escaping. */
   #plan { overscroll-behavior: contain; }
@@ -655,24 +663,25 @@ globalThis.LEIP_THEME = {
     // changed colour with the grid it plugs into would be reading the
     // scoreboard out loud while the player is meant to be picking blind.
     monument: { lit: '#C96F4A', mid: '#B05A38', shade: '#8F4529' },
-    // SELECTION HALO. A port in the route wears a soft white aura on the
-    // chart, so the plan reads at a glance instead of only in the list.
-    // White because that is the planning line's colour — the halo and the
-    // dashed passage are the same statement about the same thing.
+    // SELECTION MARK. A port in the route carries a VOLT ring at the foot
+    // of its monument and a volt pin floating above it. Volt is the
+    // energy accent and the colour of the sailed trail, which is the tie
+    // being made: these are the ports that trail runs between.
     //
-    // FLAT, not a bloom. It is a painted radial falloff on a disc, drawn
-    // with ordinary alpha blending; additive blending is what makes a
-    // glow bloom, and the visual direction bans it. The pulse is slow and
-    // shallow on purpose — a breath, not a blink — and reduced motion
-    // holds it at the midpoint rather than stopping it somewhere dim.
-    selectHalo: {
-      colour: '#FFFFFF',
-      radius: 3.1,             // x isletRadius
-      px: 256,                 // texture size for the painted falloff
-      core: 0.30,              // solid heart of the disc, as a fraction of r
-      minAlpha: 0.16, maxAlpha: 0.34,
-      periodSec: 4.6,          // one full breath
-      y: 0.55                  // sits on the water, under the monument
+    // It replaces a soft white halo, which failed for a plain reason —
+    // a diffuse white aura has almost no contrast against the pale
+    // daytime land, so exactly where a marker is hardest to see is where
+    // it disappeared. Two crisp shapes in a colour nothing else on the
+    // chart uses, and the pin sits ABOVE the monument so it reads even
+    // when the port itself is a few pixels wide.
+    //
+    // Flat unlit shapes, ordinary alpha — nothing additive, nothing that
+    // can bloom. The pin bobs, gently and slowly, and holds still under
+    // reduced motion; the ring never moves at all.
+    selectMark: {
+      ring: { inner: 1.30, outer: 1.62, segments: 40, y: 0.5 },   // x isletRadius
+      pin: { r: 1.15, h: 2.6, y: 12.4, bobAmp: 0.9, bobSec: 3.8 },
+      opacity: 0.96
     },
     // three tones per mass: lit (highland step) / mid (coastal land) / shade
     massTones: { lit: 1.05, mid: 0.93, shade: 0.78 },
@@ -10399,33 +10408,24 @@ globalThis.LEIP_APP = (function () {
     RoutePlot.init(overlay);
     Labels.init(overlay);
 
-    // The halo's texture: a painted radial falloff, made once and shared
-    // by all forty-four. A canvas gradient rather than a shader, so what
-    // is on screen is a flat disc with soft edges under normal alpha
-    // blending — no additive pass, nothing that can bloom.
-    var haloTex = (function () {
-      var H = T.world.selectHalo;
-      if (!doc || !doc.createElement) return null;
-      var c = doc.createElement('canvas');
-      c.width = c.height = H.px;
-      var x;
-      try { x = c.getContext('2d'); } catch (e) { return null; }
-      if (!x || !x.createRadialGradient) return null;
-      var m = H.px / 2;
-      var g2 = x.createRadialGradient(m, m, m * H.core, m, m, m);
-      g2.addColorStop(0, H.colour);
-      // Two stops rather than one: a straight linear ramp reads as a hard
-      // ring at its own edge, and the eye finds that before it finds the
-      // port.
-      g2.addColorStop(0.55, 'rgba(255,255,255,0.42)');
-      g2.addColorStop(1, 'rgba(255,255,255,0)');
-      x.fillStyle = g2;
-      x.fillRect(0, 0, H.px, H.px);
-      var t = new THREE.CanvasTexture(c);
-      t.anisotropy = 2;
-      return t;
-    })();
-    var halos = [];
+    // The selection mark's two geometries and its material, made once and
+    // shared by all forty-four: a flat annulus for the ground ring and a
+    // tip-down cone for the pin. MeshBasicMaterial, so they are unlit and
+    // read as the same crisp volt at every time of day — the mark is
+    // chart ink, not part of the modelled world.
+    var SM = T.world.selectMark;
+    // The islet radius the ring is sized against — declared here rather
+    // than relying on the `var R` further down, which hoists as undefined
+    // and made the geometry NaN.
+    var markR = T.world.isletRadius;
+    var markMat = new THREE.MeshBasicMaterial({
+      color: T.volt, transparent: true, opacity: SM.opacity,
+      depthWrite: false, depthTest: false, side: THREE.DoubleSide
+    });
+    var ringGeo = new THREE.RingGeometry(markR * SM.ring.inner, markR * SM.ring.outer,
+                                         SM.ring.segments);
+    var pinGeo = new THREE.ConeGeometry(SM.pin.r, SM.pin.h, 6);
+    var marks = [];
 
     // One sculptural landmark per port.
     var hitMeshes = [];
@@ -10501,20 +10501,21 @@ globalThis.LEIP_APP = (function () {
       // geometric foam" now lives where it belongs: the shore bevel that
       // runs along the real coastline, and the yacht's wake.
 
-      // The selection halo, one per port, hidden until the port is picked.
-      if (haloTex) {
-        var HS = T.world.selectHalo, hr = R * HS.radius;
-        var halo = new THREE.Mesh(new THREE.PlaneGeometry(hr * 2, hr * 2),
-          new THREE.MeshBasicMaterial({ map: haloTex, transparent: true,
-                                        depthWrite: false, depthTest: false,
-                                        opacity: HS.minAlpha }));
-        halo.rotation.x = -Math.PI / 2;
-        halo.position.y = HS.y;
-        halo.renderOrder = T.world.order.marker;   // under the monument
-        halo.visible = false;
-        grp.add(halo);
-        halos.push({ port: port.name, mesh: halo });
-      }
+      // The selection mark, one per port, hidden until the port is picked.
+      var mark = new THREE.Group();
+      var ring = new THREE.Mesh(ringGeo, markMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = SM.ring.y;
+      var pin = new THREE.Mesh(pinGeo, markMat);
+      pin.rotation.x = Math.PI;                    // tip down, at the port
+      pin.position.y = SM.pin.y;
+      mark.add(ring); mark.add(pin);
+      // Above the callouts but below the name plates: the mark should sit
+      // over the terrain and the monument, and under the type.
+      mark.renderOrder = T.world.order.callout;
+      mark.visible = false;
+      grp.add(mark);
+      marks.push({ port: port.name, group: mark, pin: pin });
 
       var hit = new THREE.Mesh(new THREE.CylinderGeometry(R * 2, R * 2, 10, 8),
         new THREE.MeshBasicMaterial({ visible: false }));
@@ -10542,7 +10543,7 @@ globalThis.LEIP_APP = (function () {
       renderer: renderer, scene: scene, overlay: overlay, camera: camera,
       sun: sun, sunO: sunO, amb: amb, ambO: ambO,
       sea: sea, landMat: landMat, reliefMat: reliefMat, hitMeshes: hitMeshes,
-      halos: halos, haloT: 0,
+      marks: marks, markT: 0,
       yacht: yacht, foamMat: foamMat, smokeMat: smokeMat, hullMat: hullMat,
       wake: [], smoke: [], wakeClock: 0, smokeClock: 0, idleHeading: 0,
       cam: { x: 0, z: 0, dist: 640, tx: 0, tz: 0, tdist: 640 },
@@ -11201,11 +11202,11 @@ globalThis.LEIP_APP = (function () {
   // because the ORDER is the list's job and a number on the chart would
   // be a second, competing account of the route.
   function syncHalos() {
-    if (!G || !G.halos) return;
+    if (!G || !G.marks) return;
     var inRoute = {};
     (S.inputs.route || []).forEach(function (n) { inRoute[n] = true; });
-    for (var i = 0; i < G.halos.length; i++) {
-      G.halos[i].mesh.visible = !!inRoute[G.halos[i].port];
+    for (var i = 0; i < G.marks.length; i++) {
+      G.marks[i].group.visible = !!inRoute[G.marks[i].port];
     }
   }
 
@@ -11306,7 +11307,7 @@ globalThis.LEIP_APP = (function () {
   // disabled state together, so they cannot drift apart.
   function barPrimary() {
     return S.phase === 'playback'
-      ? { act: 'skip', label: 'Stop', disabled: false }
+      ? { act: 'skip', label: 'Skip', disabled: false }
       : { act: 'simulate', label: 'Simulate charter', disabled: !canSimulate() };
   }
   function syncActionBar() {
@@ -11332,6 +11333,12 @@ globalThis.LEIP_APP = (function () {
   // the run. The desktop sidebar layout is untouched: it has the room, and
   // the title block is part of its drawing-office furniture.
   function syncHudVisibility() {
+    // One class carries "a charter is running" to the stylesheet, which is
+    // what collapses the bar to a single full-width Skip and takes the
+    // chart's own Skip away on the phone.
+    if (doc && doc.body && doc.body.classList) {
+      doc.body.classList[S.phase === 'playback' ? 'add' : 'remove']('sim-run');
+    }
     if (!isSheetLayout()) { show('titleblock', true); return; }
     show('titleblock', S.phase === 'playback');
   }
@@ -11971,26 +11978,20 @@ globalThis.LEIP_APP = (function () {
     updateStrokes(G.wake, dt, 0);
     updateStrokes(G.smoke, dt, 5.5);
 
-    // The halos breathe: one slow sine across the whole set, so the
-    // selected ports pulse together rather than shimmering against each
-    // other. Reduced motion holds them at the midpoint — still visible,
-    // just not moving; stopping at the trough would have quietly turned
-    // the feature off for anyone who asked for less movement.
-    if (G.halos && G.halos.length) {
-      var HS = T.world.selectHalo;
-      var a;
-      if (S.reducedMotion) a = (HS.minAlpha + HS.maxAlpha) / 2;
-      else {
-        G.haloT = (G.haloT + dt) % HS.periodSec;
-        var ph = G.haloT / HS.periodSec * Math.PI * 2;
-        // (1 - cos)/2 rather than a raw sine: it eases at BOTH ends, so
-        // the breath settles at full and at empty instead of sweeping
-        // through them.
-        a = HS.minAlpha + (HS.maxAlpha - HS.minAlpha) * (1 - Math.cos(ph)) / 2;
+    // The pins bob: one slow sine across the whole set, so the selected
+    // ports move together rather than shimmering against each other, and
+    // shallow enough to read as a hover rather than a bounce. The ring
+    // never moves — it is the part that has to stay legible — and under
+    // reduced motion the pin holds at its rest height too.
+    if (G.marks && G.marks.length) {
+      var SMK = T.world.selectMark, dy = 0;
+      if (!S.reducedMotion) {
+        G.markT = (G.markT + dt) % SMK.pin.bobSec;
+        dy = Math.sin(G.markT / SMK.pin.bobSec * Math.PI * 2) * SMK.pin.bobAmp;
       }
-      for (var hi = 0; hi < G.halos.length; hi++) {
-        var hm = G.halos[hi].mesh;
-        if (hm.visible) hm.material.opacity = a;
+      for (var mi = 0; mi < G.marks.length; mi++) {
+        var mk = G.marks[mi];
+        if (mk.group.visible) mk.pin.position.y = SMK.pin.y + dy;
       }
     }
 

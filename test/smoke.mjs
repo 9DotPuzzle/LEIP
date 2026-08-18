@@ -496,11 +496,26 @@ section('Map legibility — no port rings, callouts in the collision pass');
     !/soundings/i.test(chartBlock));
   check('the single main compass rose is still charted',
     Array.isArray(T5.chart.roseLatLon) && T5.chart.roseLatLon.length === 2);
-  // The white foam circle around each port went with them: in a cluster it
-  // read as a second set of rings. Foam survives on the coastline bevel and
-  // in the wake, which is what the visual direction actually describes.
-  check('no ring is built around a port marker',
-    !/RingGeometry/.test(chartBlock));
+  // The white foam circle that used to sit around EVERY port went with
+  // them: unconditional and white, in a cluster it read as a second set of
+  // compass rings. Foam survives on the coastline bevel and in the wake,
+  // which is what the visual direction actually describes.
+  //
+  // There IS a ring again, and it is deliberately not that: volt rather
+  // than white, and drawn only for the ports in the current route, so it
+  // is a selection mark rather than decoration on all forty-four. The
+  // check keeps the original intent — no permanent ring — rather than
+  // banning the primitive.
+  {
+    const ringLines = chartBlock.split('\n').filter((l) => /RingGeometry/.test(l));
+    check('the only ring is the selection mark, and it is volt, not white',
+      ringLines.length === 1 && /SM\.ring/.test(ringLines[0]) &&
+      /color: T\.volt/.test(chartBlock),
+      ringLines.join(' | '));
+    check('and it is hidden until its port is picked',
+      /mark\.visible = false;/.test(chartBlock) &&
+      /G\.marks\[i\]\.group\.visible = !!inRoute/.test(readHtml()));
+  }
   check('foam still exists for the coastline bevel and the wake',
     typeof T5.world.foam === 'string' &&
     typeof T5.terrain.bevelSize === 'number' && T5.terrain.bevelSize > 0);

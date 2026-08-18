@@ -246,38 +246,54 @@ check('small viewports drop to a cheaper sea',
       i === j || Math.abs(a / b - Math.round(a / b)) > 0.05)));
 }
 
-// ---- the selection halo: white, flat, and breathing ----
+// ---- the selection mark: volt, crisp, and above the terrain ----
 {
   const src2 = readHtml();
-  const H = T.world.selectHalo;
-  check('a selected port wears a halo in the planning line\'s own white',
-    !!H && H.colour === T.routeCanvas.plannedInk && H.colour === '#FFFFFF');
-  check('it is a painted radial falloff, not a shader',
-    /createRadialGradient/.test(src2) && /new THREE\.CanvasTexture\(c\)/.test(src2));
-  // FLAT, not a bloom. Additive blending is what makes a glow bloom, and
-  // the visual direction bans it — so the halo must be an ordinary
-  // alpha-blended plane and nothing in the world may ask for more.
-  check('and it blends normally — nothing additive anywhere in the world',
-    !/AdditiveBlending/.test(src2));
-  check('it sits under the monument, on the water',
-    H.y > 0 && H.y < 1 && /halo\.renderOrder = T\.world\.order\.marker;/.test(src2));
-  // A breath, not a blink: shallow, slow, and eased at both ends.
-  check(`the pulse is shallow (${H.minAlpha}-${H.maxAlpha}) and slow (${H.periodSec}s)`,
-    H.maxAlpha - H.minAlpha <= 0.25 && H.minAlpha > 0 && H.maxAlpha < 0.6 &&
-    H.periodSec >= 3);
-  check('and eases at both ends of the breath, not through them',
-    /\(1 - Math\.cos\(ph\)\) \/ 2/.test(src2));
-  check('reduced motion holds it at the MIDPOINT, so it stays visible',
-    /if \(S\.reducedMotion\) a = \(HS\.minAlpha \+ HS\.maxAlpha\) \/ 2;/.test(src2));
+  const M = T.world.selectMark;
+  // It replaced a soft white halo, which had almost no contrast against
+  // the pale daytime land — exactly where a marker is hardest to see is
+  // where it disappeared. Volt is the colour nothing else on the chart
+  // uses except the sailed trail these ports are strung along.
+  check('the mark is volt, and BOTH parts share the one volt material',
+    !!M && M.opacity > 0.8 &&
+    /var markMat = new THREE\.MeshBasicMaterial\(\{\s*\n\s*color: T\.volt,/.test(src2) &&
+    /new THREE\.Mesh\(ringGeo, markMat\)/.test(src2) &&
+    /new THREE\.Mesh\(pinGeo, markMat\)/.test(src2));
+  check('the soft white halo is gone, not layered underneath it',
+    !/selectHalo/.test(src2) && !/haloTex/.test(src2) &&
+    !/createRadialGradient/.test(src2));
+  check('two parts: a ring at the monument\'s foot and a pin above it',
+    !!M.ring && !!M.pin && M.pin.y > M.ring.y * 10 &&
+    /new THREE\.RingGeometry\(markR \* SM\.ring\.inner/.test(src2) &&
+    /new THREE\.ConeGeometry\(SM\.pin\.r, SM\.pin\.h, 6\)/.test(src2));
+  check('the pin hangs tip-down over the port, clear of the tallest monument',
+    /pin\.rotation\.x = Math\.PI;/.test(src2) && M.pin.y >= 11);
+  // FLAT. Additive blending is what makes a glow bloom, which the visual
+  // direction bans, and MeshBasic keeps the mark the same crisp volt at
+  // every time of day rather than being modelled by the sun.
+  check('flat and unlit — nothing additive anywhere in the world',
+    !/AdditiveBlending/.test(src2) &&
+    /var markMat = new THREE\.MeshBasicMaterial\(\{/.test(src2));
+  check('and it draws over the terrain and the monument, under the type',
+    /mark\.renderOrder = T\.world\.order\.callout;/.test(src2) &&
+    T.world.order.callout < T.world.order.label);
+  // Clarity over motion: the ring never moves, the pin bobs shallowly.
+  check(`only the pin moves, gently (${M.pin.bobAmp} over ${M.pin.bobSec}s)`,
+    M.pin.bobAmp < M.pin.h && M.pin.bobSec >= 3 &&
+    /mk\.pin\.position\.y = SMK\.pin\.y \+ dy;/.test(src2) &&
+    !/ring\.position\.y = /.test(src2.slice(src2.indexOf('G.marks && G.marks.length'))));
+  check('reduced motion holds the pin at its rest height',
+    /if \(!S\.reducedMotion\) \{[\s\S]{0,220}dy = Math\.sin/.test(src2));
   // Membership, not order: the list carries the numbering.
-  check('the halo tracks route membership only — a repeat looks the same as one pick',
+  check('the mark tracks route membership only — a repeat looks the same as one pick',
     /function syncHalos\(\)/.test(src2) &&
-    /G\.halos\[i\]\.mesh\.visible = !!inRoute\[G\.halos\[i\]\.port\];/.test(src2));
+    /G\.marks\[i\]\.group\.visible = !!inRoute\[G\.marks\[i\]\.port\];/.test(src2));
   check('and it is re-synced on every route change',
     /syncHalos\(\);/.test(src2.slice(src2.indexOf('function refreshPlanning'),
                                      src2.indexOf('RoutePlot.fit(S.inputs.route);'))));
-  check('one texture serves all forty-four, built once',
-    (src2.match(/var haloTex = \(function \(\) \{/g) || []).length === 1);
+  check('one material and one pair of geometries serve all forty-four',
+    (src2.match(/var markMat = /g) || []).length === 1 &&
+    (src2.match(/var ringGeo = /g) || []).length === 1);
 }
 
 // ---- the visual fixes: planned line, label chips, monument palette ----
@@ -465,10 +481,23 @@ check('small viewports drop to a cheaper sea',
     // label, the action and the disabled state together, and the click
     // handler reads back the very attribute that function sets — so the
     // label and what it does cannot drift apart.
-    check('the bar\'s primary becomes STOP during a run and reverts after it',
+    check('the bar\'s primary becomes SKIP during a run and reverts after it',
       /function barPrimary\(\)/.test(src) &&
-      /S\.phase === 'playback'\s*\n?\s*\? \{ act: 'skip', label: 'Stop', disabled: false \}/.test(src) &&
+      /S\.phase === 'playback'\s*\n?\s*\? \{ act: 'skip', label: 'Skip', disabled: false \}/.test(src) &&
       /: \{ act: 'simulate', label: 'Simulate charter', disabled: !canSimulate\(\) \}/.test(src));
+    // ONE control mid-run, where the thumb already is. Spin had nothing to
+    // do during a charter and sat greyed out; the chart's own Skip was the
+    // same action at the opposite end of the screen.
+    check('a running charter hides Spin and the chart\'s own Skip, leaving one button',
+      /body\.sim-run #btn-bar-spin \{ display: none; \}/.test(src) &&
+      /body\.sim-run #btn-skip \{ display: none; \}/.test(src));
+    check('and the full width falls out of flex rather than being hard-coded',
+      /#action-bar button \{[\s\S]*?flex: 1 1 0;/.test(src) &&
+      !/body\.sim-run[^}]*width: 100%/.test(src));
+    check('the running state is carried by one class, set from the phase',
+      /classList\[S\.phase === 'playback' \? 'add' : 'remove'\]\('sim-run'\);/.test(src));
+    check('both are mobile-only — the desktop keeps its Skip and its Spin',
+      src.indexOf('body.sim-run #btn-bar-spin') > src.indexOf('@media (max-width: 760px)'));
     check('and the click reads the same attribute the sync writes',
       /bar\.setAttribute\('data-act', p\.act\);/.test(src) &&
       /b\.getAttribute\('data-act'\) === 'skip'/.test(src));
