@@ -150,6 +150,34 @@ section('Planning panel — the playtest rules the markup must keep');
     !/stepno/.test(html) && !/<h3>\s*\d/.test(panel));
   check('the four headings read plainly',
     ['>Route<', '>Speed<', 'Nights at anchor', '>Activities<'].every(h => panel.includes(h)));
+  // A fresh charter starts at ZERO anchor nights and the player adds them.
+  // Three places have to agree or the control lies on the first paint,
+  // before refreshPlanning has run: the slider, its readout, and the state.
+  {
+    const { sandbox: sb0 } = makeSandbox();
+    const g0 = loadGame(sb0);
+    g0.LEIP_APP.init();
+    check('a fresh charter opens with no anchor nights',
+      g0.LEIP_APP.getState().inputs.nights === 0,
+      String(g0.LEIP_APP.getState().inputs.nights));
+    check('and the slider and its readout are built at 0 to match',
+      /id="nights" min="0" max="6" step="1" value="0"/.test(html) &&
+      /<b id="nights-val" class="data">0<\/b>/.test(html));
+    // The heading and its live value stay; only the explanatory line goes.
+    check('the helper sentence is gone, the live readout is not',
+      !html.includes('Real charterers target') &&
+      panel.includes('Nights at anchor · <b id="nights-val"'));
+    g0.LEIP_APP.setNights(5);
+    check('dragging still moves the value', g0.LEIP_APP.getState().inputs.nights === 5);
+    g0.LEIP_APP.setNights(0);
+    check('and it can be taken back to zero', g0.LEIP_APP.getState().inputs.nights === 0);
+    // The scoring reads whatever the slider holds — nothing about anchor
+    // nights is defaulted inside the engine.
+    const E0 = g0.LEIP_ENGINE;
+    const at = (n) => E0.simulate({ route: ['Monaco', 'Calvi'], speed: 'slow', nights: n, activities: {} });
+    check(`0 and 4 anchor nights still score differently (${at(0).score.final} vs ${at(4).score.final})`,
+      at(0).score.final !== at(4).score.final);
+  }
   // The intro copy moved OFF the panel and onto the landing screen, so the
   // rules are stated once, in one place, and the panel is all controls.
   // Both halves are asserted — gone from here, present there — because

@@ -519,9 +519,8 @@ table.board td.num { font-family: var(--font-data); }
         <div id="speed-toggle"></div>
       </section>
       <section>
-        <h3>Nights at anchor · <b id="nights-val" class="data">4</b></h3>
-        <input type="range" id="nights" min="0" max="6" step="1" value="4">
-        <p class="hint">Real charterers target 4–5 anchor nights — a night at anchor is a night not spent transiting.</p>
+        <h3>Nights at anchor · <b id="nights-val" class="data">0</b></h3>
+        <input type="range" id="nights" min="0" max="6" step="1" value="0">
       </section>
       <section>
         <h3>Activities</h3>
@@ -9303,7 +9302,10 @@ globalThis.LEIP_APP = (function () {
 
   var S = {
     phase: 'planning',            // planning | playback | results
-    inputs: { route: [], speed: 'slow', nights: 4, activities: {} },
+    // A fresh charter starts with NO anchor nights: the player adds them.
+    // The markup's slider and readout carry the same 0 so the control is
+    // right on the first paint, before refreshPlanning has run.
+    inputs: { route: [], speed: 'slow', nights: 0, activities: {} },
     sim: null,
     playT: 0, animT: 0,
     pending: [], revealed: {},
