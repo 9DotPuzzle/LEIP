@@ -147,6 +147,32 @@ main { position: relative; flex: 1; min-height: 0; overflow: hidden; }
   padding: 12px 20px; font-weight: 600;
 }
 #landing-card button:hover { background: var(--paper); color: var(--ink-fixed); }
+/* Debug UI (Step 4) — plain, legible, deliberately not brand-styled so it
+   is obvious this is not the finished game. */
+#end-debug label { font-size: 11px; letter-spacing: var(--label-tracking); text-transform: uppercase; opacity: 0.7; }
+#end-debug input, #end-debug select {
+  font: inherit; font-size: 12px; padding: 4px 6px; width: 78px;
+  background: var(--paper); color: var(--ink-fixed);
+  border: var(--hairline) solid var(--ink-fixed); border-radius: 0;
+}
+#end-legs { margin: 8px 0; display: flex; flex-direction: column; gap: 4px; }
+.end-leg {
+  display: flex; align-items: center; gap: 6px; font-size: 11.5px;
+  border: var(--hairline) solid var(--glass-edge); padding: 4px 6px;
+}
+.end-leg .end-leg-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.end-leg .end-leg-cost { font-family: var(--font-data); font-size: 11px; opacity: 0.85; white-space: nowrap; }
+.end-leg button {
+  padding: 2px 6px; font-size: 10.5px; border-width: var(--hairline); min-width: 30px;
+}
+#plan .end-leg button.on { background: var(--ink-fixed); color: var(--paper); border-color: var(--ink-fixed); }
+#end-readout { font-family: var(--font-data); font-size: 12px; line-height: 1.7; }
+#end-readout .end-row { display: flex; justify-content: space-between; gap: 10px; }
+#end-readout .end-row b { font-weight: 400; }
+#end-readout .end-score { font-size: 20px; }
+#end-readout .end-bad { color: var(--signal); }
+#end-readout .end-pending { border-top: var(--hairline) solid var(--ink-fixed); margin-top: 6px; padding-top: 6px; opacity: 0.9; }
+
 @media (max-width: 760px) {
   #landing-card { padding: 22px 20px 20px; }
   #landing-card h1 { font-size: 21px; }
@@ -514,6 +540,28 @@ table.board td.num { font-family: var(--font-data); }
            way back are the same object in the same place. -->
       <button id="sheet-grip" aria-expanded="true" aria-controls="plan"
               aria-label="Minimise the planning panel"><i></i><em>PLAN</em></button>
+      <!-- ============================================================
+           DEBUG UI (Step 4). Not the finished game — just enough to
+           drive the model by hand. The player-facing build replaces all
+           of this; it is styled for legibility, not for the brand.
+           ============================================================ -->
+      <section id="end-debug">
+        <h3>Endurance · debug</h3>
+        <div class="row">
+          <label for="end-days">Days</label>
+          <input type="number" id="end-days" min="0" max="30" step="0.01" value="7">
+          <label for="end-default-speed">New legs at</label>
+          <select id="end-default-speed">
+            <option value="8" selected>8 kn</option>
+            <option value="11">11 kn</option>
+            <option value="14">14 kn</option>
+          </select>
+        </div>
+        <!-- One speed selector per leg. 8 / 11 / 14 only: the curve has
+             three points and §5 forbids extending it. -->
+        <div id="end-legs"></div>
+        <div id="end-readout"></div>
+      </section>
       <section>
         <h3>Route</h3>
         <p class="hint">Pick a starting port, then destinations — on the chart or below. The pick order is the itinerary, and you can drag the stops to reorder them. Pick a listed port again to drop it; repeats are allowed — press + on a chosen stop to add it again, though a revisit earns nothing.</p>
@@ -525,6 +573,7 @@ table.board td.num { font-family: var(--font-data); }
         </div>
         <div id="port-list"></div>
       </section>
+
       <!-- The soft lip at the foot of the list. Sticky, so it stays at the
            bottom edge of the scrolling area and the content dissolves into
            it on the way down rather than hard-cutting at the footer bar.
@@ -8431,6 +8480,7 @@ globalThis.LEIP_APP = (function () {
   var T = globalThis.LEIP_THEME;
   var D = globalThis.LEIP_DATA;
   var E = globalThis.LEIP_ENGINE;
+  var EN = globalThis.ENX50_ENDURANCE;
   var doc = (typeof document !== 'undefined') ? document : null;
 
   var S = {
@@ -10191,6 +10241,14 @@ globalThis.LEIP_APP = (function () {
       var chips = el.querySelectorAll('button[data-port]');
       for (var i = 0; i < chips.length; i++) {
         (function (chip) {
+          // §5: show what this pick would cost BEFORE it is committed.
+          chip.addEventListener('mouseenter', function () {
+            END.pending = chip.getAttribute('data-port');
+            renderEndReadout();
+          });
+          chip.addEventListener('mouseleave', function () {
+            if (END.pending === chip.getAttribute('data-port')) { END.pending = null; renderEndReadout(); }
+          });
           chip.addEventListener('click', function (ev) {
             var name = chip.getAttribute('data-port');
             // The + is a button inside the chip: it REPEATS the port
@@ -10579,6 +10637,104 @@ globalThis.LEIP_APP = (function () {
 
   var lastInkNm = 0;
 
+  // ---------------------------------------------------------- endurance
+  // The debug readout. Reads ENX50_ENDURANCE and renders it; it decides
+  // nothing about energy or score itself.
+  var END = { days: 7, speeds: [], defaultSpeed: 8, pending: null };
+
+  function endLegs() {
+    var r = S.inputs.route;
+    // One speed per leg, defaulted as legs appear and kept when the route
+    // is reordered under them by index.
+    while (END.speeds.length < Math.max(0, r.length - 1)) END.speeds.push(END.defaultSpeed);
+    END.speeds.length = Math.max(0, r.length - 1);
+    return EN.legsFromStops(r, END.speeds);
+  }
+
+  function endResult() {
+    return EN.model({ days: END.days, legs: endLegs(), stops: S.inputs.route });
+  }
+
+  // §5: the MWh cost of a leg must be visible BEFORE the player commits to
+  // it. Every port chip carries what appending it would cost from the
+  // current last stop, at the speed new legs default to.
+  function pendingCostMwh(name) {
+    var r = S.inputs.route;
+    if (!r.length || r[r.length - 1] === name) return null;
+    var nm = E.legNm(r[r.length - 1], name);
+    var kwh = EN.legCostKwh(nm, END.defaultSpeed);
+    return kwh === null ? null : { nm: nm, mwh: kwh / 1000 };
+  }
+
+  function renderEndLegs() {
+    var el = $('end-legs');
+    if (!el) return;
+    var legs = endLegs(), c = D.endurance;
+    el.innerHTML = legs.length ? legs.map(function (lg, i) {
+      var cost = EN.legCostKwh(lg.nm, lg.speed);
+      return '<div class="end-leg" data-leg="' + i + '">' +
+        '<span class="end-leg-name">' + (i + 1) + '. ' + esc(lg.from) + ' \u2192 ' + esc(lg.to) + '</span>' +
+        c.speeds.map(function (sp) {
+          return '<button data-leg="' + i + '" data-speed="' + sp + '"' +
+            (sp === lg.speed ? ' class="on"' : '') + '>' + sp + '</button>';
+        }).join('') +
+        '<span class="end-leg-cost">' + fmt(lg.nm, 0) + ' nm \u00b7 ' +
+        fmt(cost / 1000, 2) + ' MWh</span></div>';
+    }).join('') : '<span class="hint">No legs yet — pick a second port.</span>';
+    if (!el.querySelectorAll) return;
+    var btns = el.querySelectorAll('button[data-speed]');
+    for (var i = 0; i < btns.length; i++) {
+      (function (b) {
+        b.addEventListener('click', function () {
+          END.speeds[Number(b.getAttribute('data-leg'))] = Number(b.getAttribute('data-speed'));
+          refreshPlanning();
+        });
+      })(btns[i]);
+    }
+  }
+
+  function renderEndReadout() {
+    var el = $('end-readout');
+    if (!el) return;
+    var c = D.endurance;
+    var res = endResult();
+    var last = S.inputs.route.length ? S.inputs.route[S.inputs.route.length - 1] : null;
+    var term = last ? (E.portByName(last) || {}).energy : null;
+    var sc = EN.score(res, term);
+    var row = function (k, v, cls) {
+      return '<div class="end-row' + (cls ? ' ' + cls : '') + '"><b>' + k + '</b><span>' + v + '</span></div>';
+    };
+    if (!res.valid) {
+      el.innerHTML = row('INVALID', esc(res.error), 'end-bad') +
+        row('', 'no score \u2014 this is a validity error, not a penalty', '');
+      return;
+    }
+    var usedMwh = res.energy_kwh / 1000, capMwh = c.batteryCapacityKwh / 1000;
+    var html =
+      row('MWh used', fmt(usedMwh, 2) + ' / ' + fmt(capMwh, 0)) +
+      row('MWh remaining', res.stranded
+        ? '<span class="end-bad">0 \u00b7 PE ' + fmt(res.pe_mwh_delivered, 2) + ' MWh</span>'
+        : fmt(capMwh - usedMwh, 2)) +
+      row('days', fmt(END.days, 2) +
+        '  (' + fmt(res.underway_hours, 1) + ' h under way, ' + fmt(res.anchor_hours, 1) + ' h at anchor)') +
+      row('nm', fmt(res.distance_nm, 1)) +
+      row('unique POIs', String(res.unique_pois)) +
+      row('terminal grid', last ? esc(String(term || '\u2014')).toUpperCase() +
+        ' \u00b7 ' + ((E.portByName(last) || {}).carbon || '\u2014') + ' gCO\u2082e/kWh' +
+        ' \u00b7 +' + sc.grid_bonus : '\u2014') +
+      row('balance \u00d7 util', fmt(sc.balance, 3) + ' \u00d7 ' + fmt(sc.utilisation, 3)) +
+      row('SCORE', '<span class="end-score">' + fmt(sc.score, 1) + '</span> ' + sc.tier);
+    // The pending leg: what the next pick would cost, before committing.
+    if (END.pending) {
+      var p = pendingCostMwh(END.pending);
+      html += '<div class="end-pending">' + (p
+        ? row('+ ' + esc(END.pending), fmt(p.nm, 0) + ' nm \u00b7 ' + fmt(p.mwh, 2) +
+            ' MWh at ' + END.defaultSpeed + ' kn')
+        : row('+ ' + esc(END.pending), 'first stop \u2014 no leg yet')) + '</div>';
+    }
+    el.innerHTML = html;
+  }
+
   // ---------------------------------------------------------- planning
   // The endurance panel. The Monaco version of this also drove the speed
   // toggle, the nights slider, the activity grid, the achievement dots and
@@ -10617,6 +10773,8 @@ globalThis.LEIP_APP = (function () {
     }
     var sum = $('route-summary');
     if (sum) sum.textContent = S.inputs.route.length ? S.inputs.route.length + ' PICKS' : '';
+    renderEndLegs();
+    renderEndReadout();
     syncHalos();
     RoutePlot.fit(S.inputs.route);
     if (S.phase === 'planning') {
@@ -10661,6 +10819,14 @@ globalThis.LEIP_APP = (function () {
         initScene();
         S.webgl = true;
       } catch (e) {
+        // LOUD. index.html swallows this, which makes "the scene threw for a
+        // code reason" and "this browser has no WebGL" the same observable
+        // state: no console error, and a page that looks healthy while
+        // rendering nothing. That is exactly how a broken fork passed a
+        // no-console-errors gate with an empty stage. Here it shouts.
+        if (typeof console !== 'undefined' && console.error) {
+          console.error('endurance: scene build failed, falling back to no-WebGL', e);
+        }
         S.webgl = false; G = null;
         show('webgl-fallback', true);
       }
@@ -10672,6 +10838,15 @@ globalThis.LEIP_APP = (function () {
       } catch (e) {}
       on('btn-undo', 'click', function () { API.undoPick(); });
       on('btn-clear', 'click', function () { API.clearRoute(); });
+      on('end-days', 'input', function (ev) {
+        var v = Number(ev && ev.target ? ev.target.value : END.days);
+        END.days = (v >= 0) ? v : 0;
+        refreshPlanning();
+      });
+      on('end-default-speed', 'change', function (ev) {
+        END.defaultSpeed = Number(ev && ev.target ? ev.target.value : 8);
+        refreshPlanning();
+      });
       on('btn-info', 'click', function () { API.showLanding(true); });
       on('btn-landing-go', 'click', function () { API.showLanding(false); });
       bindRouteDrag($('route-strip'));
@@ -10749,6 +10924,77 @@ globalThis.LEIP_APP = (function () {
           .map(function (i) { return i.port.name; })
       };
     },
+    // ---- verification hooks. These COUNT things in the live scene, so a
+    // claim about what is drawn can be asserted rather than inferred from
+    // a clean boot. index.html's swallowed catch is precisely why: it made
+    // "no console errors" and "nothing rendered" the same observable.
+    debugScene: function () {
+      if (!G) return { webgl: false };
+      // Port markers: one hit cylinder per port, added with its monument
+      // group. Counted off the live scene graph, not off DATA.
+      var groups = 0, monuments = 0, hits = 0;
+      G.overlay.traverse(function (o) {
+        if (o.userData && o.userData.portName) { hits++; if (o.parent) groups++; }
+      });
+      G.overlay.traverse(function (o) {
+        if (o.isMesh && o.material && (o.material === G.mon3.lit ||
+            o.material === G.mon3.mid || o.material === G.mon3.shade ||
+            o.material === G.monSel3.lit || o.material === G.monSel3.mid ||
+            o.material === G.monSel3.shade)) monuments++;
+      });
+      return {
+        webgl: true,
+        portMarkers: hits,
+        monumentMeshes: monuments,
+        labels: Labels.items.length,
+        selectionMarks: G.marks.length,
+        dataPorts: D.ports.length
+      };
+    },
+    // What the passage plot has actually drawn: the legs, their endpoints
+    // in world space, and whether any ink reached the canvas.
+    debugRouteInk: function () {
+      if (!G || !RoutePlot.mesh) return null;
+      var route = S.inputs.route, legs = [];
+      for (var i = 0; i + 1 < route.length; i++) {
+        var pa = PROJ.portPos(route[i]), pb = PROJ.portPos(route[i + 1]);
+        var ba = E.berth(route[i]), bb = E.berth(route[i + 1]);
+        legs.push({
+          from: route[i], to: route[i + 1],
+          nm: E.legNm(route[i], route[i + 1]),
+          fromMarker: { x: pa.x, z: pa.z }, toMarker: { x: pb.x, z: pb.z },
+          fromBerth: { lat: ba.lat, lon: ba.lon }, toBerth: { lat: bb.lat, lon: bb.lon }
+        });
+      }
+      // Count non-transparent pixels on the plot canvas. Zero means
+      // nothing was drawn, whatever the mesh claims about being visible.
+      var ink = -1;
+      try {
+        var ctx = RoutePlot.cnv.getContext('2d');
+        var px = RoutePlot.cnv.width;
+        var dat = ctx.getImageData(0, 0, px, px).data;
+        ink = 0;
+        for (var k = 3; k < dat.length; k += 4) if (dat[k] > 8) ink++;
+      } catch (e) { ink = -1; }
+      return { meshVisible: !!RoutePlot.mesh.visible, inkPixels: ink, legs: legs };
+    },
+    // The endurance readout, as numbers rather than as rendered text.
+    debugEndurance: function () {
+      var res = endResult();
+      var last = S.inputs.route.length ? S.inputs.route[S.inputs.route.length - 1] : null;
+      var sc = EN.score(res, last ? (E.portByName(last) || {}).energy : null);
+      return {
+        days: END.days, speeds: END.speeds.slice(),
+        route: S.inputs.route.slice(),
+        model: res, score: sc,
+        readoutText: ($('end-readout') || {}).textContent || '',
+        legsText: ($('end-legs') || {}).textContent || ''
+      };
+    },
+    debugSetDays: function (d) { END.days = Number(d); refreshPlanning(); return END.days; },
+    debugSetLegSpeed: function (i, sp) { END.speeds[i] = Number(sp); refreshPlanning(); return END.speeds.slice(); },
+    debugPending: function (name) { END.pending = name || null; renderEndReadout(); return END.pending; },
+
     debugSafeArea: function () {
       if (!G) return null;
       var inset = panelInset();

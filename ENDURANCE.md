@@ -88,6 +88,63 @@ Every constant lives in `LEIP_DATA.endurance`; none is inlined at a call site.
 
 ---
 
+## The map, and the debug readout on top of it
+
+The scene is the Monaco one: 44 ports, their monuments, their name plates and
+the sea-lane path drawing, all unchanged. What sits over it is temporary — a
+`#end-debug` panel at the top of the planning sheet, above the port list so the
+numbers are visible without scrolling. It exists to drive the model from a real
+route rather than from a fixture array, and it is not the finished UI.
+
+It carries: an elapsed-days field, a default speed for new legs, one row per leg
+with an 8 / 11 / 14 selector and that leg's nm and MWh, and a readout of energy
+used and remaining, days split into underway and at anchor, distance, unique
+POIs, the terminal grid band and its bonus, the two factors, and the score with
+its tier. Hovering a port chip shows what committing to it would cost, in MWh at
+the default speed, before it is added.
+
+`legsFromStops()` is the only place the correction matrix is applied — the map
+gives geometry, and geometry becomes navigated distance exactly once.
+
+### What was verified, and how
+
+Counted from the live scene graph, not read off a screenshot:
+
+```
+port markers drawn      44   (= LEIP_DATA.ports.length)
+monument meshes         165  (the markers are geometry, not empty groups)
+name plates             44
+selection marks         44
+```
+
+The named test itinerary **Antibes → Saint Tropez → Cannes** draws two legs,
+28.1 nm and 23.5 nm. The plot canvas was sampled for non-transparent pixels —
+28,914 of them, so the ink is real and not a mesh that is present but invisible.
+Leg 1 starts at the Antibes berth, leg 2 ends at the Cannes berth, and the
+shared waypoint is the same Saint Tropez berth on both legs, compared against
+`berth()` rather than by eye.
+
+The readout was driven through an add and a remove:
+
+```
+3 stops   51.6 nm | 33.40 MWh | POIs 3 | score 39.7
++ Monaco  72.7 nm | 34.10 MWh | POIs 4 | score 46.9
+- Monaco  51.6 nm | 33.40 MWh | POIs 3 | score 39.7
+```
+
+Distance, energy, POIs and the rendered text all move on the add and return
+exactly on the remove. Thirty assertions in total, none failing, no console
+errors.
+
+### The catch is loud here
+
+`endurance.html`'s WebGL catch calls `console.error(e)` before falling back.
+Proved by serving a deliberately broken THREE: the page fell back **and** the
+exception was logged, which is the pair that `index.html` cannot produce. See
+the bug note at the end.
+
+---
+
 ## Distance correction — an unreconciled gap
 
 The correction matrix converts point-to-point geometry into navigated distance.
@@ -186,4 +243,8 @@ A scene that fails for a **code** reason is indistinguishable from a browser
 without WebGL, and the page looks healthy while rendering nothing. This is
 exactly how the label-ranking break above hid itself during the fork. One
 `console.error(e)` in that catch would surface it. Not changed: `index.html` is
-frozen.
+frozen — the report is accepted and logged for after Monaco.
+
+`endurance.html` has that `console.error(e)`. It is the only intentional
+divergence from the forked original in this area, and it is the reason a Step 4
+failure would announce itself instead of rendering a healthy-looking blank map.
