@@ -1,0 +1,30 @@
+{
+  "name": "leip",
+  "version": "1.0.0",
+  "description": "Plan a one-week Mediterranean charter aboard **LEIP** — a 70 m E-Hybrid superyacht with a 50 MWh battery and diesel backup — then watch it play out on a sculptural nautical chart. Score = energy discipline × charter quality.",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "node test/headless.mjs && node test/smoke.mjs && node test/geometry.mjs",
+    "test:fleet": "node test/fleet.mjs",
+    "calibrate": "node tools/calibrate.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/9DotPuzzle/LEIP.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/9DotPuzzle/LEIP/issues"
+  },
+  "homepage": "https://github.com/9DotPuzzle/LEIP#readme",
+  "devDependencies": {
+    "playwright": "^1.62.1",
+    "three": "^0.152.2",
+    "world-atlas": "^2.0.2"
+  }
+}

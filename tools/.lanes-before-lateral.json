@@ -1,0 +1,185 @@
+{
+ "port": "Lateral",
+ "at": [
+  1.3793,
+  50.9095
+ ],
+ "berth": [
+  1.375,
+  50.905
+ ],
+ "legs": {
+  "Sidi Fredj": {
+   "routed": 1614.13,
+   "gc": 852.05
+  },
+  "Naples": {
+   "routed": 2209.53,
+   "gc": 807.32
+  },
+  "Salerno": {
+   "routed": 2226.46,
+   "gc": 829.1
+  },
+  "Ponte Persica": {
+   "routed": 2210.13,
+   "gc": 817.17
+  },
+  "Bonifacio": {
+   "routed": 2004.15,
+   "gc": 656.1
+  },
+  "Calvi": {
+   "routed": 2006.05,
+   "gc": 585.01
+  },
+  "Porto Vecchio": {
+   "routed": 2025.84,
+   "gc": 647.7
+  },
+  "Split": {
+   "routed": 2724.01,
+   "gc": 755.77
+  },
+  "Ajaccio": {
+   "routed": 1983.38,
+   "gc": 619.09
+  },
+  "Antibes": {
+   "routed": 1982.44,
+   "gc": 498.12
+  },
+  "Cannes": {
+   "routed": 1979.86,
+   "gc": 497.66
+  },
+  "Marseille": {
+   "routed": 1908.02,
+   "gc": 485.13
+  },
+  "Nice": {
+   "routed": 1991.8,
+   "gc": 494.94
+  },
+  "Saint Tropez": {
+   "routed": 1953.58,
+   "gc": 506.15
+  },
+  "Saint-Jean-Cap-Ferrat": {
+   "routed": 1993.11,
+   "gc": 496.57
+  },
+  "Athens": {
+   "routed": 2725.06,
+   "gc": 1223.52
+  },
+  "Corfu": {
+   "routed": 2523.87,
+   "gc": 1030.66
+  },
+  "Kalathos": {
+   "routed": 2875.45,
+   "gc": 1449.61
+  },
+  "Livadia": {
+   "routed": 2787.01,
+   "gc": 1373.05
+  },
+  "Santorini": {
+   "routed": 2744.15,
+   "gc": 1349.97
+  },
+  "Eivissa": {
+   "routed": 1611.46,
+   "gc": 720.53
+  },
+  "Palma": {
+   "routed": 1670.83,
+   "gc": 683.12
+  },
+  "Port d'Andratx": {
+   "routed": 1656.61,
+   "gc": 683.72
+  },
+  "Valletta": {
+   "routed": 2225.86,
+   "gc": 1064.34
+  },
+  "Monaco": {
+   "routed": 1997.81,
+   "gc": 495.6
+  },
+  "Tivat": {
+   "routed": 2635.66,
+   "gc": 872.91
+  },
+  "Casablanca": {
+   "routed": 1238.47,
+   "gc": 1111.96
+  },
+  "Venice": {
+   "routed": 2919.13,
+   "gc": 547.13
+  },
+  "Genoa": {
+   "routed": 2067.31,
+   "gc": 495.2
+  },
+  "Savona": {
+   "routed": 2055.46,
+   "gc": 489.15
+  },
+  "Cagliari": {
+   "routed": 1949.97,
+   "gc": 774.16
+  },
+  "Olbia": {
+   "routed": 2060.75,
+   "gc": 687.92
+  },
+  "Porto Cervo": {
+   "routed": 2054.57,
+   "gc": 677.17
+  },
+  "Porto Rotondo": {
+   "routed": 2070.56,
+   "gc": 693.74
+  },
+  "Taormina": {
+   "routed": 2314.41,
+   "gc": 982.81
+  },
+  "Koper": {
+   "routed": 2916.38,
+   "gc": 588.47
+  },
+  "Barcelona": {
+   "routed": 1736.77,
+   "gc": 572.44
+  },
+  "Bizerte": {
+   "routed": 1972.61,
+   "gc": 895.45
+  },
+  "Bodrum": {
+   "routed": 2842.53,
+   "gc": 1388.26
+  },
+  "Gocek": {
+   "routed": 2902.18,
+   "gc": 1451.6
+  },
+  "Gulluk": {
+   "routed": 2838.22,
+   "gc": 1381.03
+  },
+  "Gibraltar": {
+   "routed": 1235.09,
+   "gc": 932.29
+  },
+  "Vlore": {
+   "routed": 2542.44,
+   "gc": 980.08
+  }
+ }
+}

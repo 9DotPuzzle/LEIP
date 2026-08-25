@@ -1,0 +1,47 @@
+OCR-A LEIP — fonts/leip-ocra.woff2
+===================================
+
+An ORIGINAL digitization of the OCR-A character model (the typeface
+defined by ANSI X3.17-1977 / ISO 1073-1:1976), authored for the LEIP
+"Best Week of Charter" game on 6 August 2026. The glyph outlines are
+generated from scratch by tools/build_ocra_font.py in this repository;
+that script is the complete source of the font program.
+
+LICENSE
+-------
+To the extent possible under law, the author has waived all copyright
+and related or neighboring rights to the OCR-A LEIP font (the font
+program and its outlines). It is released under the Creative Commons
+CC0 1.0 Universal Public Domain Dedication:
+https://creativecommons.org/publicdomain/zero/1.0/
+
+You may copy, modify, embed, subset, and redistribute it, for any
+purpose, without permission or attribution.
+
+WHY AN ORIGINAL DIGITIZATION (license verification record)
+----------------------------------------------------------
+The visual direction requires embedding a *freely-licensed* OCR-A
+digitization and verifying the license of the embedded file. That
+verification was carried out on 6 August 2026 and FAILED for the
+commonly available "free" OCR-A files:
+
+- The widely redistributed free OCR-A (CTAN fonts/ocr-a lineage:
+  Tor Lillqvist 1985 -> Richard B. Wales 1988 -> Matthew Skala 2011-12,
+  including the OCRA.otf/OCRA7.ttf copies bundled by various projects)
+  carries Richard B. Wales' notice that the font "may be used freely,
+  but cannot be distributed for profit". Matthew Skala's own package
+  documentation (ocr.pdf, v0.2, 27 September 2012) confirms this and
+  adds "I make no copyright claim on it myself" — so the Wales
+  restriction flows through every descendant of that lineage.
+  A no-profit distribution restriction is not a free license.
+
+- Monotype's "OCR A Extended" (bundled with Windows/Office) is
+  commercially licensed and cannot be redistributed at all.
+
+Typeface *designs* (glyph shapes) are not subject to copyright in the
+relevant jurisdictions; font *programs* are. OCR-A LEIP is therefore a
+fresh, independent font program implementing the public-standard OCR-A
+character shapes, covering only the glyph set the game's data voice
+needs (digits, capitals, and chart punctuation; lowercase is mapped to
+the capitals). It does not copy, trace, or convert any existing font
+program.
