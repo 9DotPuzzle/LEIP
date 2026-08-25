@@ -173,6 +173,116 @@ main { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 #end-readout .end-bad { color: var(--signal); }
 #end-readout .end-pending { border-top: var(--hairline) solid var(--ink-fixed); margin-top: 6px; padding-top: 6px; opacity: 0.9; }
 
+/* ---- The nights callout (Step 5) -----------------------------------
+   Anchored at the marker it belongs to and nowhere else, so the question
+   is asked where the player just pointed. It carries the port name and
+   the stepper and NOTHING ELSE: no distance, no energy, no running
+   total. Naming a cost here would turn every pick into an optimisation
+   and the run into a spreadsheet. */
+#callout {
+  position: absolute; z-index: 6; min-width: 210px;
+  transform: translate(-50%, -100%);
+  background: var(--paper); color: var(--ink-fixed);
+  border: var(--rule) solid var(--ink-fixed);
+  padding: 10px 12px 11px; box-shadow: inset 0 1px 0 var(--glass-hi);
+}
+/* The pointer down to the marker. Two triangles, the outer one carrying
+   the border colour, so the tail reads as part of the box's outline.
+   --tail-x is set per position: when the box is pushed off the marker by
+   the edge clamp the TAIL still points at it, instead of the whole thing
+   detaching and aiming at empty sea. */
+#callout::after, #callout::before {
+  content: ''; position: absolute; left: var(--tail-x, 50%); width: 0; height: 0;
+  border-left: 7px solid transparent; border-right: 7px solid transparent;
+}
+#callout::before {
+  bottom: calc(-7px - var(--rule)); margin-left: -7px;
+  border-top: 7px solid var(--ink-fixed);
+}
+#callout::after {
+  bottom: -6px; margin-left: -7px; border-top: 7px solid var(--paper);
+}
+/* No room above: the box drops below the marker and the tail flips up. */
+#callout.below { transform: translate(-50%, 0); }
+#callout.below::before {
+  bottom: auto; top: calc(-7px - var(--rule));
+  border-top: 0; border-bottom: 7px solid var(--ink-fixed);
+}
+#callout.below::after {
+  bottom: auto; top: -6px;
+  border-top: 0; border-bottom: 7px solid var(--paper);
+}
+#callout-name {
+  font-size: 13px; font-weight: 600; letter-spacing: -0.01em;
+  margin-bottom: 8px; white-space: nowrap;
+}
+.callout-step { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.callout-step output {
+  font-family: var(--font-data); font-size: 17px; min-width: 1.4em; text-align: center;
+}
+.callout-step em {
+  font-style: normal; font-size: 11px; letter-spacing: var(--label-tracking);
+  text-transform: uppercase; opacity: 0.7; flex: 1;
+}
+#callout button {
+  border-width: var(--hairline); padding: 3px 9px; font-size: 13px; line-height: 1.2;
+}
+#callout button[disabled] { opacity: 0.35; cursor: default; }
+.callout-act { display: flex; gap: 6px; }
+.callout-act button { flex: 1; padding: 6px 8px; font-size: 11px; white-space: nowrap; }
+#callout-ok {
+  background: var(--ink-fixed); color: var(--paper); border-color: var(--ink-fixed);
+  font-weight: 600;
+}
+
+/* ---- The route box --------------------------------------------------
+   An ordered list of stops with their nights. Stops and nights, and
+   nothing else: no nm, no MWh, no score, no projection. */
+.route-row {
+  display: flex; align-items: center; gap: 7px; font-size: 12px;
+  padding: 4px 2px 4px 5px;
+  border-bottom: var(--hairline) solid var(--glass-edge);
+  cursor: grab; touch-action: none; user-select: none;
+}
+.route-row:last-child { border-bottom: 0; }
+.route-row.dragging { background: var(--ink-fixed); color: var(--paper); cursor: grabbing; }
+.route-row i { font-style: normal; font-family: var(--font-data); opacity: 0.65; min-width: 1.3em; }
+.route-row .rr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.route-row .rr-nights {
+  font-family: var(--font-data); font-size: 11.5px; opacity: 0.8; white-space: nowrap;
+}
+#plan .route-row button {
+  border: 0; background: none; color: inherit; padding: 2px 5px;
+  font-size: 11px; letter-spacing: var(--label-tracking); opacity: 0.7;
+}
+#plan .route-row button:hover { opacity: 1; background: none; color: inherit; }
+#plan .route-row .rr-drop { font-size: 15px; line-height: 1; padding: 0 4px; }
+
+/* ---- Results --------------------------------------------------------
+   The ONLY place a figure appears. Nothing above reveals one, so this is
+   where the run is explained rather than merely scored — hence the split
+   and the costliest leg, which are the two lines that teach. */
+#results .card { max-width: 460px; }
+#res-score { font-family: var(--font-data); font-size: 44px; line-height: 1; }
+#res-tier { font-size: 11px; letter-spacing: var(--label-tracking); text-transform: uppercase; opacity: 0.75; margin-top: 4px; }
+#res-tier.pe { color: var(--signal); opacity: 1; }
+.res-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px;
+  margin: 18px 0 4px; font-size: 12.5px;
+}
+.res-cell { border-top: var(--hairline) solid var(--glass-edge); padding: 7px 0; }
+.res-cell label {
+  display: block; font-size: 10px; letter-spacing: var(--label-tracking);
+  text-transform: uppercase; opacity: 0.6; margin-bottom: 2px;
+}
+.res-cell output { font-family: var(--font-data); font-size: 15px; }
+.res-note {
+  font-size: 12px; line-height: 1.6; margin-top: 14px; padding-top: 12px;
+  border-top: var(--rule) solid var(--ink-fixed);
+}
+.res-note b { font-weight: 600; }
+#btn-replan { margin-top: 18px; }
+
 @media (max-width: 760px) {
   #landing-card { padding: 22px 20px 20px; }
   #landing-card h1 { font-size: 21px; }
@@ -180,19 +290,12 @@ main { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .hint { font-size: 11.5px; opacity: 0.65; margin: 4px 0 8px; }
 .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
 
+/* Step 5: an ordered LIST, not a wrapped strip of chips. Each row owns a
+   stay, and a stay needs a line of its own to be edited on. */
 #route-strip {
-  display: flex; flex-wrap: wrap; gap: 5px; min-height: 30px; padding: 6px;
+  display: block; min-height: 30px; padding: 2px 4px;
   border: var(--hairline) dashed var(--ink-fixed);
 }
-.pick {
-  border: var(--hairline) solid var(--ink-fixed); padding: 2px 8px; font-size: 11.5px;
-  cursor: grab; touch-action: none; user-select: none;
-}
-.pick i { font-style: normal; font-family: var(--font-data); margin-right: 5px; }
-.pick.recharge { border-width: var(--rule); font-weight: 600; }
-/* Dragging a stop: the one being moved lifts, the rest stay put and the
-   numbers renumber under it as it passes. */
-.pick.dragging { cursor: grabbing; background: var(--ink-fixed); color: var(--paper); }
 #route-summary { font-size: 11px; letter-spacing: var(--label-tracking); margin-left: auto; opacity: 0.7; }
 
 /* ONE flat list, country-major, no headings — the ordering does the
@@ -541,30 +644,17 @@ table.board td.num { font-family: var(--font-data); }
       <button id="sheet-grip" aria-expanded="true" aria-controls="plan"
               aria-label="Minimise the planning panel"><i></i><em>PLAN</em></button>
       <!-- ============================================================
-           DEBUG UI (Step 4). Not the finished game — just enough to
-           drive the model by hand. The player-facing build replaces all
-           of this; it is styled for legibility, not for the brand.
+           DEBUG READOUT (Step 4). OFF BY DEFAULT and empty when off —
+           not merely hidden. A hidden element's text is still in the
+           DOM, and the whole point of Step 5 is that no figure is
+           reachable before the run. Turn it on from the console with
+           LEIP_APP.debugReadout(true), or set ENX50_DEBUG = true before
+           load. It is how the model is verified; it is not interface.
            ============================================================ -->
-      <section id="end-debug">
-        <h3>Endurance · debug</h3>
-        <div class="row">
-          <label for="end-days">Days</label>
-          <input type="number" id="end-days" min="0" max="30" step="0.01" value="7">
-          <label for="end-default-speed">New legs at</label>
-          <select id="end-default-speed">
-            <option value="8" selected>8 kn</option>
-            <option value="11">11 kn</option>
-            <option value="14">14 kn</option>
-          </select>
-        </div>
-        <!-- One speed selector per leg. 8 / 11 / 14 only: the curve has
-             three points and §5 forbids extending it. -->
-        <div id="end-legs"></div>
-        <div id="end-readout"></div>
-      </section>
+      <section id="end-debug" class="hidden"></section>
       <section>
         <h3>Route</h3>
-        <p class="hint">Pick a starting port, then destinations — on the chart or below. The pick order is the itinerary, and you can drag the stops to reorder them. Pick a listed port again to drop it; repeats are allowed — press + on a chosen stop to add it again, though a revisit earns nothing.</p>
+        <p class="hint">Tap a port on the chart — or in the list — and say how many nights you will stay. The pick order is the itinerary, and you can drag the stops to reorder them. A port can be visited twice, though the second visit earns nothing.</p>
         <div id="route-strip"></div>
         <div class="row">
           <button id="btn-undo">Undo</button>
@@ -581,8 +671,10 @@ table.board td.num { font-family: var(--font-data); }
            row of its own, and pointer-events:none so it never eats a tap
            meant for what is under it. -->
       <div id="sheet-fade" aria-hidden="true"></div>
+      <!-- One action. "Random spin" was a Monaco control with nothing
+           behind it in this fork — a button that did nothing — so it is
+           gone rather than left as furniture. -->
       <section id="actions">
-        <button id="btn-spin">Random spin</button>
         <button id="btn-sim" disabled>Simulate charter</button>
       </section>
     </aside>
@@ -629,10 +721,25 @@ table.board td.num { font-family: var(--font-data); }
            These call API.spin() and API.simulate() — the same entry points
            the panel's own buttons call, not a second implementation. -->
       <div id="action-bar">
-        <button id="btn-bar-spin">Spin</button>
         <button id="btn-bar-sim" data-act="simulate" disabled>Simulate charter</button>
       </div>
       <button id="btn-skip" class="hidden">Skip</button>
+
+      <!-- The nights callout. Lives in the stage so it can be positioned
+           at the marker it belongs to; hidden until a port is tapped. -->
+      <div id="callout" class="hidden" role="dialog" aria-labelledby="callout-name">
+        <div id="callout-name"></div>
+        <div class="callout-step">
+          <button id="callout-minus" type="button" aria-label="One fewer night">&minus;</button>
+          <output id="callout-nights" aria-live="polite">1</output>
+          <em id="callout-unit">nights</em>
+          <button id="callout-plus" type="button" aria-label="One more night">+</button>
+        </div>
+        <div class="callout-act">
+          <button id="callout-cancel" type="button">Cancel</button>
+          <button id="callout-ok" type="button">Add stop</button>
+        </div>
+      </div>
       <div id="webgl-fallback" class="hidden">
         The chart could not start (WebGL or Three.js unavailable).<br>
         Planning and scoring still work — results appear immediately.
@@ -651,6 +758,13 @@ table.board td.num { font-family: var(--font-data); }
       <p>ENX50 leaves with 50 MWh aboard and no way to top up. Every hour at anchor draws on it; every mile draws harder. Choose where to go, how fast to get there, and how long to stay — then find the plan that spends the last kilowatt-hour on the last day. Reserve left in the battery is not prudence, it is a mile you did not sail.</p>
       <button id="btn-landing-go">Plan the run.</button>
     </div>
+  </div>
+
+  <!-- The results card. Empty until Simulate is pressed, and emptied
+       again on the way back to planning — a figure left behind in the
+       DOM would be a figure reachable before the next run. -->
+  <div id="results" class="overlay hidden">
+    <div class="card" id="results-card"></div>
   </div>
 
 </div>
@@ -1063,6 +1177,11 @@ globalThis.LEIP_THEME = {
     sheetGripPx: 34,           // the sheet's PLAN bar: drag target and, minimised, its rest height
     actionBarPx: 56,           // the fixed bottom bar everything else anchors to
     labelTrackingEm: 0.14,
+    // The nights callout: the gap its tail leaves above the floating
+    // selection marker, and the margin it keeps from the stage edge so a
+    // port near the frame still shows the whole box.
+    calloutGapPx: 10,
+    calloutEdgePx: 8,
     // LIQUID GLASS — a deliberate, scoped override of the visual
     // direction's no-glass rule: interactive controls only (the planning
     // panel and its buttons). The data layer — title block, results,
@@ -8034,6 +8153,16 @@ globalThis.LEIP_DATA = {
       11: 771.7994251386181,
       14: 1845.8204811843182
     },
+    // Step 5: CRUISE IS FIXED. Every leg the player builds runs at this
+    // speed and there is no selector. The 8 and 14 kn rows above stay —
+    // they are the measured curve and the fixtures still assert against
+    // them — but nothing in the route-building path can reach them.
+    cruiseKn: 11,
+
+    // Per-stop nights. The first stop takes nights on the same terms as
+    // any other: guests are aboard from embarkation, so the hotel load
+    // runs from the first night, not from the first passage.
+    nights: { min: 0, max: 7, def: 1 },
 
     // §2 Baseline, anchored on the 28-charter AIS set.
     baseDays: 7.0,
@@ -8205,14 +8334,31 @@ globalThis.ENX50_ENDURANCE = (function () {
   // The energy model.
   //
   //   underway_hours = sum(nm / speed)
-  //   anchor_hours   = 24 * days - underway_hours
+  //   anchor_hours   = 24 * sum(stop.nights)
+  //   elapsed_days   = sum(stop.nights) + underway_hours / 24
   //   E = sum((nm / speed) * (HOTEL_UNDERWAY + PROP[speed]))
   //     + anchor_hours * HOTEL_ANCHOR
   //
-  // An itinerary whose underway time exceeds its elapsed days is INVALID,
-  // not penalised: anchor_hours would go negative and the run would be
-  // claiming hours it does not have. The caller is told; nothing is
-  // scored. (Spec §1.)
+  // STEP 5 CHANGED THE TIME AXIS. Elapsed days used to be an input and
+  // anchor hours the remainder — 24 * days - underway. It is now the other
+  // way round: nights are the input, anchor hours follow from them, and
+  // elapsed days is DERIVED. Underway hours are not anchor hours and are
+  // never counted as both; a passage that takes six hours adds six hours
+  // of underway draw and six hours of elapsed time, and nothing at anchor.
+  //
+  // A consequence worth stating: the §1 validity rule — underway time
+  // exceeding elapsed days — is now UNREACHABLE from the game. Nights are
+  // non-negative, so anchor hours cannot go negative and elapsed days
+  // cannot be short of the passages inside it. The rule survives only on
+  // the legacy `days` path below, which is the fixtures' entry point.
+  //
+  // Inputs. Give it EITHER:
+  //   stops: [{ name, nights }]  or  stops: [name], nights: <total>
+  //     — the game's path. Nights are the input.
+  //   days: <elapsed>            — the FIXTURE path, and nothing else.
+  //     The spec's fixture table is stated in elapsed days from the AIS
+  //     set, so it is taken verbatim and converted here rather than
+  //     restated in nights. No route-building code path reaches it.
   //
   // legs are { nm, speed } in NAVIGATED nautical miles. The correction
   // matrix converts point-to-point geometry to navigated distance and is
@@ -8220,13 +8366,10 @@ globalThis.ENX50_ENDURANCE = (function () {
   // here, or it would be applied twice (spec §7.2).
   function model(itin) {
     var c = C();
-    var days = Number(itin && itin.days);
     var legs = (itin && itin.legs) || [];
     var stops = (itin && itin.stops) || [];
 
-    if (!(days >= 0)) return invalid('days must be a non-negative number');
-
-    var underway = 0, energy = 0, distance = 0;
+    var underway = 0, energy = 0, distance = 0, legKwh = [];
     for (var i = 0; i < legs.length; i++) {
       var nm = Number(legs[i].nm), sp = Number(legs[i].speed);
       if (!(nm >= 0)) return invalid('leg ' + i + ': nm must be a non-negative number');
@@ -8234,23 +8377,58 @@ globalThis.ENX50_ENDURANCE = (function () {
         return invalid('leg ' + i + ': speed ' + sp + ' is not one of ' + c.speeds.join('/') + ' kn');
       }
       var h = sp > 0 ? nm / sp : 0;
+      var kwh = h * (c.hotelUnderwayKw + c.propKw[sp]);
       underway += h;
-      energy += h * (c.hotelUnderwayKw + c.propKw[sp]);
+      energy += kwh;
+      legKwh.push(kwh);
       distance += nm;
     }
 
-    var anchor = 24 * days - underway;
-    if (anchor < 0) {
-      return invalid('underway_hours ' + round(underway, 2) + ' exceeds 24 x ' + days +
-        ' = ' + round(24 * days, 2) + ' elapsed hours');
+    // Nights, from whichever form the caller used.
+    var nights = null, anchor;
+    if (itin && itin.nights !== undefined && itin.nights !== null) {
+      nights = Number(itin.nights);
+    } else if (stops.length && typeof stops[0] === 'object') {
+      nights = 0;
+      for (var s = 0; s < stops.length; s++) {
+        var sn = Number(stops[s] && stops[s].nights);
+        if (!(sn >= 0)) return invalid('stop ' + s + ': nights must be a non-negative number');
+        nights += sn;
+      }
     }
-    energy += anchor * c.hotelAnchorKw;
+
+    if (nights === null) {
+      // Legacy: elapsed days in, anchor hours as the remainder, and the
+      // §1 validity rule that goes with it.
+      var days = Number(itin && itin.days);
+      if (!(days >= 0)) return invalid('days must be a non-negative number');
+      anchor = 24 * days - underway;
+      if (anchor < 0) {
+        return invalid('underway_hours ' + round(underway, 2) + ' exceeds 24 x ' + days +
+          ' = ' + round(24 * days, 2) + ' elapsed hours');
+      }
+      nights = anchor / 24;
+    } else {
+      if (!(nights >= 0)) return invalid('nights must be a non-negative number');
+      anchor = 24 * nights;
+    }
+    // The split is carried, not recovered. Deriving under-way energy as
+    // (total - anchor) is exact in arithmetic and NOT in floating point:
+    // a big anchor term perturbs the low bits, so adding a night to a
+    // stop moved the under-way figure by ~1e-11 kWh — a number that
+    // should not have moved at all. Keeping the passage sum and adding
+    // once means the two halves are exact and still sum to the whole.
+    var underwayKwh = energy;
+    var anchorKwh = anchor * c.hotelAnchorKw;
+    energy = underwayKwh + anchorKwh;
 
     // §3: distinct locations only. A revisit adds nothing — without this
-    // the optimal play degenerates into a two-port shuttle.
+    // the optimal play degenerates into a two-port shuttle. A stop with
+    // ZERO nights still counts as visited: the yacht was there.
     var seen = {}, unique = 0;
     for (var j = 0; j < stops.length; j++) {
-      if (!Object.prototype.hasOwnProperty.call(seen, stops[j])) { seen[stops[j]] = 1; unique++; }
+      var nmj = (typeof stops[j] === 'object' && stops[j]) ? stops[j].name : stops[j];
+      if (!Object.prototype.hasOwnProperty.call(seen, nmj)) { seen[nmj] = 1; unique++; }
     }
 
     // §4: over budget is not a failure to complete. The Passage Extender
@@ -8262,6 +8440,14 @@ globalThis.ENX50_ENDURANCE = (function () {
       energy_kwh: energy,
       underway_hours: underway,
       anchor_hours: anchor,
+      nights: nights,
+      elapsed_days: nights + underway / 24,
+      // The split the player is shown after the run: what the hotel load
+      // cost standing still, against what the passages cost. They sum to
+      // energy_kwh by construction rather than by a second calculation.
+      anchor_kwh: anchorKwh,
+      underway_kwh: underwayKwh,
+      leg_energy_kwh: legKwh,
       distance_nm: distance,
       unique_pois: unique,
       stranded: stranded,
@@ -8273,6 +8459,8 @@ globalThis.ENX50_ENDURANCE = (function () {
     return {
       valid: false, error: msg,
       energy_kwh: null, underway_hours: null, anchor_hours: null,
+      nights: null, elapsed_days: null, anchor_kwh: null, underway_kwh: null,
+      leg_energy_kwh: [],
       distance_nm: null, unique_pois: null, stranded: false, pe_mwh_delivered: 0
     };
   }
@@ -8298,7 +8486,9 @@ globalThis.ENX50_ENDURANCE = (function () {
     if (!res || !res.valid) return { valid: false, error: res && res.error, score: null };
 
     var d = res.distance_nm, u = res.unique_pois;
-    var days = (res.underway_hours + res.anchor_hours) / 24;
+    // Elapsed days, which is nights PLUS time under way — the same
+    // quantity as (underway + anchor) / 24, derived once in model().
+    var days = res.elapsed_days;
     var balance = Math.pow((days / c.baseDays) * (d / c.baseNm) * (u / c.basePois), 1 / 3);
     var utilisation = Math.min(res.energy_kwh / c.batteryCapacityKwh, 1.0);
 
@@ -8338,23 +8528,27 @@ globalThis.ENX50_ENDURANCE = (function () {
   // correction matrix is applied, converting point-to-point geometry into
   // navigated distance. Fixture inputs are already navigated nm from the
   // AIS set and must NOT come through here (spec §7.2).
-  function legsFromStops(stops, speeds) {
-    var out = [];
+  // Step 5: EVERY leg runs at the fixed cruise speed. There is no speeds
+  // argument any more, so there is no route-building path that can select
+  // 8 or 14 kn — the constants stay in DATA and the fixtures still assert
+  // against them, but the game cannot reach them.
+  function legsFromStops(stops) {
+    var out = [], sp = C().cruiseKn;
     for (var i = 0; i + 1 < stops.length; i++) {
-      out.push({
-        from: stops[i], to: stops[i + 1],
-        nm: globalThis.LEIP_ENGINE.legNm(stops[i], stops[i + 1]),
-        speed: Array.isArray(speeds) ? speeds[i] : speeds
-      });
+      var a = (typeof stops[i] === 'object' && stops[i]) ? stops[i].name : stops[i];
+      var b = (typeof stops[i + 1] === 'object' && stops[i + 1]) ? stops[i + 1].name : stops[i + 1];
+      out.push({ from: a, to: b, nm: globalThis.LEIP_ENGINE.legNm(a, b), speed: sp });
     }
     return out;
   }
 
-  // What one more leg would cost, before the player commits to it (§5).
+  // What a leg costs in kWh. Defaults to cruise, which is the only speed
+  // the game builds legs at.
   function legCostKwh(nm, speed) {
     var c = C();
-    if (c.propKw[speed] === undefined) return null;
-    return (nm / speed) * (c.hotelUnderwayKw + c.propKw[speed]);
+    var sp = (speed === undefined) ? c.cruiseKn : speed;
+    if (c.propKw[sp] === undefined) return null;
+    return (nm / sp) * (c.hotelUnderwayKw + c.propKw[sp]);
   }
 
   // ---------------------------------------------------------------- §6
@@ -8485,10 +8679,16 @@ globalThis.LEIP_APP = (function () {
 
   var S = {
     phase: 'planning',            // planning | playback | results
-    // A fresh charter starts with NO anchor nights: the player adds them.
-    // The markup's slider and readout carry the same 0 so the control is
-    // right on the first paint, before refreshPlanning has run.
-    inputs: { route: [], speed: 'slow', nights: 0, activities: {} },
+    // Step 5: nights are PER STOP. `nights` is index-aligned with `route`,
+    // so a port picked twice carries its own stay each time and reordering
+    // moves the two together. Keeping route as plain names leaves every
+    // geometry path — the plot, the halos, the camera fit — untouched.
+    inputs: { route: [], nights: [] },
+    // The nights callout: which stop is being asked about, and the value
+    // the stepper currently holds. `index` is null while adding a new stop
+    // and the row index while editing an existing one.
+    callout: null,
+    calloutRestoreSheet: false,   // mobile: put the sheet back afterwards
     sim: null,
     playT: 0, animT: 0,
     pending: [], revealed: {},
@@ -10128,7 +10328,8 @@ globalThis.LEIP_APP = (function () {
         var hits = G.raycaster.intersectObjects(G.hitMeshes, false);
         if (hits && hits.length) {
           var o = hits[0].object;
-          if (o && o.userData && o.userData.portName) API.pickPort(o.userData.portName);
+          // Tapping the chart ASKS for nights; it does not add a stop.
+          if (o && o.userData && o.userData.portName) API.askPort(o.userData.portName);
         }
       }
       downAt = null;
@@ -10241,28 +10442,17 @@ globalThis.LEIP_APP = (function () {
       var chips = el.querySelectorAll('button[data-port]');
       for (var i = 0; i < chips.length; i++) {
         (function (chip) {
-          // §5: show what this pick would cost BEFORE it is committed.
-          chip.addEventListener('mouseenter', function () {
-            END.pending = chip.getAttribute('data-port');
-            renderEndReadout();
-          });
-          chip.addEventListener('mouseleave', function () {
-            if (END.pending === chip.getAttribute('data-port')) { END.pending = null; renderEndReadout(); }
-          });
-          chip.addEventListener('click', function (ev) {
-            var name = chip.getAttribute('data-port');
-            // The + is a button inside the chip: it REPEATS the port
-            // rather than toggling it off, which is what the chip body
-            // does. Without this the only way back to a repeat would be
-            // the chart.
-            var t = ev && ev.target;
-            var plus = t && t.closest ? t.closest('.pc-plus') : null;
-            if (plus) {
-              if (ev.stopPropagation) ev.stopPropagation();
-              API.pickPort(name);
-              return;
-            }
-            API.togglePort(name);
+          // Step 5 removed the hover cost preview. §5 wanted a leg priced
+          // before it was committed; the run now asks the player to
+          // commit BLIND and pays out the whole account at the finish, so
+          // a price on hover would undo the thing the mode is built on.
+          //
+          // A chip tap opens the same callout the chart does. It never
+          // toggles a port off — removal is the route box's job, one row
+          // at a time, because a port visited twice has two stays and
+          // "off" would not say which one.
+          chip.addEventListener('click', function () {
+            API.askPort(chip.getAttribute('data-port'));
           });
         })(chips[i]);
       }
@@ -10300,7 +10490,7 @@ globalThis.LEIP_APP = (function () {
   // DnD does not fire from touch at all.
   var Drag = { from: -1, el: null, id: 0 };
   function pickIndexAt(strip, clientX, clientY) {
-    var picks = strip.querySelectorAll ? strip.querySelectorAll('.pick') : [];
+    var picks = strip.querySelectorAll ? strip.querySelectorAll('.route-row') : [];
     var best = -1, bestD = Infinity;
     for (var i = 0; i < picks.length; i++) {
       var r = picks[i].getBoundingClientRect();
@@ -10315,7 +10505,7 @@ globalThis.LEIP_APP = (function () {
   function bindRouteDrag(strip) {
     if (!strip || !strip.addEventListener) return;
     strip.addEventListener('pointerdown', function (ev) {
-      var el = ev.target && ev.target.closest ? ev.target.closest('.pick') : null;
+      var el = ev.target && ev.target.closest ? ev.target.closest('.route-row') : null;
       if (!el || S.phase !== 'planning') return;
       var idx = Number(el.getAttribute('data-idx'));
       if (!(idx >= 0)) return;
@@ -10331,7 +10521,7 @@ globalThis.LEIP_APP = (function () {
       API.reorderRoute(Drag.from, to);
       Drag.from = to;
       // refreshPlanning rebuilt the strip, so re-find the chip being held.
-      Drag.el = strip.querySelector ? strip.querySelector('.pick[data-idx="' + to + '"]') : null;
+      Drag.el = strip.querySelector ? strip.querySelector('.route-row[data-idx="' + to + '"]') : null;
       if (Drag.el && Drag.el.classList) Drag.el.classList.add('dragging');
     });
     function end(ev) {
@@ -10361,7 +10551,12 @@ globalThis.LEIP_APP = (function () {
       g.setAttribute('aria-label',
         S.sheetMinimised ? 'Restore the planning panel' : 'Minimise the planning panel');
     }
-    syncActionBar();
+    // Was syncActionBar(), which the fork removed with the Monaco spin
+    // button and never replaced — an undefined call that threw on the
+    // first swipe of the mobile sheet and was unreachable from a desktop
+    // viewport, so four steps of testing never touched it. The bar's one
+    // button now mirrors the panel's through the same guard.
+    syncSimButtons();
     publishHudHeight();
     // The chrome the names route around just changed, and the camera did
     // not — which is the one thing the relayout guard watches. Force it.
@@ -10628,6 +10823,10 @@ globalThis.LEIP_APP = (function () {
       Labels.lastCam = { x: c.x, z: c.z, dist: c.dist, route: S.inputs.route.length };
       Labels.layout();
     }
+    // The callout is pinned to a world point, so it moves with the camera
+    // — every frame, or it slides off its marker on any pan, zoom or
+    // easing frame the camera is in the middle of.
+    if (S.callout) positionCallout();
     G.renderer.autoClear = false;
     G.renderer.clear();
     G.renderer.render(G.scene, G.camera);
@@ -10638,118 +10837,348 @@ globalThis.LEIP_APP = (function () {
   var lastInkNm = 0;
 
   // ---------------------------------------------------------- endurance
-  // The debug readout. Reads ENX50_ENDURANCE and renders it; it decides
-  // nothing about energy or score itself.
-  var END = { days: 7, speeds: [], defaultSpeed: 8, pending: null };
+  // Step 5. The player sees NO figure until the run: not a distance, not
+  // a kilowatt-hour, not a projection. Everything below either builds the
+  // itinerary or renders the result of running it, and the one thing that
+  // still prints numbers while planning — the Step 4 readout — is off by
+  // default and renders nothing at all when off.
+  var END = {
+    debug: false,        // console flag; see API.debugReadout
+    result: null,        // the simulated run, null while planning
+    score: null
+  };
 
-  function endLegs() {
-    var r = S.inputs.route;
-    // One speed per leg, defaulted as legs appear and kept when the route
-    // is reordered under them by index.
-    while (END.speeds.length < Math.max(0, r.length - 1)) END.speeds.push(END.defaultSpeed);
-    END.speeds.length = Math.max(0, r.length - 1);
-    return EN.legsFromStops(r, END.speeds);
+  function nightsCfg() { return D.endurance.nights; }
+  function clampNights(n) {
+    var c = nightsCfg();
+    n = Math.round(Number(n));
+    if (!(n >= c.min)) return c.min;
+    return n > c.max ? c.max : n;
   }
-
+  // The itinerary as the model wants it: names with their stays. The
+  // first stop takes nights like any other — guests are aboard from
+  // embarkation, so the hotel load starts before the first passage.
+  function stopsWithNights() {
+    var r = S.inputs.route, out = [], i;
+    for (i = 0; i < r.length; i++) {
+      out.push({ name: r[i], nights: clampNights(S.inputs.nights[i]) });
+    }
+    return out;
+  }
+  function totalNights() {
+    var n = 0, s = stopsWithNights(), i;
+    for (i = 0; i < s.length; i++) n += s[i].nights;
+    return n;
+  }
+  function endLegs() { return EN.legsFromStops(S.inputs.route); }
   function endResult() {
-    return EN.model({ days: END.days, legs: endLegs(), stops: S.inputs.route });
+    return EN.model({ legs: endLegs(), stops: stopsWithNights() });
   }
-
-  // §5: the MWh cost of a leg must be visible BEFORE the player commits to
-  // it. Every port chip carries what appending it would cost from the
-  // current last stop, at the speed new legs default to.
-  function pendingCostMwh(name) {
+  function terminalCategory() {
     var r = S.inputs.route;
-    if (!r.length || r[r.length - 1] === name) return null;
-    var nm = E.legNm(r[r.length - 1], name);
-    var kwh = EN.legCostKwh(nm, END.defaultSpeed);
-    return kwh === null ? null : { nm: nm, mwh: kwh / 1000 };
+    if (!r.length) return null;
+    return (E.portByName(r[r.length - 1]) || {}).energy;
   }
 
-  function renderEndLegs() {
-    var el = $('end-legs');
+  // ------------------------------------------------------- the callout
+  // Tapping a port asks one question, at the marker, and asks nothing
+  // else. No cost preview: naming a price at the moment of choosing turns
+  // the itinerary into an optimisation problem and the point of the run
+  // is that the player commits before they know.
+  function openCallout(name, index) {
+    if (!E.portByName(name)) return false;
+    var c = nightsCfg();
+    S.callout = {
+      port: name,
+      index: (typeof index === 'number') ? index : null,
+      nights: (typeof index === 'number') ? clampNights(S.inputs.nights[index]) : c.def
+    };
+    // On a phone the sheet covers most of the stage, and a callout the
+    // size of the remaining strip would cover the rest — the player would
+    // be answering about a marker they cannot see, with the box sitting
+    // on top of the one thing that gives it meaning. So the sheet drops
+    // for the duration of the question and comes back with the answer.
+    // Remembered, not assumed: a sheet the player had already minimised
+    // stays minimised afterwards.
+    if (isSheetLayout() && !S.sheetMinimised) {
+      S.calloutRestoreSheet = true;
+      setSheetMinimised(true);
+    }
+    // Frame the route WITH the candidate. A callout is pinned to its
+    // marker, so a port off the current view would put the box against
+    // the stage edge with its tail pointing at nothing — and the player
+    // would be answering about a place they cannot see. This also shows
+    // them where the port sits relative to the route while they decide,
+    // which is the one piece of context the callout is allowed to give.
+    frameWith(name);
+    renderCallout();
+    return true;
+  }
+  function restoreSheetAfterCallout() {
+    if (!S.calloutRestoreSheet) return;
+    S.calloutRestoreSheet = false;
+    if (isSheetLayout()) setSheetMinimised(false);
+  }
+  function frameWith(name) {
+    if (S.phase !== 'planning') return;
+    var want = S.inputs.route.slice();
+    if (name && want.indexOf(name) < 0) want.push(name);
+    // lastFitKey guards against re-solving on every refresh; this IS the
+    // case it should re-solve for, so clear it.
+    S.lastFitKey = null;
+    fitCamera(want.length ? want : null);
+  }
+  function closeCallout() {
+    S.callout = null;
+    renderCallout();
+    restoreSheetAfterCallout();
+    frameWith(null);              // back to the route the player has
+  }
+  function setCalloutNights(n) {
+    if (!S.callout) return;
+    S.callout.nights = clampNights(n);
+    renderCallout();
+  }
+  function confirmCallout() {
+    var co = S.callout;
+    if (!co) return;
+    if (co.index === null) {
+      S.inputs.route.push(co.port);
+      S.inputs.nights.push(co.nights);
+    } else {
+      S.inputs.nights[co.index] = co.nights;
+    }
+    S.callout = null;
+    restoreSheetAfterCallout();
+    S.lastFitKey = null;          // the route changed under the framing
+    refreshPlanning();
+  }
+  function renderCallout() {
+    var el = $('callout');
     if (!el) return;
-    var legs = endLegs(), c = D.endurance;
-    el.innerHTML = legs.length ? legs.map(function (lg, i) {
-      var cost = EN.legCostKwh(lg.nm, lg.speed);
-      return '<div class="end-leg" data-leg="' + i + '">' +
-        '<span class="end-leg-name">' + (i + 1) + '. ' + esc(lg.from) + ' \u2192 ' + esc(lg.to) + '</span>' +
-        c.speeds.map(function (sp) {
-          return '<button data-leg="' + i + '" data-speed="' + sp + '"' +
-            (sp === lg.speed ? ' class="on"' : '') + '>' + sp + '</button>';
-        }).join('') +
-        '<span class="end-leg-cost">' + fmt(lg.nm, 0) + ' nm \u00b7 ' +
-        fmt(cost / 1000, 2) + ' MWh</span></div>';
-    }).join('') : '<span class="hint">No legs yet — pick a second port.</span>';
-    if (!el.querySelectorAll) return;
-    var btns = el.querySelectorAll('button[data-speed]');
-    for (var i = 0; i < btns.length; i++) {
-      (function (b) {
-        b.addEventListener('click', function () {
-          END.speeds[Number(b.getAttribute('data-leg'))] = Number(b.getAttribute('data-speed'));
-          refreshPlanning();
-        });
-      })(btns[i]);
+    var co = S.callout;
+    show('callout', !!co);
+    if (!co) return;
+    var c = nightsCfg();
+    setText('callout-name', co.port);
+    setText('callout-nights', String(co.nights));
+    setText('callout-unit', co.nights === 1 ? 'night' : 'nights');
+    setText('callout-ok', co.index === null ? 'Add stop' : 'Save');
+    var minus = $('callout-minus'), plus = $('callout-plus');
+    if (minus) minus.disabled = co.nights <= c.min;
+    if (plus) plus.disabled = co.nights >= c.max;
+    positionCallout();
+  }
+  // The callout is pinned to its marker, so it has to move with the
+  // camera rather than be placed once. Clamped to the stage so a port
+  // near an edge still shows the whole box.
+  function positionCallout() {
+    var el = $('callout');
+    if (!el || !el.style || !S.callout) return;
+    if (!G || !G.camera || typeof THREE === 'undefined') return;
+    var w = PROJ.portPos(S.callout.port);
+    if (!w) return;
+    G.camera.updateMatrixWorld(); G.camera.updateProjectionMatrix();
+    // Projected at the TOP of the floating selection marker, not at the
+    // waterline, so the tail lands just above the mark rather than behind
+    // it — and it stays there through a zoom, because it is the same
+    // world point rather than a pixel offset guessed at one scale.
+    var pin = T.world.selectMark.pin;
+    var v = new THREE.Vector3(w.x, pin.y + pin.h, w.z).project(G.camera);
+    var sw = G.w || 800, sh = G.h || 600;
+    var x = (v.x * 0.5 + 0.5) * sw;
+    var y = (-v.y * 0.5 + 0.5) * sh;
+    var box = el.getBoundingClientRect ? el.getBoundingClientRect() : { width: 180, height: 110 };
+    var w2 = box.width || 180, halfW = w2 / 2, h = box.height || 110;
+    var pad = T.ui.calloutEdgePx, gap = T.ui.calloutGapPx;
+    var markX = x;
+    x = Math.max(halfW + pad, Math.min(sw - halfW - pad, x));
+    // Above the marker by default; below it when there is no room above.
+    var below = (y - gap - h) < pad;
+    if (el.classList) el.classList[below ? 'add' : 'remove']('below');
+    y = below ? Math.min(sh - h - pad, y + gap) : Math.max(h + pad, Math.min(sh - pad, y - gap));
+    el.style.left = x.toFixed(1) + 'px';
+    el.style.top = y.toFixed(1) + 'px';
+    // Keep the tail under the marker even when the box has been pushed
+    // sideways by the edge clamp — held a corner's width in from either
+    // end so it never runs off the box's own border.
+    if (el.style.setProperty) {
+      var tail = Math.max(14, Math.min(w2 - 14, markX - (x - halfW)));
+      el.style.setProperty('--tail-x', tail.toFixed(1) + 'px');
     }
   }
 
+  // ------------------------------------------------------- the route box
+  // Stops and nights. Nothing else: no nm, no MWh, no score, no
+  // projection. Every row is removable and its nights editable in place.
+  function renderRouteBox() {
+    var strip = $('route-strip');
+    if (strip) {
+      var stops = stopsWithNights();
+      strip.innerHTML = stops.length
+        ? stops.map(function (s, i) {
+            return '<div class="route-row" data-idx="' + i + '" title="Drag to reorder">' +
+              '<i>' + (i + 1) + '</i>' +
+              '<span class="rr-name">' + esc(s.name) + '</span>' +
+              '<button type="button" class="rr-nights" data-edit="' + i + '" ' +
+                'aria-label="Change nights at ' + esc(s.name) + '">' +
+                s.nights + (s.nights === 1 ? ' night' : ' nights') + '</button>' +
+              '<button type="button" class="rr-drop" data-drop="' + i + '" ' +
+                'aria-label="Remove ' + esc(s.name) + '">&times;</button>' +
+              '</div>';
+          }).join('')
+        : '<span class="hint">No stops yet — tap a port on the chart.</span>';
+      if (strip.querySelectorAll) {
+        bindAll(strip.querySelectorAll('button[data-edit]'), 'edit', function (i) {
+          openCallout(S.inputs.route[i], i);
+        });
+        bindAll(strip.querySelectorAll('button[data-drop]'), 'drop', function (i) {
+          API.dropAt(i);
+        });
+      }
+    }
+    var sum = $('route-summary');
+    if (sum) {
+      var n = S.inputs.route.length, nt = totalNights();
+      sum.textContent = n
+        ? n + (n === 1 ? ' STOP' : ' STOPS') + ' · ' + nt + (nt === 1 ? ' NIGHT' : ' NIGHTS')
+        : '';
+    }
+  }
+  function bindAll(list, attr, fn) {
+    for (var i = 0; i < list.length; i++) {
+      (function (b) {
+        b.addEventListener('click', function (ev) {
+          if (ev && ev.stopPropagation) ev.stopPropagation();
+          fn(Number(b.getAttribute('data-' + attr)));
+        });
+        // The row is a drag handle; its buttons are not.
+        b.addEventListener('pointerdown', function (ev) {
+          if (ev && ev.stopPropagation) ev.stopPropagation();
+        });
+      })(list[i]);
+    }
+  }
+
+  // --------------------------------------------------- the debug readout
+  // Step 4's readout, kept because it is how the model is verified. When
+  // the flag is off this writes NOTHING — an element that is merely
+  // hidden still carries its text in the DOM, and no figure may be
+  // reachable before the run.
   function renderEndReadout() {
-    var el = $('end-readout');
+    var el = $('end-debug');
     if (!el) return;
+    if (!END.debug) {
+      if (el.innerHTML !== '') el.innerHTML = '';
+      if (el.classList) el.classList.add('hidden');
+      return;
+    }
+    if (el.classList) el.classList.remove('hidden');
     var c = D.endurance;
     var res = endResult();
-    var last = S.inputs.route.length ? S.inputs.route[S.inputs.route.length - 1] : null;
-    var term = last ? (E.portByName(last) || {}).energy : null;
-    var sc = EN.score(res, term);
+    var sc = EN.score(res, terminalCategory());
     var row = function (k, v, cls) {
       return '<div class="end-row' + (cls ? ' ' + cls : '') + '"><b>' + k + '</b><span>' + v + '</span></div>';
     };
+    var head = '<h3>Endurance · debug</h3>';
     if (!res.valid) {
-      el.innerHTML = row('INVALID', esc(res.error), 'end-bad') +
-        row('', 'no score \u2014 this is a validity error, not a penalty', '');
+      el.innerHTML = head + '<div id="end-readout">' +
+        row('INVALID', esc(res.error), 'end-bad') + '</div>';
       return;
     }
+    var legs = endLegs();
+    var legHtml = legs.length ? '<div id="end-legs">' + legs.map(function (lg, i) {
+      return '<div class="end-leg"><span class="end-leg-name">' + (i + 1) + '. ' +
+        esc(lg.from) + ' → ' + esc(lg.to) + '</span>' +
+        '<span class="end-leg-cost">' + fmt(lg.nm, 0) + ' nm · ' +
+        fmt(res.leg_energy_kwh[i] / 1000, 2) + ' MWh @ ' + lg.speed + ' kn</span></div>';
+    }).join('') + '</div>' : '';
     var usedMwh = res.energy_kwh / 1000, capMwh = c.batteryCapacityKwh / 1000;
-    var html =
+    el.innerHTML = head + legHtml + '<div id="end-readout">' +
       row('MWh used', fmt(usedMwh, 2) + ' / ' + fmt(capMwh, 0)) +
       row('MWh remaining', res.stranded
-        ? '<span class="end-bad">0 \u00b7 PE ' + fmt(res.pe_mwh_delivered, 2) + ' MWh</span>'
+        ? '<span class="end-bad">0 · PE ' + fmt(res.pe_mwh_delivered, 2) + ' MWh</span>'
         : fmt(capMwh - usedMwh, 2)) +
-      row('days', fmt(END.days, 2) +
-        '  (' + fmt(res.underway_hours, 1) + ' h under way, ' + fmt(res.anchor_hours, 1) + ' h at anchor)') +
+      row('elapsed days', fmt(res.elapsed_days, 2) +
+        '  (' + fmt(res.nights, 0) + ' nights, ' + fmt(res.underway_hours, 1) + ' h under way)') +
+      row('MWh anchor / under way', fmt(res.anchor_kwh / 1000, 2) + ' / ' + fmt(res.underway_kwh / 1000, 2)) +
       row('nm', fmt(res.distance_nm, 1)) +
       row('unique POIs', String(res.unique_pois)) +
-      row('terminal grid', last ? esc(String(term || '\u2014')).toUpperCase() +
-        ' \u00b7 ' + ((E.portByName(last) || {}).carbon || '\u2014') + ' gCO\u2082e/kWh' +
-        ' \u00b7 +' + sc.grid_bonus : '\u2014') +
-      row('balance \u00d7 util', fmt(sc.balance, 3) + ' \u00d7 ' + fmt(sc.utilisation, 3)) +
-      row('SCORE', '<span class="end-score">' + fmt(sc.score, 1) + '</span> ' + sc.tier);
-    // The pending leg: what the next pick would cost, before committing.
-    if (END.pending) {
-      var p = pendingCostMwh(END.pending);
-      html += '<div class="end-pending">' + (p
-        ? row('+ ' + esc(END.pending), fmt(p.nm, 0) + ' nm \u00b7 ' + fmt(p.mwh, 2) +
-            ' MWh at ' + END.defaultSpeed + ' kn')
-        : row('+ ' + esc(END.pending), 'first stop \u2014 no leg yet')) + '</div>';
+      row('terminal grid', terminalCategory()
+        ? esc(String(terminalCategory())).toUpperCase() + ' · +' + sc.grid_bonus : '—') +
+      row('balance × util', fmt(sc.balance, 3) + ' × ' + fmt(sc.utilisation, 3)) +
+      row('SCORE', '<span class="end-score">' + fmt(sc.score, 1) + '</span> ' + sc.tier) +
+      '</div>';
+  }
+
+  // -------------------------------------------------------- the results
+  // The ONLY place a figure appears. Because the player chose blind, the
+  // card has to explain the run and not just grade it — hence the energy
+  // split and the costliest leg, which are the two lines that say where
+  // the charge actually went.
+  function costliestLeg(res, legs) {
+    var best = -1, bi = -1, i;
+    for (i = 0; i < (res.leg_energy_kwh || []).length; i++) {
+      if (res.leg_energy_kwh[i] > best) { best = res.leg_energy_kwh[i]; bi = i; }
     }
+    return bi < 0 ? null : { leg: legs[bi], kwh: best, index: bi };
+  }
+  function renderResults() {
+    var el = $('results-card');
+    if (!el) return;
+    var res = END.result, sc = END.score;
+    if (!res || !sc) { el.innerHTML = ''; return; }
+    var c = D.endurance, capMwh = c.batteryCapacityKwh / 1000;
+    if (!res.valid) {
+      el.innerHTML = '<h1>That itinerary does not add up</h1><p>' + esc(res.error) + '</p>' +
+        '<button id="btn-replan">Back to planning</button>';
+      bindReplan();
+      return;
+    }
+    var usedMwh = res.energy_kwh / 1000;
+    var term = terminalCategory();
+    var port = S.inputs.route.length ? E.portByName(S.inputs.route[S.inputs.route.length - 1]) : null;
+    var cell = function (label, value) {
+      return '<div class="res-cell"><label>' + label + '</label><output>' + value + '</output></div>';
+    };
+    var cheap = costliestLeg(res, endLegs());
+    var html =
+      '<div id="res-score">' + fmt(sc.score, 1) + '</div>' +
+      '<div id="res-tier"' + (sc.tier === 'PE' ? ' class="pe"' : '') + '>' +
+        (sc.tier === 'PE'
+          ? 'Passage Extender · ' + fmt(res.pe_mwh_delivered, 2) + ' MWh delivered'
+          : 'ENX · finished on the charge') + '</div>' +
+      '<div class="res-grid">' +
+        cell('Elapsed days', fmt(res.elapsed_days, 2)) +
+        cell('Distance', fmt(res.distance_nm, 1) + ' nm') +
+        cell('Unique POIs', String(res.unique_pois)) +
+        cell('MWh used', fmt(usedMwh, 2) + ' / ' + fmt(capMwh, 0)) +
+        cell('MWh remaining', res.stranded ? '0.00' : fmt(capMwh - usedMwh, 2)) +
+        cell('Terminal grid', (term ? esc(String(term)).toUpperCase() : '—') +
+          ' · ' + ((port && port.carbon) || '—') + ' gCO₂e/kWh') +
+        cell('At anchor', fmt(res.anchor_kwh / 1000, 2) + ' MWh') +
+        cell('Under way', fmt(res.underway_kwh / 1000, 2) + ' MWh') +
+      '</div>' +
+      (cheap
+        ? '<p class="res-note">The charge went furthest into <b>' + esc(cheap.leg.from) +
+          ' → ' + esc(cheap.leg.to) + '</b> — ' + fmt(cheap.leg.nm, 1) + ' nm for ' +
+          fmt(cheap.kwh / 1000, 2) + ' MWh, the most expensive leg of the charter.</p>'
+        : '<p class="res-note">No passage was sailed, so every kilowatt-hour went on the hotel load.</p>') +
+      '<button id="btn-replan">Plan another run</button>';
     el.innerHTML = html;
+    bindReplan();
+  }
+  function bindReplan() {
+    on('btn-replan', 'click', function () { API.replan(); });
   }
 
   // ---------------------------------------------------------- planning
-  // The endurance panel. The Monaco version of this also drove the speed
-  // toggle, the nights slider, the activity grid, the achievement dots and
-  // the simulate button's enabled state; none of those exist here. What is
-  // left is the itinerary itself.
+  // The itinerary, and only the itinerary. The Monaco version of this also
+  // drove the speed toggle, the nights slider, the activity grid, the
+  // achievement dots and a live score; none of those exist here, and Step
+  // 5 removed the last thing that printed a number while planning.
   function refreshPlanning() {
-    var strip = $('route-strip');
-    if (strip) {
-      strip.innerHTML = S.inputs.route.length
-        ? S.inputs.route.map(function (n, i) {
-            return '<span class="pick" data-idx="' + i + '" title="Drag to reorder">' +
-              '<i>' + (i + 1) + '</i>' + esc(n) + '</span>';
-          }).join('')
-        : '<span class="hint">No ports picked — the first pick is the start.</span>';
-    }
+    renderRouteBox();
     var pl = $('port-list');
     if (pl && pl.querySelectorAll) {
       var chips = pl.querySelectorAll('button[data-port]');
@@ -10758,12 +11187,14 @@ globalThis.LEIP_APP = (function () {
         for (var u = 0; u < S.inputs.route.length; u++) if (S.inputs.route[u] === nm) uses++;
         if (chip.classList) chip.classList[uses ? 'add' : 'remove']('on');
         if (chip.setAttribute) chip.setAttribute('aria-pressed', uses ? 'true' : 'false');
+        // The count of visits, and nothing else. The + is gone: a chip
+        // tap now opens the callout, so adding a port again goes through
+        // the same question as adding it the first time rather than
+        // through a second, quieter path that skips the nights.
         var extra = chip.querySelector ? chip.querySelector('.pc-extra') : null;
-        if (!uses) { if (extra && extra.remove) extra.remove(); }
+        if (uses < 2) { if (extra && extra.remove) extra.remove(); }
         else {
-          var want = (uses > 1 ? '<i>\u00d7' + uses + '</i>' : '') +
-            '<b class="pc-plus" role="button" aria-label="Add ' + esc(nm) +
-            ' again" title="Add again">+</b>';
+          var want = '<i>×' + uses + '</i>';
           if (extra) { if (extra.innerHTML !== want) extra.innerHTML = want; }
           else if (chip.insertAdjacentHTML) {
             chip.insertAdjacentHTML('beforeend', '<span class="pc-extra">' + want + '</span>');
@@ -10771,10 +11202,8 @@ globalThis.LEIP_APP = (function () {
         }
       }
     }
-    var sum = $('route-summary');
-    if (sum) sum.textContent = S.inputs.route.length ? S.inputs.route.length + ' PICKS' : '';
-    renderEndLegs();
     renderEndReadout();
+    syncSimButtons();
     syncHalos();
     RoutePlot.fit(S.inputs.route);
     if (S.phase === 'planning') {
@@ -10785,20 +11214,25 @@ globalThis.LEIP_APP = (function () {
       }
     }
     requestRoute();
-    updateTitleBlock();
+    renderCallout();
   }
 
-  // The HUD. Step 4 wires the endurance readout — MWh used and remaining,
-  // days, nm, unique POIs, score — into these cells. Until then it holds
-  // the resting dashes rather than Monaco's telemetry, which no longer
-  // has anything behind it.
-  function updateTitleBlock() {
-    ['tb-mode', 'tb-speed', 'tb-day', 'tb-clock', 'tb-leg'].forEach(function (id) {
-      setText(id, '\u2014');
+  // One stop is enough to run: a night at anchor is a charter, and the
+  // model scores it (at zero, since distance is an axis of the balance).
+  function canSimulate() { return S.phase === 'planning' && S.inputs.route.length > 0; }
+  function syncSimButtons() {
+    ['btn-sim', 'btn-bar-sim'].forEach(function (id) {
+      var b = $(id);
+      if (b) b.disabled = !canSimulate();
     });
-    setText('tb-batt', '100%');
-    var bar = $('tb-battbar');
-    if (bar && bar.style) bar.style.width = '100%';
+  }
+
+  // The HUD carries live telemetry from a playback this fork does not
+  // have, so through Step 5 it stays hidden: an idle "100%" beside a
+  // column of dashes is chrome pretending to be instrumentation, and it
+  // would put a figure on screen before the run.
+  function updateTitleBlock() {
+    show('titleblock', false);
   }
 
   // -------------------------------------------------- land, for assertions
@@ -10889,17 +11323,21 @@ globalThis.LEIP_APP = (function () {
       } catch (e) {}
       on('btn-undo', 'click', function () { API.undoPick(); });
       on('btn-clear', 'click', function () { API.clearRoute(); });
-      on('end-days', 'input', function (ev) {
-        var v = Number(ev && ev.target ? ev.target.value : END.days);
-        END.days = (v >= 0) ? v : 0;
-        refreshPlanning();
+      on('btn-sim', 'click', function () { API.simulate(); });
+      on('btn-bar-sim', 'click', function () { API.simulate(); });
+      on('callout-minus', 'click', function () {
+        if (S.callout) setCalloutNights(S.callout.nights - 1);
       });
-      on('end-default-speed', 'change', function (ev) {
-        END.defaultSpeed = Number(ev && ev.target ? ev.target.value : 8);
-        refreshPlanning();
+      on('callout-plus', 'click', function () {
+        if (S.callout) setCalloutNights(S.callout.nights + 1);
       });
+      on('callout-cancel', 'click', function () { closeCallout(); });
+      on('callout-ok', 'click', function () { confirmCallout(); });
       on('btn-info', 'click', function () { API.showLanding(true); });
       on('btn-landing-go', 'click', function () { API.showLanding(false); });
+      // The debug readout's console flag, readable before load so a
+      // harness can boot straight into it: ENX50_DEBUG = true.
+      try { END.debug = globalThis.ENX50_DEBUG === true; } catch (e) { END.debug = false; }
       bindRouteDrag($('route-strip'));
       bindSheetGrip();
       if (typeof addEventListener === 'function') addEventListener('resize', resize);
@@ -10911,9 +11349,38 @@ globalThis.LEIP_APP = (function () {
       return API;
     },
 
-    pickPort: function (name) {
+    // Tapping a port ASKS; it does not add. The callout is the only way a
+    // stop reaches the route from the map or the list, so every stop
+    // carries a stay the player chose rather than one defaulted in behind
+    // them. pickPort remains the direct append, for tests and tools.
+    askPort: function (name) { return openCallout(name, null); },
+    editNights: function (index) {
+      if (!(index >= 0 && index < S.inputs.route.length)) return false;
+      return openCallout(S.inputs.route[index], index);
+    },
+    setCalloutNights: function (n) { setCalloutNights(n); return S.callout && S.callout.nights; },
+    confirmCallout: function () { confirmCallout(); },
+    cancelCallout: function () { closeCallout(); },
+
+    pickPort: function (name, nights) {
       if (!E.portByName(name)) return;
       S.inputs.route.push(name);
+      S.inputs.nights.push(clampNights(nights === undefined ? nightsCfg().def : nights));
+      refreshPlanning();
+    },
+    setNights: function (index, n) {
+      if (!(index >= 0 && index < S.inputs.route.length)) return null;
+      S.inputs.nights[index] = clampNights(n);
+      refreshPlanning();
+      return S.inputs.nights[index];
+    },
+    // Remove ONE row, by position. The route box names a row, not a port,
+    // so a port visited twice loses the visit the player pointed at.
+    dropAt: function (index) {
+      if (!(index >= 0 && index < S.inputs.route.length)) return;
+      S.inputs.route.splice(index, 1);
+      S.inputs.nights.splice(index, 1);
+      if (S.callout && S.callout.index !== null) S.callout = null;
       refreshPlanning();
     },
     // Drop a port from the route. If it was picked more than once, the
@@ -10922,23 +11389,62 @@ globalThis.LEIP_APP = (function () {
     dropPort: function (name) {
       var at = S.inputs.route.lastIndexOf(name);
       if (at < 0) return;
-      S.inputs.route.splice(at, 1);
-      refreshPlanning();
+      API.dropAt(at);
     },
     togglePort: function (name) {
       if (!E.portByName(name)) return;
       if (S.inputs.route.indexOf(name) < 0) API.pickPort(name);
       else API.dropPort(name);
     },
+    // Nights travel WITH the stop. Reordering used to move a name over a
+    // fixed list; now each row owns its stay, so both arrays move or the
+    // itinerary silently reassigns someone else's nights.
     reorderRoute: function (from, to) {
       var r = S.inputs.route, n = r.length;
       from = Math.round(Number(from)); to = Math.round(Number(to));
       if (!(from >= 0 && from < n && to >= 0 && to < n) || from === to) return;
       r.splice(to, 0, r.splice(from, 1)[0]);
+      S.inputs.nights.splice(to, 0, S.inputs.nights.splice(from, 1)[0]);
       refreshPlanning();
     },
-    undoPick: function () { S.inputs.route.pop(); refreshPlanning(); },
-    clearRoute: function () { S.inputs.route = []; refreshPlanning(); },
+    undoPick: function () {
+      S.inputs.route.pop(); S.inputs.nights.pop();
+      refreshPlanning();
+    },
+    clearRoute: function () {
+      S.inputs.route = []; S.inputs.nights = []; S.callout = null;
+      refreshPlanning();
+    },
+
+    // ------------------------------------------------------- the reveal
+    // The one moment a figure exists. Everything before this point is
+    // ports and nights; everything the player learns arrives here at
+    // once, which is why the card explains the run rather than only
+    // grading it.
+    simulate: function () {
+      if (!canSimulate()) return null;
+      S.callout = null;
+      renderCallout();
+      var res = EN.model({ legs: endLegs(), stops: stopsWithNights() });
+      END.result = res;
+      END.score = EN.score(res, terminalCategory());
+      S.phase = 'results';
+      renderResults();
+      show('results', true);
+      syncSimButtons();
+      return { model: END.result, score: END.score };
+    },
+    // Back to planning, and the card is EMPTIED rather than hidden. A
+    // figure left in the DOM is a figure reachable before the next run,
+    // which is exactly what Step 5 forbids.
+    replan: function () {
+      show('results', false);
+      END.result = null; END.score = null;
+      var el = $('results-card');
+      if (el) el.innerHTML = '';
+      S.phase = 'planning';
+      refreshPlanning();
+    },
 
     tick: function (dt) {
       dt = (typeof dt === 'number' && dt > 0) ? Math.min(dt, 10) : 0.016;
@@ -11068,7 +11574,7 @@ globalThis.LEIP_APP = (function () {
     debugCorrection: function (from, to) {
       function one(a, b) {
         var m = E.matrixNm(a, b), f = E.getLegCorrection(a, b);
-        var legs = EN.legsFromStops([a, b], 8);
+        var legs = EN.legsFromStops([a, b]);
         var scored = legs.length ? legs[0].nm : null;
         var expected = (m === null) ? null : m * f;
         return {
@@ -11097,22 +11603,43 @@ globalThis.LEIP_APP = (function () {
       return { pairsChecked: checked, pairsWithFactor: withFactor,
                mismatches: bad.length, examples: bad.slice(0, 5) };
     },
-    // The endurance readout, as numbers rather than as rendered text.
+    // The endurance model, as numbers rather than as rendered text. This
+    // COMPUTES a result; it does not reveal one. Nothing it returns is on
+    // screen unless the run has been simulated or the debug readout is on.
     debugEndurance: function () {
       var res = endResult();
-      var last = S.inputs.route.length ? S.inputs.route[S.inputs.route.length - 1] : null;
-      var sc = EN.score(res, last ? (E.portByName(last) || {}).energy : null);
+      var sc = EN.score(res, terminalCategory());
       return {
-        days: END.days, speeds: END.speeds.slice(),
         route: S.inputs.route.slice(),
+        nights: S.inputs.nights.slice(),
+        cruiseKn: D.endurance.cruiseKn,
+        legs: endLegs(),
         model: res, score: sc,
-        readoutText: ($('end-readout') || {}).textContent || '',
-        legsText: ($('end-legs') || {}).textContent || ''
+        // What is ACTUALLY rendered right now, so a claim about the
+        // interface can be checked against the DOM rather than against
+        // the model that fed it.
+        debugOn: END.debug,
+        debugText: ($('end-debug') || {}).textContent || '',
+        resultsText: ($('results-card') || {}).textContent || '',
+        routeBoxText: ($('route-strip') || {}).textContent || '',
+        calloutText: ($('callout') || {}).textContent || '',
+        calloutOpen: !!S.callout,
+        phase: S.phase
       };
     },
-    debugSetDays: function (d) { END.days = Number(d); refreshPlanning(); return END.days; },
-    debugSetLegSpeed: function (i, sp) { END.speeds[i] = Number(sp); refreshPlanning(); return END.speeds.slice(); },
-    debugPending: function (name) { END.pending = name || null; renderEndReadout(); return END.pending; },
+    // The Step 4 readout. OFF by default; when off it renders nothing at
+    // all rather than hiding rendered text, because hidden text is still
+    // in the DOM.
+    debugReadout: function (on) {
+      END.debug = (on !== false);
+      refreshPlanning();
+      return END.debug;
+    },
+    debugSetNights: function (i, n) { return API.setNights(i, n); },
+    debugCallout: function () {
+      return S.callout ? { port: S.callout.port, nights: S.callout.nights,
+                           index: S.callout.index } : null;
+    },
 
     debugSafeArea: function () {
       if (!G) return null;

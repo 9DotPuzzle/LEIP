@@ -190,6 +190,137 @@ the bug note at the end.
 
 ---
 
+## Step 5 — the route-building interface
+
+The mode's central rule: **the player sees no figure until the run**. Not a
+distance, not a kilowatt-hour, not a projection. They choose ports and nights,
+press Simulate, and the whole account arrives at once.
+
+That rule drove three deletions. The §5 pre-commit cost preview is gone — it
+priced a leg on hover, which is the exact opposite of committing blind. The
+per-leg speed selector is gone. And the HUD is hidden while planning: an idle
+`100%` beside a column of dashes is chrome pretending to be instrumentation,
+and it put a number on screen before the run.
+
+### Cruise is fixed
+
+Every leg runs at **11 kn**, from `DATA.endurance.cruiseKn`. `legsFromStops`
+no longer takes a speeds argument at all, so there is no route-building path
+that could select another. `propKw[8]` and `propKw[14]` remain in DATA — they
+are the measured curve, and the fixtures still assert against them.
+
+### Nights in, days out
+
+The time axis inverted. It used to be:
+
+```
+anchor_hours = 24 * days - underway_hours        days was an INPUT
+```
+
+and it is now:
+
+```
+anchor_hours = 24 * sum(stop.nights)
+elapsed_days = sum(stop.nights) + underway_hours / 24
+```
+
+Underway hours are elapsed time and under-way draw. They are never also anchor
+hours. Nights are per stop, integer 0–7, default 1, and the **first stop takes
+nights like any other** — guests are aboard from embarkation, so the hotel load
+starts before the first passage.
+
+A consequence worth stating plainly: **§1's validity rule is now unreachable
+from the game.** Nights are non-negative, so anchor hours cannot go negative and
+elapsed days cannot fall short of the passages inside them. The rule survives
+only on the legacy `days` input, which is the fixtures' entry point and nothing
+else's — the spec's fixture table is stated in elapsed days from the AIS set, so
+it is taken verbatim and converted rather than restated in nights.
+
+`unique_pois` still counts distinct ports, and a stop with **0 nights still
+counts as visited**.
+
+### The interface
+
+Tapping a port — on the chart or in the list — opens a **callout at that
+marker** carrying the port name, a 0–7 stepper, confirm and cancel. Nothing
+else. Naming a cost there would turn every pick into an optimisation.
+
+Opening a callout frames the route *with* the candidate, because a box pinned to
+an off-screen marker points at empty sea. On a phone the sheet drops for the
+duration of the question and comes back with the answer — remembered, not
+assumed, so a sheet the player had already minimised stays that way. When the
+edge clamp pushes the box off its marker the **tail still points at it**.
+
+The **route box** is an ordered list: number, port, nights, remove. Rows drag to
+reorder and nights travel with them. Totals are stops and nights. No nm, no MWh,
+no score.
+
+**Results** reveal elapsed days, distance, unique POIs, MWh used and remaining,
+tier, terminal grid and its intensity, and the score — plus the two lines that
+teach, since the player chose blind: the **energy split** (at anchor vs under
+way) and the **costliest leg** named with its nm and MWh. Going back to planning
+*empties* the card rather than hiding it.
+
+The Step 4 debug readout survives behind a console flag — `LEIP_APP.debugReadout(true)`
+or `ENX50_DEBUG = true` before load. **Off, it renders nothing at all**, because
+a hidden element still carries its text in the DOM.
+
+### What was verified
+
+52 assertions, 0 failures, 0 console errors, on desktop and on a phone viewport.
+
+**Nothing is reachable before Simulate.** Not eyeballed: every computed figure —
+distance, energy, remaining, the anchor and under-way split, elapsed days,
+under-way hours, score, balance, utilisation — was rendered at 0, 1, 2 and 3
+decimal places and each of the 40 strings searched for in `document.body.innerText`.
+None appears. The debug section and the results card are empty strings, not
+hidden elements.
+
+**One stop, zero nights.** Valid; distance, energy and elapsed days all 0; the
+stop still counts as 1 POI; balance 0, so `100 × balance × utilisation` is 0.
+
+> **An open question, not a change.** At a **grey or brown** terminal that run
+> scores exactly 0. At a **green** one it scores **12** — the grid bonus is
+> added *after* the multiplier, so a zero-balance run still collects it. §3 says
+> a zero on any axis produces a zero score; §4 only withholds the bonus from a
+> *stranded* run. Left as the spec has it; flagging rather than gating it,
+> because gating is a formula change.
+
+**Editing nights.** Three more nights at one stop raises elapsed days by exactly
+3 and energy by exactly `3 × 24 × 188.6` kWh; under-way energy and distance do
+not move at all; setting it back restores both.
+
+> That last clause found a real defect. `underway_kwh` was derived as
+> `energy - anchor_kwh`, which is exact in arithmetic and **not** in floating
+> point: a large anchor term perturbs the low bits, so adding a night moved the
+> under-way figure by ~1e-11 kWh. The split is now carried rather than
+> recovered — the passage sum is kept and the anchor term added once, so both
+> halves are exact and still sum to the whole.
+
+**Removing a stop.** All nine model fields and all four score fields return
+**bit-identical**, and the route box text returns identical.
+
+**Cruise.** `legsFromStops.length === 1` — there is no argument to pass a speed
+through. Every built leg reports 11 kn. No speed selector remains in the panel.
+
+**Fixtures.** 8/8 still pass after the time-axis change.
+
+**Step 4's claims still hold**: 44 port markers, 165 monument meshes, 28,914 ink
+pixels on the Antibes → Saint Tropez → Cannes plot, 946 port pairs with no lane
+vertex or segment over land, 946 correction pairs with 0 mismatches.
+
+### A bug this step exposed
+
+`setSheetMinimised` called `syncActionBar()`, which the fork deleted in Step 1
+along with the Monaco spin button and never replaced. It threw on the first
+swipe of the mobile sheet and was unreachable from a desktop viewport, so four
+steps of testing never touched it — the harness had only ever run at 1600px.
+Fixed, and the suite now runs a mobile pass for exactly this reason.
+
+`index.html` is unaffected: it is frozen, and its own suite still passes 101/101.
+
+---
+
 ## Distance correction — an unreconciled gap
 
 The correction matrix converts point-to-point geometry into navigated distance.
