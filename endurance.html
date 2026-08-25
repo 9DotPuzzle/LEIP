@@ -10801,6 +10801,57 @@ globalThis.LEIP_APP = (function () {
     if (bar && bar.style) bar.style.width = '100%';
   }
 
+  // -------------------------------------------------- land, for assertions
+  // Verification only. LEIP_TERRAIN.coasts is the single source of land
+  // geometry — the same rings the sea-lane router was built against and
+  // the same ones the map draws — so a path checked against them is
+  // checked against what the player sees. Rings are flat [lon,lat,...];
+  // parity is accumulated across ALL of them at once so an inner ring
+  // (a lake) reads as water rather than as land.
+  function landAt(lon, lat) {
+    var T2 = globalThis.LEIP_TERRAIN;
+    if (!T2 || !T2.coasts) return false;
+    var inside = false;
+    for (var c = 0; c < T2.coasts.length; c++) {
+      var r = T2.coasts[c], n = r.length / 2;
+      for (var i = 0, j = n - 1; i < n; j = i++) {
+        var xi = r[i * 2], yi = r[i * 2 + 1], xj = r[j * 2], yj = r[j * 2 + 1];
+        if ((yi > lat) !== (yj > lat) &&
+            lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+      }
+    }
+    return inside;
+  }
+  // A vertex in open water is not the same claim as a leg in open water:
+  // two sea points either side of Corsica pass the vertex test while the
+  // line between them runs over the mountains. This counts how many times
+  // the SEGMENT cuts a coastline edge, which is the thing that would get
+  // screenshotted and misread.
+  function coastCrossings(a, b) {
+    var T2 = globalThis.LEIP_TERRAIN;
+    if (!T2 || !T2.coasts) return 0;
+    var minx = Math.min(a.lon, b.lon), maxx = Math.max(a.lon, b.lon);
+    var miny = Math.min(a.lat, b.lat), maxy = Math.max(a.lat, b.lat);
+    function side(px, py, qx, qy, rx, ry) {
+      return (qx - px) * (ry - py) - (qy - py) * (rx - px);
+    }
+    var hits = 0;
+    for (var c = 0; c < T2.coasts.length; c++) {
+      var r = T2.coasts[c], n = r.length / 2;
+      for (var i = 0, j = n - 1; i < n; j = i++) {
+        var xi = r[i * 2], yi = r[i * 2 + 1], xj = r[j * 2], yj = r[j * 2 + 1];
+        if (Math.max(xi, xj) < minx || Math.min(xi, xj) > maxx ||
+            Math.max(yi, yj) < miny || Math.min(yi, yj) > maxy) continue;
+        var d1 = side(a.lon, a.lat, b.lon, b.lat, xi, yi);
+        var d2 = side(a.lon, a.lat, b.lon, b.lat, xj, yj);
+        var d3 = side(xi, yi, xj, yj, a.lon, a.lat);
+        var d4 = side(xi, yi, xj, yj, b.lon, b.lat);
+        if ((d1 > 0) !== (d2 > 0) && (d3 > 0) !== (d4 > 0)) hits++;
+      }
+    }
+    return hits;
+  }
+
   // ------------------------------------------------------------ public API
   // The endurance fork's shell. Everything the Monaco game did after the
   // route was chosen — simulate, playback, achievements, results, the
@@ -10977,6 +11028,74 @@ globalThis.LEIP_APP = (function () {
         for (var k = 3; k < dat.length; k += 4) if (dat[k] > 8) ink++;
       } catch (e) { ink = -1; }
       return { meshVisible: !!RoutePlot.mesh.visible, inkPixels: ink, legs: legs };
+    },
+    // Does a leg follow water? The vertex test is the stated requirement;
+    // the segment test is the one that catches a debug UI drawing a
+    // straight line across Corsica, which is the failure that would get
+    // screenshotted. `straightCrossings` is the control: the same two
+    // endpoints joined directly, so a lane that routes around something
+    // can be told apart from a lane that had nothing to route around.
+    debugSeaLane: function (from, to) {
+      var pts = E.legPath(from, to), i;
+      var onLand = [], crossings = 0, perSeg = [];
+      for (i = 0; i < pts.length; i++) {
+        if (landAt(pts[i].lon, pts[i].lat)) {
+          onLand.push({ at: i, lon: pts[i].lon, lat: pts[i].lat });
+        }
+      }
+      for (i = 0; i + 1 < pts.length; i++) {
+        var h = coastCrossings(pts[i], pts[i + 1]);
+        perSeg.push(h); crossings += h;
+      }
+      return {
+        from: from, to: to,
+        vertices: pts.length,
+        verticesOnLand: onLand,
+        coastCrossings: crossings,
+        perSegmentCrossings: perSeg,
+        straightCrossings: pts.length > 1
+          ? coastCrossings(pts[0], pts[pts.length - 1]) : 0,
+        path: pts.map(function (p) { return { lon: p.lon, lat: p.lat }; })
+      };
+    },
+    // Did the correction actually run? A leg whose factor is 1.0 scores
+    // the same whether the correction is applied or skipped entirely, so
+    // it proves nothing. This drives the real path — legsFromStops, the
+    // one place the matrix is applied — and checks the scored distance is
+    // the great-circle figure times the factor. Called with no arguments
+    // it sweeps every port pair that has both a matrix entry and a
+    // factor, so the check is not one hand-picked leg.
+    debugCorrection: function (from, to) {
+      function one(a, b) {
+        var m = E.matrixNm(a, b), f = E.getLegCorrection(a, b);
+        var legs = EN.legsFromStops([a, b], 8);
+        var scored = legs.length ? legs[0].nm : null;
+        var expected = (m === null) ? null : m * f;
+        return {
+          from: a, to: b, factor: f, matrixNm: m,
+          scoredNm: scored, expectedNm: expected,
+          deltaNm: (scored === null || expected === null)
+            ? null : Math.abs(scored - expected),
+          basis: D.distanceBasis,
+          correctionApplied: f !== 1,
+          ok: scored !== null && expected !== null &&
+              Math.abs(scored - expected) < 1e-9
+        };
+      }
+      if (from && to) return one(from, to);
+      var names = D.ports.map(function (p) { return p.name; });
+      var checked = 0, withFactor = 0, bad = [];
+      for (var i = 0; i < names.length; i++) {
+        for (var j = i + 1; j < names.length; j++) {
+          var r = one(names[i], names[j]);
+          if (r.matrixNm === null) continue;
+          checked++;
+          if (r.correctionApplied) withFactor++;
+          if (!r.ok) bad.push(r);
+        }
+      }
+      return { pairsChecked: checked, pairsWithFactor: withFactor,
+               mismatches: bad.length, examples: bad.slice(0, 5) };
     },
     // The endurance readout, as numbers rather than as rendered text.
     debugEndurance: function () {

@@ -136,6 +136,51 @@ Distance, energy, POIs and the rendered text all move on the add and return
 exactly on the remove. Thirty assertions in total, none failing, no console
 errors.
 
+### The legs follow water
+
+`debugSeaLane(from, to)` checks a leg against `LEIP_TERRAIN.coasts` — the same
+rings the sea-lane router was built against and the same ones the map draws, so
+the check is against what the player sees. It reports the vertex count, any
+vertex inside land (even-odd parity accumulated across all rings, so a lake
+reads as water), and how many times each **segment** cuts a coastline edge.
+
+The segment test is the one that matters. Two sea points either side of Corsica
+both pass a vertex test while the line between them runs over the mountains, and
+a debug UI drawing that line is what gets screenshotted and misread.
+
+```
+Antibes -> Bonifacio   3 vertices   0 on land   0 coast crossings
+  7.235,43.475 -> 8.765,41.515 -> 9.065,41.295
+  the same two endpoints joined STRAIGHT: 6 coast crossings
+```
+
+The straight-line figure is the control. Without it, "0 crossings" could just
+mean the leg had nothing to route around; with it, the lane is demonstrably
+doing work. Swept over all **946 port pairs**: 870 carry routing waypoints, and
+none has a vertex on land or a segment over land.
+
+### The correction actually runs
+
+Both Step 4 legs have a correction factor of exactly **1.0**, so their distances
+are pure great-circle and the correction code was never exercised — the readout
+would have been identical with the multiply deleted.
+
+`debugCorrection(from, to)` drives the real path (`legsFromStops`, the one place
+the matrix is applied) and compares the scored distance against great-circle ×
+factor. Called with no arguments it sweeps every pair.
+
+```
+Ajaccio -> Bonifacio   basis corrected
+  great-circle 37.10 nm  x 1.424  = 52.8304    scored 52.8304    delta 0
+  15.7 nm apart from the raw figure — a skipped correction would be visible
+
+sweep: 946 pairs checked, 918 with factor != 1, 0 mismatches
+live readout on that route: distance_nm 52.8304, not 37.1000
+```
+
+The last line is the one that closes the gap: the corrected distance reaches the
+rendered readout, not just the helper.
+
 ### The catch is loud here
 
 `endurance.html`'s WebGL catch calls `console.error(e)` before falling back.
