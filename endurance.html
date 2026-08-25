@@ -7963,7 +7963,48 @@ globalThis.LEIP_DATA = {
   distanceBasis: 'corrected',
 
 
-  nav: { routeFactor: 1.0 }    // sea-lane geometry is already the true path
+  nav: { routeFactor: 1.0 },   // sea-lane geometry is already the true path
+
+  // ================================================================
+  // ENDURANCE — every constant from ENX50_endurance_scoring_spec.md.
+  // Nothing here is inlined at a call site; the model reads this block.
+  // ================================================================
+  endurance: {
+    // §1 Energy model. One fixed budget, no mid-charter recharge.
+    batteryCapacityKwh: 50000,
+    hotelAnchorKw: 188.6,        // Propulsive Power Requirement, 0 kn row
+    hotelUnderwayKw: 162.8,      // same table, the 8/11/14 kn rows
+    // Three speeds, and ONLY three. §5 is explicit that the curve must not
+    // be extended below 8 kn: extrapolation puts the cheapest mile near
+    // 5.2 kn, and below about 3.6 kn underway draw falls under anchor
+    // draw, which would make moving cheaper than sitting still. The 8 kn
+    // floor is load-bearing, not a rounding of the data.
+    speeds: [8, 11, 14],
+    propKw: {
+      8: 291.46688556113304,
+      11: 771.7994251386181,
+      14: 1845.8204811843182
+    },
+
+    // §2 Baseline, anchored on the 28-charter AIS set.
+    baseDays: 7.0,
+    baseNm: 362.0,               // MEDIAN of the 28 observed charters
+    // ASSUMPTION, not observation. Every other baseline is derived from
+    // the AIS set; this one is a stand-in (spec §7.1). If BOAT Pro can
+    // yield a median count of distinct stops per charter, substitute it
+    // and re-derive the fixtures — the fixtures move with it.
+    basePois: 6,
+
+    // §3 Grid bonus, from the Locations sheet's Category column, applied
+    // once on the terminal charge. Additive so it reads as its own
+    // decision rather than a distortion of the index. Never rendered as a
+    // leaf, an eco rating or "green points" — it is a measured grid
+    // intensity in gCO2e/kWh and is presented as one.
+    gridBonus: { green: 12, blue: 6, grey: 0, brown: 0 },
+
+    // §6 tolerance for the regression fixtures.
+    fixtureTolerance: 0.2
+  }
 
 };
 </script>
@@ -8094,6 +8135,279 @@ globalThis.LEIP_ENGINE = (function () {
     getLegCorrection: getLegCorrection,
     matrixNm: matrixNm,
     legNm: legNm
+  };
+})();
+</script>
+
+<!-- ================================================================
+     ENDURANCE BLOCK — the whole of ENX50_endurance_scoring_spec.md §1-4.
+     Pure: no DOM, no THREE, no RNG, no clock, no live data. Given an
+     itinerary it returns the same numbers every time, which is §5's hard
+     requirement and the reason a player who strands can always be shown
+     the arithmetic that stranded them.
+     ================================================================ -->
+<script id="enx50-endurance">
+globalThis.ENX50_ENDURANCE = (function () {
+  'use strict';
+
+  function C() { return globalThis.LEIP_DATA.endurance; }
+
+  // ---------------------------------------------------------------- §1
+  // The energy model.
+  //
+  //   underway_hours = sum(nm / speed)
+  //   anchor_hours   = 24 * days - underway_hours
+  //   E = sum((nm / speed) * (HOTEL_UNDERWAY + PROP[speed]))
+  //     + anchor_hours * HOTEL_ANCHOR
+  //
+  // An itinerary whose underway time exceeds its elapsed days is INVALID,
+  // not penalised: anchor_hours would go negative and the run would be
+  // claiming hours it does not have. The caller is told; nothing is
+  // scored. (Spec §1.)
+  //
+  // legs are { nm, speed } in NAVIGATED nautical miles. The correction
+  // matrix converts point-to-point geometry to navigated distance and is
+  // applied when legs are built from stops — see legsFromStops — never
+  // here, or it would be applied twice (spec §7.2).
+  function model(itin) {
+    var c = C();
+    var days = Number(itin && itin.days);
+    var legs = (itin && itin.legs) || [];
+    var stops = (itin && itin.stops) || [];
+
+    if (!(days >= 0)) return invalid('days must be a non-negative number');
+
+    var underway = 0, energy = 0, distance = 0;
+    for (var i = 0; i < legs.length; i++) {
+      var nm = Number(legs[i].nm), sp = Number(legs[i].speed);
+      if (!(nm >= 0)) return invalid('leg ' + i + ': nm must be a non-negative number');
+      if (c.propKw[sp] === undefined) {
+        return invalid('leg ' + i + ': speed ' + sp + ' is not one of ' + c.speeds.join('/') + ' kn');
+      }
+      var h = sp > 0 ? nm / sp : 0;
+      underway += h;
+      energy += h * (c.hotelUnderwayKw + c.propKw[sp]);
+      distance += nm;
+    }
+
+    var anchor = 24 * days - underway;
+    if (anchor < 0) {
+      return invalid('underway_hours ' + round(underway, 2) + ' exceeds 24 x ' + days +
+        ' = ' + round(24 * days, 2) + ' elapsed hours');
+    }
+    energy += anchor * c.hotelAnchorKw;
+
+    // §3: distinct locations only. A revisit adds nothing — without this
+    // the optimal play degenerates into a two-port shuttle.
+    var seen = {}, unique = 0;
+    for (var j = 0; j < stops.length; j++) {
+      if (!Object.prototype.hasOwnProperty.call(seen, stops[j])) { seen[stops[j]] = 1; unique++; }
+    }
+
+    // §4: over budget is not a failure to complete. The Passage Extender
+    // covers the shortfall and the run finishes, tagged.
+    var stranded = energy > c.batteryCapacityKwh;
+
+    return {
+      valid: true, error: null,
+      energy_kwh: energy,
+      underway_hours: underway,
+      anchor_hours: anchor,
+      distance_nm: distance,
+      unique_pois: unique,
+      stranded: stranded,
+      pe_mwh_delivered: stranded ? (energy - c.batteryCapacityKwh) / 1000 : 0
+    };
+  }
+
+  function invalid(msg) {
+    return {
+      valid: false, error: msg,
+      energy_kwh: null, underway_hours: null, anchor_hours: null,
+      distance_nm: null, unique_pois: null, stranded: false, pe_mwh_delivered: 0
+    };
+  }
+  function round(v, dp) { var m = Math.pow(10, dp); return Math.round(v * m) / m; }
+
+  // ---------------------------------------------------------------- §3
+  // The score.
+  //
+  //   balance     = (d * n * p) ** (1/3)      d,n,p vs the baselines
+  //   utilisation = min(E / CAPACITY, 1.0)
+  //   score       = 100 * balance * utilisation + grid_bonus
+  //
+  // GEOMETRIC MEAN, not a sum. A zero on any axis produces a zero score:
+  // that is what stops a player parking in one port for eleven days, and
+  // equally stops a pure distance dash. A stationary run scores zero, and
+  // there is no floor on distance to soften it.
+  //
+  // UTILISATION IS A MULTIPLIER, not a bonus. Finishing at 74% used caps
+  // the run at 74% of what the route earned; unspent capacity is a
+  // planning failure, not prudence.
+  function score(res, terminalCategory) {
+    var c = C();
+    if (!res || !res.valid) return { valid: false, error: res && res.error, score: null };
+
+    var d = res.distance_nm, u = res.unique_pois;
+    var days = (res.underway_hours + res.anchor_hours) / 24;
+    var balance = Math.pow((days / c.baseDays) * (d / c.baseNm) * (u / c.basePois), 1 / 3);
+    var utilisation = Math.min(res.energy_kwh / c.batteryCapacityKwh, 1.0);
+
+    // §4: no bonus is awarded to a stranded run.
+    var key = String(terminalCategory || '').toLowerCase();
+    var bonus = res.stranded ? 0 : (c.gridBonus[key] || 0);
+
+    return {
+      valid: true, error: null,
+      balance: balance,
+      utilisation: utilisation,
+      grid_bonus: bonus,
+      score: 100 * balance * utilisation + bonus,
+      // §4 tier separation. ALL PE runs sort below ALL ENX-only runs
+      // whatever the raw score. This is a tier, not a deduction: a charter
+      // that needed the Extender was planned wrong and no amount of
+      // distance redeems it.
+      tier: res.stranded ? 'PE' : 'ENX',
+      pe_mwh_delivered: res.pe_mwh_delivered
+    };
+  }
+
+  // Leaderboard order: tier first, then score. §4 again — the tier is not
+  // a tiebreak, it partitions the board.
+  function compare(a, b) {
+    if (a.tier !== b.tier) return a.tier === 'ENX' ? -1 : 1;
+    return b.score - a.score;
+  }
+
+  // A stranded run always registers utilisation 1.0, which flatters the
+  // raw number slightly. The spec calls this a known artefact and forbids
+  // "fixing" it by penalising utilisation, which would double-count
+  // against the tier separation that already handles it.
+
+  // ---------------------------------------------------------------- legs
+  // Build legs from an ordered stop list. THIS is where the per-leg
+  // correction matrix is applied, converting point-to-point geometry into
+  // navigated distance. Fixture inputs are already navigated nm from the
+  // AIS set and must NOT come through here (spec §7.2).
+  function legsFromStops(stops, speeds) {
+    var out = [];
+    for (var i = 0; i + 1 < stops.length; i++) {
+      out.push({
+        from: stops[i], to: stops[i + 1],
+        nm: globalThis.LEIP_ENGINE.legNm(stops[i], stops[i + 1]),
+        speed: Array.isArray(speeds) ? speeds[i] : speeds
+      });
+    }
+    return out;
+  }
+
+  // What one more leg would cost, before the player commits to it (§5).
+  function legCostKwh(nm, speed) {
+    var c = C();
+    if (c.propKw[speed] === undefined) return null;
+    return (nm / speed) * (c.hotelUnderwayKw + c.propKw[speed]);
+  }
+
+  // ---------------------------------------------------------------- §6
+  // The eight regression fixtures, verbatim from the spec except the last.
+  //
+  // GO-NOWHERE IS AMENDED. The spec table published balance 0.042 and
+  // score 4.2 for a run that never moves. That row was computed with
+  // 0.1 nm standing in as a divide-by-zero guard and the artefact reached
+  // the table: at 0.102 nm the arithmetic reproduces 0.042 exactly. §3's
+  // prose is authoritative and says the opposite — "a zero on any axis
+  // produces a zero score", given as the very mechanism that stops a
+  // player parking in one port for eleven days, which is this fixture.
+  // There is no distance floor in the model and none should be added.
+  // Corrected to 0.000 / 0.0 on the spec author's confirmation.
+  //
+  // Distances here are NAVIGATED nm straight from the AIS set, so they
+  // are passed to model() as-is and never through legsFromStops — the
+  // correction matrix would apply a second time (spec §7.2).
+  var FIXTURES = [
+    { name: 'Fleet median @ 8 kn', days: 7.00, pois: 6, terminal: 'blue',
+      legs: [{ nm: 362, speed: 8 }],
+      expect: { energy: 43.7, util: 0.87, balance: 1.000, score: 93.4 } },
+    { name: 'Fleet median @ observed mix', days: 7.00, pois: 6, terminal: 'blue',
+      legs: [{ nm: 34, speed: 14 }, { nm: 287, speed: 11 }, { nm: 41, speed: 8 }],
+      expect: { energy: 56.9, util: 1.00, balance: 1.000, score: 100.0, pe: 6.9 } },
+    { name: 'Balanced optimum', days: 5.52, pois: 6, terminal: 'blue',
+      legs: [{ nm: 753, speed: 8 }],
+      expect: { energy: 50.0, util: 1.00, balance: 1.179, score: 123.9 } },
+    { name: 'Hero', days: 5.52, pois: 12, terminal: 'green',
+      legs: [{ nm: 753, speed: 8 }],
+      expect: { energy: 50.0, util: 1.00, balance: 1.486, score: 160.6 } },
+    { name: 'Max distance', days: 4.58, pois: 8, terminal: 'blue',
+      legs: [{ nm: 879, speed: 8 }],
+      expect: { energy: 49.9, util: 1.00, balance: 1.284, score: 134.2 } },
+    { name: 'Timid', days: 6.00, pois: 5, terminal: 'blue',
+      legs: [{ nm: 300, speed: 8 }],
+      expect: { energy: 37.1, util: 0.74, balance: 0.840, score: 68.3 } },
+    { name: 'Dash', days: 1.03, pois: 2, terminal: 'grey',
+      legs: [{ nm: 346, speed: 14 }],
+      expect: { energy: 49.6, util: 0.99, balance: 0.361, score: 35.8 } },
+    { name: 'Go-nowhere', days: 11.04, pois: 1, terminal: 'grey',
+      legs: [],
+      expect: { energy: 49.97, util: 1.00, balance: 0.000, score: 0.0 } }
+  ];
+
+  // The fixtures name a POI COUNT rather than a stop list, so synthesise
+  // that many distinct stop names. unique_pois counts distinct entries and
+  // nothing else about a stop reaches the score, so this is exact rather
+  // than a stand-in.
+  function poiStops(n) {
+    var a = [];
+    for (var i = 0; i < n; i++) a.push('POI' + i);
+    return a;
+  }
+
+  function runFixtures() {
+    var tol = C().fixtureTolerance;
+    var rows = [], passed = 0, failed = 0;
+    for (var i = 0; i < FIXTURES.length; i++) {
+      var f = FIXTURES[i];
+      var res = model({ days: f.days, legs: f.legs, stops: poiStops(f.pois) });
+      var sc = score(res, f.terminal);
+      var got = {
+        energy: res.valid ? res.energy_kwh / 1000 : NaN,
+        util: sc.valid ? sc.utilisation : NaN,
+        balance: sc.valid ? sc.balance : NaN,
+        score: sc.valid ? sc.score : NaN
+      };
+      var cells = ['energy', 'util', 'balance', 'score'];
+      var ok = true;
+      for (var k = 0; k < cells.length; k++) {
+        if (!(Math.abs(got[cells[k]] - f.expect[cells[k]]) <= tol)) ok = false;
+      }
+      if (f.expect.pe !== undefined &&
+          !(Math.abs(res.pe_mwh_delivered - f.expect.pe) <= tol)) ok = false;
+      ok ? passed++ : failed++;
+      rows.push({
+        fixture: f.name,
+        'energy MWh': cell(got.energy, f.expect.energy, tol),
+        util: cell(got.util, f.expect.util, tol),
+        balance: cell(got.balance, f.expect.balance, tol),
+        score: cell(got.score, f.expect.score, tol),
+        tier: sc.tier + (res.stranded ? ' ' + fmt(res.pe_mwh_delivered, 2) + ' MWh' : ''),
+        '': ok ? 'PASS' : 'FAIL'
+      });
+    }
+    if (typeof console !== 'undefined') {
+      if (console.table) console.table(rows);
+      else rows.forEach(function (r) { console.log(JSON.stringify(r)); });
+      console.log(passed + ' passed, ' + failed + ' failed  (tolerance +/-' + tol + ')');
+    }
+    return { passed: passed, failed: failed, rows: rows };
+  }
+  function fmt(v, dp) { return (Math.round(v * Math.pow(10, dp)) / Math.pow(10, dp)).toFixed(dp); }
+  function cell(got, exp, tol) {
+    return fmt(got, 3) + ' vs ' + exp + (Math.abs(got - exp) <= tol ? '' : '  <-- OFF');
+  }
+
+  return {
+    model: model, score: score, compare: compare,
+    legsFromStops: legsFromStops, legCostKwh: legCostKwh,
+    runFixtures: runFixtures, FIXTURES: FIXTURES
   };
 })();
 </script>
